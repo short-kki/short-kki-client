@@ -1,19 +1,22 @@
 import { Tabs } from "expo-router";
-import { View } from "react-native";
-import { Home, Search, Calendar, User } from "lucide-react-native";
+import { View, Pressable } from "react-native";
+import { Home, CalendarDays, Plus, BookOpen, Users } from "lucide-react-native";
+import { Colors } from "@/constants/design-system";
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "#FF6B00",
-        tabBarInactiveTintColor: "#9CA3AF",
+        tabBarActiveTintColor: Colors.primary[500],
+        tabBarInactiveTintColor: Colors.neutral[400],
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: "#000000",
-          borderTopWidth: 0,
+          backgroundColor: "#FFFFFF",
+          borderTopWidth: 1,
+          borderTopColor: Colors.neutral[100],
           height: 85,
           paddingTop: 10,
+          paddingBottom: 20,
         },
         tabBarLabelStyle: {
           fontSize: 11,
@@ -27,9 +30,11 @@ export default function TabLayout() {
           title: "홈",
           tabBarIcon: ({ color, focused }) => (
             <View
-              className={`p-1 rounded-lg ${
-                focused ? "bg-orange-500/10" : "bg-transparent"
-              }`}
+              style={{
+                padding: 4,
+                borderRadius: 8,
+                backgroundColor: focused ? `${Colors.primary[500]}15` : "transparent",
+              }}
             >
               <Home size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
             </View>
@@ -37,52 +42,105 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="meal-plan"
         options={{
-          title: "탐색",
+          title: "식단표",
           tabBarIcon: ({ color, focused }) => (
             <View
-              className={`p-1 rounded-lg ${
-                focused ? "bg-orange-500/10" : "bg-transparent"
-              }`}
+              style={{
+                padding: 4,
+                borderRadius: 8,
+                backgroundColor: focused ? `${Colors.primary[500]}15` : "transparent",
+              }}
             >
-              <Search size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
+              <CalendarDays size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
             </View>
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="add"
+        options={{
+          title: "",
+          tabBarIcon: ({ focused }) => (
+            <View
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 24,
+                backgroundColor: Colors.primary[500],
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: 20,
+                shadowColor: Colors.primary[500],
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 8,
+              }}
+            >
+              <Plus size={28} color="#FFFFFF" strokeWidth={2.5} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="recipe-book"
+        options={{
+          title: "레시피북",
+          tabBarIcon: ({ color, focused }) => (
+            <View
+              style={{
+                padding: 4,
+                borderRadius: 8,
+                backgroundColor: focused ? `${Colors.primary[500]}15` : "transparent",
+              }}
+            >
+              <BookOpen size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="group"
+        options={{
+          title: "그룹",
+          tabBarIcon: ({ color, focused }) => (
+            <View
+              style={{
+                padding: 4,
+                borderRadius: 8,
+                backgroundColor: focused ? `${Colors.primary[500]}15` : "transparent",
+              }}
+            >
+              <Users size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
+            </View>
+          ),
+        }}
+      />
+      {/* Hidden screens - accessible via navigation but not in tab bar */}
+      <Tabs.Screen
+        name="shorts"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="explore"
+        options={{
+          href: null, // Hide from tab bar
         }}
       />
       <Tabs.Screen
         name="calendar"
         options={{
-          title: "식단",
-          tabBarIcon: ({ color, focused }) => (
-            <View
-              className={`p-1 rounded-lg ${
-                focused ? "bg-orange-500/10" : "bg-transparent"
-              }`}
-            >
-              <Calendar
-                size={24}
-                color={color}
-                strokeWidth={focused ? 2.5 : 2}
-              />
-            </View>
-          ),
+          href: null, // Hide from tab bar
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "프로필",
-          tabBarIcon: ({ color, focused }) => (
-            <View
-              className={`p-1 rounded-lg ${
-                focused ? "bg-orange-500/10" : "bg-transparent"
-              }`}
-            >
-              <User size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
-            </View>
-          ),
+          href: null, // Hide from tab bar
         }}
       />
     </Tabs>

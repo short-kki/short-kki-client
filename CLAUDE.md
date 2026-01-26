@@ -1,0 +1,94 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+Shortkki (숏끼) - A short-form recipe sharing and social meal calendar app built with React Native/Expo. Features TikTok/Reels-style vertical video UI for recipe discovery with YouTube Shorts integration.
+
+## Commands
+
+```bash
+npm install          # Install dependencies
+npm start            # Start Expo dev server
+npm run ios          # Run native iOS build (requires Xcode)
+npm run android      # Run native Android build (requires Android Studio)
+npm run web          # Run in web browser
+npm run lint         # Run ESLint
+```
+
+### EAS Build Commands
+```bash
+eas build --platform ios --profile development    # iOS simulator dev build
+eas build --platform android --profile development # Android dev build
+eas build --platform all --profile production     # Production build (both platforms)
+eas update --branch production --message "msg"   # OTA update (JS only)
+```
+
+Note: The development iOS profile builds for simulator only (`"simulator": true` in eas.json). For device testing, modify the profile or use preview.
+
+## Architecture
+
+### Tech Stack
+- **Framework**: React Native with Expo SDK 54
+- **Language**: TypeScript
+- **Styling**: NativeWind v4 (Tailwind CSS for React Native)
+- **Navigation**: Expo Router (file-based routing)
+- **Video**: react-native-youtube-iframe for YouTube Shorts playback
+- **Auth**: expo-auth-session for OAuth (Naver, Google), expo-secure-store for token storage
+- **Icons**: lucide-react-native
+
+### Key Directories
+- `app/` - Expo Router screens (file-based routing)
+- `app/(tabs)/` - Bottom tab navigator (5 tabs: 홈, 식단표, 추가, 레시피북, 그룹)
+- `components/feed/` - TikTok-style video feed components
+- `components/ui/` - Reusable UI components (Button, Card, Input, Tag, Header)
+- `contexts/` - React contexts (AuthContext for app-wide auth state)
+- `constants/` - Design tokens and OAuth configuration
+- `utils/` - Utilities for auth storage and YouTube URL parsing
+
+### Path Aliases
+Use `@/` for absolute imports from project root (e.g., `@/components/`, `@/contexts/`)
+
+### Video Feed Architecture
+The home screen uses a TikTok/Shorts-style vertical paging video feed:
+- `VideoFeed.tsx` - FlatList with `pagingEnabled` and snap-to-item scrolling
+- `VideoFeedItem.tsx` - Individual video player using react-native-youtube-iframe
+- Viewability-based playback: only the currently visible video plays (`onViewableItemsChanged` with 50% threshold)
+- Item height: `windowHeight - TAB_BAR_HEIGHT (85px)`
+- YouTube Shorts require `mute={true}` for autoplay (mobile OS policy)
+
+### Authentication Flow
+1. OAuth authorization code flow: Login screen → OAuth provider → `oauth/[...callback].tsx`
+2. Backend exchange: Send auth code to `/api/auth/{provider}` → Receive JWT tokens
+3. State management: `AuthContext` wraps app, auto-redirects based on auth state (protected routes in `(tabs)`)
+4. Token storage: `expo-secure-store` for secure persistence
+
+### Environment Configuration
+- `__DEV__` flag switches API URL: `localhost:8080` (dev) vs `api.shortkki.com` (prod)
+- `DEV_MODE.ENABLE_MOCK_LOGIN` in `constants/oauth.ts` enables mock login without backend
+
+## Design System
+
+### Colors (tailwind.config.js)
+- `primary` (#FA8112) - Warm Orange, main accent
+- `secondary` (#FFD23F) - Warm Yellow
+- `neutral` scale - Warm grays (50-900)
+- Semantic: `success`, `warning`, `error`, `info`
+
+### TypeScript Design Tokens
+Import from `@/constants/design-system`:
+- `Colors`, `Typography`, `Spacing`, `BorderRadius`, `Shadows`, `CommonStyles`
+
+### UI Guidelines
+- Minimal, bold, rounded aesthetic (Toss/Airbnb style)
+- Use `rounded-2xl` for rounded corners
+- Important buttons should be bottom-fixed
+- Immersive design: hide info, emphasize images
+- Tab bar: white background, 85px height, primary color for active state
+
+### Code Style
+- Prefer NativeWind classes for styling over inline styles
+- Use design tokens from `constants/design-system.ts` for consistency
+- Use lucide-react-native for all icons
+- Use `useSafeAreaInsets()` for safe area handling
