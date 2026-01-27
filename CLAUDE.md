@@ -40,15 +40,31 @@ Note: The development iOS profile builds for simulator only (`"simulator": true`
 
 ### Key Directories
 - `app/` - Expo Router screens (file-based routing)
-- `app/(tabs)/` - Bottom tab navigator (5 tabs: 홈, 식단표, 추가, 레시피북, 그룹)
+- `app/(tabs)/` - Bottom tab navigator (5 visible tabs: 홈, 식단표, 추가, 레시피북, 그룹; hidden: shorts, explore, calendar, profile)
 - `components/feed/` - TikTok-style video feed components
 - `components/ui/` - Reusable UI components (Button, Card, Input, Tag, Header)
 - `contexts/` - React contexts (AuthContext for app-wide auth state)
 - `constants/` - Design tokens and OAuth configuration
 - `utils/` - Utilities for auth storage and YouTube URL parsing
+- `hooks/` - Custom hooks that abstract data fetching (groups, shorts, recipes)
+- `services/` - API client (`api.ts` with fetch wrapper)
+- `data/mock/` - Mock data for development (groups, shorts, recipes)
 
 ### Path Aliases
 Use `@/` for absolute imports from project root (e.g., `@/components/`, `@/contexts/`)
+
+### Data Layer Pattern
+The app uses a mock-first pattern for development without a backend:
+1. **Hooks** (`hooks/useGroups.ts`, `useShorts.ts`, `useRecipes.ts`) - Abstract data fetching with loading/error states
+2. **Mock toggle**: `USE_MOCK` in `services/api.ts` (defaults to `__DEV__`)
+3. **Mock data**: `data/mock/` contains typed mock data matching API contracts
+4. **Server migration**: Set `USE_MOCK = false` and implement API endpoints - hooks auto-switch
+
+Example hook usage:
+```typescript
+import { useGroups, useGroupFeeds } from '@/hooks';
+const { groups, loading, error, refetch } = useGroups();
+```
 
 ### Video Feed Architecture
 The home screen uses a TikTok/Shorts-style vertical paging video feed:

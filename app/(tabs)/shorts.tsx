@@ -25,6 +25,7 @@ import {
   ArrowLeft,
   MoreVertical,
   Play,
+  ScrollText,
 } from "lucide-react-native";
 import { Colors } from "@/constants/design-system";
 import { extractYoutubeId } from "@/utils/youtube";
@@ -102,13 +103,14 @@ interface VideoItemProps {
   itemHeight: number;
   onMuteToggle: () => void;
   isMuted: boolean;
+  onViewRecipe: () => void;
   onAddToRecipeBook: () => void;
   onAddToMealPlan: () => void;
   onShare: () => void;
 }
 
 // 개별 비디오 아이템 컴포넌트 (프로토타입 - 썸네일 기반)
-function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onAddToRecipeBook, onAddToMealPlan, onShare }: VideoItemProps) {
+function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRecipe, onAddToRecipeBook, onAddToMealPlan, onShare }: VideoItemProps) {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarkCount, setBookmarkCount] = useState(item.bookmarks);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -268,6 +270,35 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onAddToR
           zIndex: 10,
         }}
       >
+        {/* 레시피 확인 */}
+        <TouchableOpacity onPress={onViewRecipe} activeOpacity={0.8} style={{ alignItems: "center" }}>
+          <View
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              backgroundColor: Colors.primary[500],
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <ScrollText size={26} color="#FFF" />
+          </View>
+          <Text
+            style={{
+              color: "#FFF",
+              fontSize: 11,
+              fontWeight: "600",
+              marginTop: 4,
+              textShadowColor: "rgba(0,0,0,0.5)",
+              textShadowOffset: { width: 0, height: 1 },
+              textShadowRadius: 2,
+            }}
+          >
+            레시피
+          </Text>
+        </TouchableOpacity>
+
         {/* 북마크 */}
         <Pressable onPress={toggleBookmark} style={{ alignItems: "center" }}>
           <View
@@ -391,6 +422,10 @@ export default function ShortsScreen() {
     setIsMuted((prev) => !prev);
   }, []);
 
+  const handleViewRecipe = useCallback((recipeId: string) => {
+    router.push(`/recipe/${recipeId}`);
+  }, [router]);
+
   const handleAddToRecipeBook = useCallback((title: string) => {
     Alert.alert(
       "레시피북에 저장",
@@ -442,12 +477,13 @@ export default function ShortsScreen() {
         itemHeight={ITEM_HEIGHT}
         onMuteToggle={toggleMute}
         isMuted={isMuted}
+        onViewRecipe={() => handleViewRecipe(item.id)}
         onAddToRecipeBook={() => handleAddToRecipeBook(item.title)}
         onAddToMealPlan={() => handleAddToMealPlan(item.title)}
         onShare={() => handleShare(item.title)}
       />
     ),
-    [activeIndex, isMuted, toggleMute, handleAddToRecipeBook, handleAddToMealPlan, handleShare]
+    [activeIndex, isMuted, toggleMute, handleViewRecipe, handleAddToRecipeBook, handleAddToMealPlan, handleShare]
   );
 
   const keyExtractor = useCallback((item: typeof SHORTS_DATA[0]) => item.id, []);

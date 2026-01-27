@@ -80,7 +80,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const isLoggedIn = !!user;
 
     // 로그인 후에도 접근 가능한 페이지들
-    const allowedRoutes = ['design-showcase', 'search', 'notifications', 'settings', 'profile-edit', 'recipe'];
+    const allowedRoutes = ['design-showcase', 'search', 'notifications', 'settings', 'profile-edit', 'recipe', 'shopping-list', 'recipe-book-detail', 'group-members', 'group-edit', 'group-feed-create'];
 
     if (!isLoggedIn && inAuthGroup) {
       // 로그인 안 됨 + 보호된 영역 접근 시 → 로그인 화면으로

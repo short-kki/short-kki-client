@@ -66,7 +66,10 @@ async function sendCodeToServer(
     body.codeVerifier = codeVerifier;
   }
 
-  const response = await fetch(`${API_BASE_URL}/api/auth/${provider}`, {
+  // 백엔드 enum과 일치하도록 대문자로 변환 (NAVER, GOOGLE)
+  const providerUpperCase = provider.toUpperCase();
+
+  const response = await fetch(`${API_BASE_URL}/api/auth/${providerUpperCase}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

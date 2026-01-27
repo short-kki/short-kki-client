@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useRef, useState, useEffect } from "react";
 import { Dimensions, Text, View, TouchableOpacity, Pressable } from "react-native";
 import YoutubePlayer, { YoutubeIframeRef } from "react-native-youtube-iframe";
+import { useRouter } from "expo-router";
 import { extractYoutubeId } from "@/utils/youtube";
 import {
   Bookmark,
@@ -11,6 +12,7 @@ import {
   Volume2,
   ChefHat,
   CalendarPlus,
+  ScrollText,
 } from "lucide-react-native";
 import { Colors } from "@/constants/design-system";
 
@@ -31,6 +33,7 @@ interface VideoFeedItemProps {
 }
 
 function VideoFeedItem({ item, isActive, itemHeight }: VideoFeedItemProps) {
+  const router = useRouter();
   const videoId = extractYoutubeId(item.url);
   console.log("VideoFeedItem rendering, videoId:", videoId, "url:", item.url);
   const playerRef = useRef<YoutubeIframeRef>(null);
@@ -63,6 +66,11 @@ function VideoFeedItem({ item, isActive, itemHeight }: VideoFeedItemProps) {
     setIsBookmarked((prev) => !prev);
     setBookmarkCount((prev) => (isBookmarked ? prev - 1 : prev + 1));
   }, [isBookmarked]);
+
+  // 레시피 상세 페이지로 이동
+  const handleViewRecipe = useCallback(() => {
+    router.push(`/recipe/${item.id}`);
+  }, [router, item.id]);
 
   // 비디오 상태 변경 핸들러
   const handleStateChange = useCallback(
@@ -285,6 +293,35 @@ function VideoFeedItem({ item, isActive, itemHeight }: VideoFeedItemProps) {
           gap: 20,
         }}
       >
+        {/* View Recipe Button */}
+        <Pressable onPress={handleViewRecipe} style={{ alignItems: "center" }}>
+          <View
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              backgroundColor: Colors.primary[500],
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <ScrollText size={26} color="white" />
+          </View>
+          <Text
+            style={{
+              color: "white",
+              fontSize: 11,
+              fontWeight: "600",
+              marginTop: 4,
+              textShadowColor: "rgba(0,0,0,0.5)",
+              textShadowOffset: { width: 0, height: 1 },
+              textShadowRadius: 2,
+            }}
+          >
+            레시피
+          </Text>
+        </Pressable>
+
         {/* Bookmark Button */}
         <Pressable
           onPress={toggleBookmark}

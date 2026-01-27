@@ -1,0 +1,707 @@
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Pressable,
+  Modal,
+  Alert,
+} from "react-native";
+import { Image } from "expo-image";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import {
+  ArrowLeft,
+  UserPlus,
+  MoreVertical,
+  Crown,
+  Shield,
+  User,
+  UserMinus,
+  ShieldCheck,
+  ShieldOff,
+  Copy,
+} from "lucide-react-native";
+import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
+
+// 멤버 역할 타입
+type MemberRole = "owner" | "admin" | "member";
+
+// 멤버 데이터 타입
+interface Member {
+  id: string;
+  name: string;
+  avatar: string | null;
+  role: MemberRole;
+  joinedAt: string;
+}
+
+// 더미 멤버 데이터
+const DUMMY_MEMBERS: Record<string, Member[]> = {
+  "1": [
+    {
+      id: "m1",
+      name: "엄마",
+      avatar: "https://i.pravatar.cc/100?img=1",
+      role: "owner",
+      joinedAt: "2024년 1월",
+    },
+    {
+      id: "m2",
+      name: "아빠",
+      avatar: "https://i.pravatar.cc/100?img=2",
+      role: "admin",
+      joinedAt: "2024년 1월",
+    },
+    {
+      id: "m3",
+      name: "나",
+      avatar: "https://i.pravatar.cc/100?img=3",
+      role: "member",
+      joinedAt: "2024년 1월",
+    },
+    {
+      id: "m4",
+      name: "동생",
+      avatar: "https://i.pravatar.cc/100?img=4",
+      role: "member",
+      joinedAt: "2024년 2월",
+    },
+  ],
+  "2": [
+    {
+      id: "m5",
+      name: "요리왕",
+      avatar: "https://i.pravatar.cc/100?img=5",
+      role: "owner",
+      joinedAt: "2023년 12월",
+    },
+    {
+      id: "m6",
+      name: "맛집러버",
+      avatar: "https://i.pravatar.cc/100?img=6",
+      role: "admin",
+      joinedAt: "2024년 1월",
+    },
+    {
+      id: "m7",
+      name: "자취생A",
+      avatar: "https://i.pravatar.cc/100?img=7",
+      role: "member",
+      joinedAt: "2024년 1월",
+    },
+    {
+      id: "m8",
+      name: "자취생B",
+      avatar: "https://i.pravatar.cc/100?img=8",
+      role: "member",
+      joinedAt: "2024년 2월",
+    },
+    {
+      id: "m9",
+      name: "요리초보",
+      avatar: "https://i.pravatar.cc/100?img=9",
+      role: "member",
+      joinedAt: "2024년 2월",
+    },
+  ],
+  "3": [
+    {
+      id: "m10",
+      name: "다이어터",
+      avatar: "https://i.pravatar.cc/100?img=10",
+      role: "owner",
+      joinedAt: "2024년 1월",
+    },
+    {
+      id: "m11",
+      name: "헬스왕",
+      avatar: "https://i.pravatar.cc/100?img=11",
+      role: "member",
+      joinedAt: "2024년 1월",
+    },
+  ],
+};
+
+// 역할 배지 컴포넌트
+function RoleBadge({ role }: { role: MemberRole }) {
+  const getRoleConfig = () => {
+    switch (role) {
+      case "owner":
+        return {
+          icon: Crown,
+          label: "방장",
+          bgColor: Colors.secondary[100],
+          textColor: Colors.secondary[700],
+          iconColor: Colors.secondary[600],
+        };
+      case "admin":
+        return {
+          icon: Shield,
+          label: "관리자",
+          bgColor: Colors.primary[100],
+          textColor: Colors.primary[700],
+          iconColor: Colors.primary[600],
+        };
+      default:
+        return null;
+    }
+  };
+
+  const config = getRoleConfig();
+  if (!config) return null;
+
+  const IconComponent = config.icon;
+
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: config.bgColor,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: BorderRadius.full,
+        gap: 4,
+      }}
+    >
+      <IconComponent size={12} color={config.iconColor} />
+      <Text
+        style={{
+          fontSize: 11,
+          fontWeight: "600",
+          color: config.textColor,
+        }}
+      >
+        {config.label}
+      </Text>
+    </View>
+  );
+}
+
+// 멤버 카드 컴포넌트
+function MemberCard({
+  member,
+  onMenuPress,
+  isCurrentUser,
+}: {
+  member: Member;
+  onMenuPress: () => void;
+  isCurrentUser: boolean;
+}) {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: Colors.neutral[0],
+        paddingVertical: Spacing.md,
+        paddingHorizontal: Spacing.xl,
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.neutral[100],
+      }}
+    >
+      {/* 아바타 */}
+      {member.avatar ? (
+        <Image
+          source={{ uri: member.avatar }}
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 24,
+          }}
+          contentFit="cover"
+        />
+      ) : (
+        <View
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 24,
+            backgroundColor: Colors.primary[100],
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <User size={24} color={Colors.primary[500]} />
+        </View>
+      )}
+
+      {/* 정보 */}
+      <View style={{ flex: 1, marginLeft: Spacing.md }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Text
+            style={{
+              fontSize: Typography.fontSize.base,
+              fontWeight: "600",
+              color: Colors.neutral[900],
+            }}
+          >
+            {member.name}
+            {isCurrentUser && (
+              <Text style={{ color: Colors.neutral[400] }}> (나)</Text>
+            )}
+          </Text>
+          <RoleBadge role={member.role} />
+        </View>
+        <Text
+          style={{
+            fontSize: Typography.fontSize.sm,
+            color: Colors.neutral[500],
+            marginTop: 2,
+          }}
+        >
+          {member.joinedAt} 가입
+        </Text>
+      </View>
+
+      {/* 메뉴 버튼 (방장이 아닌 경우만) */}
+      {member.role !== "owner" && (
+        <TouchableOpacity
+          onPress={onMenuPress}
+          style={{ padding: 8 }}
+          activeOpacity={0.7}
+        >
+          <MoreVertical size={20} color={Colors.neutral[400]} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+export default function GroupMembersScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ groupId: string; groupName: string }>();
+
+  const groupId = params.groupId || "1";
+  const groupName = params.groupName || "그룹";
+  const members = DUMMY_MEMBERS[groupId] || [];
+
+  const [showMemberMenuModal, setShowMemberMenuModal] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+
+  // 현재 사용자 ID (실제로는 AuthContext에서 가져옴)
+  const currentUserId = "m3";
+
+  const handleMemberMenuPress = (member: Member) => {
+    setSelectedMember(member);
+    setShowMemberMenuModal(true);
+  };
+
+  const handleMemberMenuAction = (action: "makeAdmin" | "removeAdmin" | "kick") => {
+    if (!selectedMember) return;
+
+    setShowMemberMenuModal(false);
+
+    setTimeout(() => {
+      switch (action) {
+        case "makeAdmin":
+          Alert.alert(
+            "관리자 지정",
+            `${selectedMember.name}님을 관리자로 지정하시겠습니까?`,
+            [
+              { text: "취소", style: "cancel" },
+              { text: "확인", onPress: () => Alert.alert("완료", "관리자로 지정되었습니다.") },
+            ]
+          );
+          break;
+        case "removeAdmin":
+          Alert.alert(
+            "관리자 해제",
+            `${selectedMember.name}님의 관리자 권한을 해제하시겠습니까?`,
+            [
+              { text: "취소", style: "cancel" },
+              { text: "확인", onPress: () => Alert.alert("완료", "관리자 권한이 해제되었습니다.") },
+            ]
+          );
+          break;
+        case "kick":
+          Alert.alert(
+            "멤버 내보내기",
+            `${selectedMember.name}님을 그룹에서 내보내시겠습니까?`,
+            [
+              { text: "취소", style: "cancel" },
+              {
+                text: "내보내기",
+                style: "destructive",
+                onPress: () => Alert.alert("완료", "멤버가 그룹에서 내보내졌습니다."),
+              },
+            ]
+          );
+          break;
+      }
+    }, 200);
+  };
+
+  const handleInvite = () => {
+    Alert.alert("멤버 초대", "초대 링크가 클립보드에 복사되었습니다!", [
+      { text: "확인" },
+    ]);
+  };
+
+  // 역할별로 멤버 정렬 (방장 > 관리자 > 일반)
+  const sortedMembers = [...members].sort((a, b) => {
+    const roleOrder: Record<MemberRole, number> = { owner: 0, admin: 1, member: 2 };
+    return roleOrder[a.role] - roleOrder[b.role];
+  });
+
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: Colors.neutral[50],
+        paddingTop: insets.top,
+      }}
+    >
+      {/* 헤더 */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          borderBottomWidth: 1,
+          borderBottomColor: Colors.neutral[100],
+          backgroundColor: Colors.neutral[0],
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <Pressable
+            onPress={() => router.back()}
+            style={{ padding: 8, marginRight: 8 }}
+          >
+            <ArrowLeft size={24} color={Colors.neutral[900]} />
+          </Pressable>
+          <View>
+            <Text
+              style={{
+                fontSize: 20,
+                fontWeight: "700",
+                color: Colors.neutral[900],
+              }}
+            >
+              멤버 관리
+            </Text>
+            <Text
+              style={{
+                fontSize: 13,
+                color: Colors.neutral[500],
+                marginTop: 2,
+              }}
+            >
+              {groupName} · {members.length}명
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          onPress={handleInvite}
+          activeOpacity={0.7}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: Colors.primary[500],
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderRadius: BorderRadius.full,
+            gap: 6,
+          }}
+        >
+          <UserPlus size={18} color="#FFF" />
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "600",
+              color: "#FFF",
+            }}
+          >
+            초대
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* 멤버 목록 */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
+        {sortedMembers.map((member) => (
+          <MemberCard
+            key={member.id}
+            member={member}
+            onMenuPress={() => handleMemberMenuPress(member)}
+            isCurrentUser={member.id === currentUserId}
+          />
+        ))}
+
+        {members.length === 0 && (
+          <View
+            style={{
+              alignItems: "center",
+              paddingVertical: Spacing["4xl"],
+            }}
+          >
+            <User size={48} color={Colors.neutral[300]} />
+            <Text
+              style={{
+                fontSize: Typography.fontSize.lg,
+                fontWeight: "600",
+                color: Colors.neutral[500],
+                marginTop: Spacing.md,
+              }}
+            >
+              멤버가 없습니다
+            </Text>
+            <Text
+              style={{
+                fontSize: Typography.fontSize.sm,
+                color: Colors.neutral[400],
+                marginTop: Spacing.xs,
+              }}
+            >
+              초대 버튼을 눌러 멤버를 추가하세요
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* 멤버 메뉴 바텀시트 */}
+      <Modal visible={showMemberMenuModal} transparent animationType="slide">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "flex-end",
+          }}
+          onPress={() => setShowMemberMenuModal(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: Colors.neutral[0],
+              borderTopLeftRadius: BorderRadius.xl,
+              borderTopRightRadius: BorderRadius.xl,
+              paddingTop: Spacing.md,
+              paddingBottom: insets.bottom + Spacing.lg,
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* 핸들바 */}
+            <View
+              style={{
+                width: 36,
+                height: 4,
+                backgroundColor: Colors.neutral[300],
+                borderRadius: 2,
+                alignSelf: "center",
+                marginBottom: Spacing.lg,
+              }}
+            />
+
+            {/* 멤버 정보 */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: Spacing.xl,
+                paddingBottom: Spacing.lg,
+                borderBottomWidth: 1,
+                borderBottomColor: Colors.neutral[100],
+              }}
+            >
+              {selectedMember && (
+                <>
+                  {selectedMember.avatar ? (
+                    <Image
+                      source={{ uri: selectedMember.avatar }}
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 24,
+                      }}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <View
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 24,
+                        backgroundColor: Colors.primary[100],
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <User size={24} color={Colors.primary[500]} />
+                    </View>
+                  )}
+                  <View style={{ flex: 1, marginLeft: Spacing.md }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Text
+                        style={{
+                          fontSize: Typography.fontSize.lg,
+                          fontWeight: "700",
+                          color: Colors.neutral[900],
+                        }}
+                      >
+                        {selectedMember.name}
+                      </Text>
+                      <RoleBadge role={selectedMember.role} />
+                    </View>
+                    <Text
+                      style={{
+                        fontSize: Typography.fontSize.sm,
+                        color: Colors.neutral[500],
+                        marginTop: 2,
+                      }}
+                    >
+                      {selectedMember.joinedAt} 가입
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
+
+            {/* 메뉴 옵션들 */}
+            <View style={{ paddingTop: Spacing.sm }}>
+              {/* 관리자 지정/해제 */}
+              {selectedMember?.role === "admin" ? (
+                <TouchableOpacity
+                  onPress={() => handleMemberMenuAction("removeAdmin")}
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: Spacing.md,
+                    paddingHorizontal: Spacing.xl,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: Colors.neutral[100],
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <ShieldOff size={20} color={Colors.neutral[700]} />
+                  </View>
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontSize: Typography.fontSize.base,
+                      fontWeight: "500",
+                      color: Colors.neutral[900],
+                      marginLeft: Spacing.md,
+                    }}
+                  >
+                    관리자 해제
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => handleMemberMenuAction("makeAdmin")}
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: Spacing.md,
+                    paddingHorizontal: Spacing.xl,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: Colors.primary[100],
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <ShieldCheck size={20} color={Colors.primary[600]} />
+                  </View>
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontSize: Typography.fontSize.base,
+                      fontWeight: "500",
+                      color: Colors.neutral[900],
+                      marginLeft: Spacing.md,
+                    }}
+                  >
+                    관리자로 지정
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* 내보내기 */}
+              <TouchableOpacity
+                onPress={() => handleMemberMenuAction("kick")}
+                activeOpacity={0.7}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingVertical: Spacing.md,
+                  paddingHorizontal: Spacing.xl,
+                }}
+              >
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: Colors.error.light,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <UserMinus size={20} color={Colors.error.main} />
+                </View>
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "500",
+                    color: Colors.error.main,
+                    marginLeft: Spacing.md,
+                  }}
+                >
+                  그룹에서 내보내기
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* 취소 버튼 */}
+            <View style={{ paddingHorizontal: Spacing.xl, paddingTop: Spacing.md }}>
+              <TouchableOpacity
+                onPress={() => setShowMemberMenuModal(false)}
+                activeOpacity={0.8}
+                style={{
+                  backgroundColor: Colors.neutral[100],
+                  borderRadius: BorderRadius.lg,
+                  paddingVertical: Spacing.md,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "600",
+                    color: Colors.neutral[700],
+                  }}
+                >
+                  취소
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
