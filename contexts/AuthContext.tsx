@@ -23,6 +23,7 @@ import {
   clearAuthData,
   isLoggedIn as checkIsLoggedIn,
 } from '@/utils/auth-storage';
+import { pushNotificationService } from '@/services/pushNotification';
 
 // ============================================================================
 // TYPES
@@ -101,6 +102,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (authData) {
         setUser(authData.user);
         setTokens(authData.tokens);
+        // 기존 로그인 상태면 푸시 토큰 등록
+        pushNotificationService.registerToken();
       }
     } catch (error) {
       console.error('Failed to load auth state:', error);
@@ -117,6 +120,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await saveAuthData(data);
       setUser(data.user);
       setTokens(data.tokens);
+      // 푸시 토큰 등록
+      pushNotificationService.registerToken();
     } catch (error) {
       console.error('Failed to sign in:', error);
       throw error;
@@ -128,6 +133,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
    */
   const signOut = useCallback(async () => {
     try {
+      // 푸시 토큰 삭제
+      await pushNotificationService.unregisterToken();
       await clearAuthData();
       setUser(null);
       setTokens(null);

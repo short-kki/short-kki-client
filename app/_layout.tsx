@@ -3,14 +3,24 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator } from "react-native";
+import { useEffect } from "react";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { Colors } from "@/constants/design-system";
+import { pushNotificationService } from "@/services/pushNotification";
 
 function RootLayoutNav() {
   const { isLoading } = useAuth();
+
+  // 푸시 알림 초기화
+  useEffect(() => {
+    pushNotificationService.initialize();
+    pushNotificationService.handleInitialNotification();
+
+    return () => pushNotificationService.cleanup();
+  }, []);
 
   // 인증 상태 로딩 중일 때 스플래시 표시
   if (isLoading) {

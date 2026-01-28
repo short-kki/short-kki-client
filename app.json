@@ -11,6 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.short-kki-client",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleURLTypes": [
@@ -19,11 +20,13 @@
               "com.googleusercontent.apps.6350831070-agbndp2mc029cemdtv2ekqlemrne04ik"
             ]
           }
-        ]
+        ],
+        "UIBackgroundModes": ["remote-notification"]
       }
     },
     "android": {
       "package": "com.anonymous.shortkki",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -65,7 +68,14 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#FA8112"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
