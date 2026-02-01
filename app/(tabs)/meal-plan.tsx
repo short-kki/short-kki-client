@@ -17,7 +17,6 @@ import {
   Plus,
   ChefHat,
   Flame,
-  BookmarkCheck,
   Clock,
   Sparkles,
   Check,
@@ -210,10 +209,6 @@ export default function MealPlanScreen() {
 
   const handleRecommendationPress = (recipeId: string) => {
     router.push(`/recipe/${recipeId}`);
-  };
-
-  const handleFloatingButtonPress = () => {
-    router.push("/(tabs)/recipe-book");
   };
 
   return (
@@ -690,30 +685,6 @@ export default function MealPlanScreen() {
           </ScrollView>
         </View>
       </ScrollView>
-
-      {/* 플로팅 액션 버튼 */}
-      <TouchableOpacity
-        activeOpacity={0.8}
-        onPress={handleFloatingButtonPress}
-        style={{
-          position: "absolute",
-          bottom: insets.bottom + 100,
-          right: Spacing.xl,
-          width: 56,
-          height: 56,
-          borderRadius: 28,
-          backgroundColor: Colors.primary[500],
-          justifyContent: "center",
-          alignItems: "center",
-          shadowColor: Colors.primary[500],
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 8,
-          elevation: 8,
-        }}
-      >
-        <BookmarkCheck size={24} color="#FFFFFF" />
-      </TouchableOpacity>
     </View>
   );
 }

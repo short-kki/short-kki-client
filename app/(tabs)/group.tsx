@@ -24,14 +24,15 @@ import {
   UserPlus,
   Calendar,
   ShoppingCart,
-  Bookmark,
-  Settings,
+  BookOpen,
   Edit3,
   Trash2,
   LogOut,
   PenSquare,
   Heart,
   BookmarkPlus,
+  Copy,
+  Share2,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { useGroups, useGroupFeeds } from "@/hooks";
@@ -54,6 +55,9 @@ export default function GroupScreen() {
   const [newGroupName, setNewGroupName] = useState("");
   const [showGroupMenuModal, setShowGroupMenuModal] = useState(false);
   const [menuTargetGroup, setMenuTargetGroup] = useState<Group | null>(null);
+  const [showFeedMenuModal, setShowFeedMenuModal] = useState(false);
+  const [selectedFeedId, setSelectedFeedId] = useState<string | null>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   const handleCreateGroup = () => {
     if (!newGroupName.trim()) {
@@ -140,8 +144,16 @@ export default function GroupScreen() {
           params: { groupId: selectedGroup?.id, groupName: selectedGroup?.name },
         });
         break;
-      case "북마크":
-        router.push("/(tabs)/recipe-book");
+      case "레시피북":
+        // 해당 그룹의 기본 레시피북으로 직접 이동
+        router.push({
+          pathname: "/recipe-book-detail",
+          params: {
+            bookId: `g${selectedGroup?.id}-default`,
+            groupId: selectedGroup?.id,
+            groupName: selectedGroup?.name
+          },
+        });
         break;
       case "멤버관리":
         router.push({
@@ -157,9 +169,53 @@ export default function GroupScreen() {
   };
 
   const handleInviteMember = () => {
-    Alert.alert("멤버 초대", "초대 링크가 복사되었습니다!", [
-      { text: "확인" },
-    ]);
+    setShowInviteModal(true);
+  };
+
+  const handleCopyInviteLink = () => {
+    // 실제로는 클립보드에 복사
+    Alert.alert("복사 완료", "초대 링크가 복사되었습니다!");
+    setShowInviteModal(false);
+  };
+
+  const handleFeedMenuPress = (feedId: string) => {
+    setSelectedFeedId(feedId);
+    setShowFeedMenuModal(true);
+  };
+
+  const handleFeedMenuAction = (action: "edit" | "delete") => {
+    setShowFeedMenuModal(false);
+
+    setTimeout(() => {
+      if (action === "edit") {
+        // 수정 화면으로 이동
+        router.push({
+          pathname: "/group-feed-create",
+          params: {
+            groupId: selectedGroup?.id,
+            groupName: selectedGroup?.name,
+            feedId: selectedFeedId,
+            isEdit: "true"
+          },
+        });
+      } else if (action === "delete") {
+        Alert.alert(
+          "게시물 삭제",
+          "이 게시물을 삭제하시겠습니까?",
+          [
+            { text: "취소", style: "cancel" },
+            {
+              text: "삭제",
+              style: "destructive",
+              onPress: () => {
+                // 실제로는 서버에서 삭제
+                Alert.alert("삭제 완료", "게시물이 삭제되었습니다.");
+              },
+            },
+          ]
+        );
+      }
+    }, 200);
   };
 
   const handleCreateFeed = () => {
@@ -218,8 +274,8 @@ export default function GroupScreen() {
             {[
               { icon: Calendar, label: "식단표" },
               { icon: ShoppingCart, label: "장볼거리" },
-              { icon: Bookmark, label: "북마크" },
-              { icon: Settings, label: "멤버관리" },
+              { icon: BookOpen, label: "레시피북" },
+              { icon: Users, label: "멤버관리" },
             ].map((item, index) => (
               <TouchableOpacity
                 key={index}
@@ -255,17 +311,6 @@ export default function GroupScreen() {
             contentContainerStyle={{ padding: Spacing.xl }}
             showsVerticalScrollIndicator={false}
           >
-            <Text
-              style={{
-                fontSize: Typography.fontSize.base,
-                fontWeight: Typography.fontWeight.semiBold,
-                color: Colors.neutral[700],
-                marginBottom: Spacing.md,
-              }}
-            >
-              최근 활동
-            </Text>
-
             {feeds.map((item) => (
               <View
                 key={item.id}
@@ -330,6 +375,7 @@ export default function GroupScreen() {
                         </Text>
                       </View>
                       <TouchableOpacity
+                        onPress={() => handleFeedMenuPress(item.id)}
                         style={{
                           padding: Spacing.xs,
                           backgroundColor: Colors.neutral[100],
@@ -989,6 +1035,277 @@ export default function GroupScreen() {
                   }}
                 >
                   취소
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 피드 메뉴 바텀시트 */}
+      <Modal visible={showFeedMenuModal} transparent animationType="slide">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "flex-end",
+          }}
+          onPress={() => setShowFeedMenuModal(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: Colors.neutral[0],
+              borderTopLeftRadius: BorderRadius.xl,
+              borderTopRightRadius: BorderRadius.xl,
+              paddingTop: Spacing.md,
+              paddingBottom: insets.bottom + Spacing.lg,
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* 핸들바 */}
+            <View
+              style={{
+                width: 36,
+                height: 4,
+                backgroundColor: Colors.neutral[300],
+                borderRadius: 2,
+                alignSelf: "center",
+                marginBottom: Spacing.lg,
+              }}
+            />
+
+            {/* 메뉴 옵션들 */}
+            <View style={{ paddingTop: Spacing.sm }}>
+              {/* 수정 */}
+              <TouchableOpacity
+                onPress={() => handleFeedMenuAction("edit")}
+                activeOpacity={0.7}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingVertical: Spacing.md,
+                  paddingHorizontal: Spacing.xl,
+                }}
+              >
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: Colors.neutral[100],
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Edit3 size={20} color={Colors.neutral[700]} />
+                </View>
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "500",
+                    color: Colors.neutral[900],
+                    marginLeft: Spacing.md,
+                  }}
+                >
+                  수정
+                </Text>
+              </TouchableOpacity>
+
+              {/* 삭제 */}
+              <TouchableOpacity
+                onPress={() => handleFeedMenuAction("delete")}
+                activeOpacity={0.7}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingVertical: Spacing.md,
+                  paddingHorizontal: Spacing.xl,
+                }}
+              >
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: Colors.error.light,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Trash2 size={20} color={Colors.error.main} />
+                </View>
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "500",
+                    color: Colors.error.main,
+                    marginLeft: Spacing.md,
+                  }}
+                >
+                  삭제
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* 취소 버튼 */}
+            <View style={{ paddingHorizontal: Spacing.xl, paddingTop: Spacing.md }}>
+              <TouchableOpacity
+                onPress={() => setShowFeedMenuModal(false)}
+                activeOpacity={0.8}
+                style={{
+                  backgroundColor: Colors.neutral[100],
+                  borderRadius: BorderRadius.lg,
+                  paddingVertical: Spacing.md,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "600",
+                    color: Colors.neutral[700],
+                  }}
+                >
+                  취소
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 초대 모달 */}
+      <Modal visible={showInviteModal} transparent animationType="fade">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={() => setShowInviteModal(false)}
+        >
+          <Pressable
+            style={{
+              width: "85%",
+              backgroundColor: Colors.neutral[0],
+              borderRadius: BorderRadius.xl,
+              padding: Spacing.xl,
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: Spacing.lg,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: Typography.fontSize.xl,
+                  fontWeight: Typography.fontWeight.bold,
+                  color: Colors.neutral[900],
+                }}
+              >
+                멤버 초대
+              </Text>
+              <Pressable onPress={() => setShowInviteModal(false)}>
+                <X size={24} color={Colors.neutral[400]} />
+              </Pressable>
+            </View>
+
+            {/* 초대 링크 */}
+            <Text
+              style={{
+                fontSize: Typography.fontSize.sm,
+                color: Colors.neutral[600],
+                marginBottom: Spacing.sm,
+              }}
+            >
+              초대 링크
+            </Text>
+            <View
+              style={{
+                backgroundColor: Colors.neutral[50],
+                borderWidth: 1,
+                borderColor: Colors.neutral[200],
+                borderRadius: BorderRadius.lg,
+                padding: Spacing.md,
+                flexDirection: "row",
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  flex: 1,
+                  fontSize: Typography.fontSize.sm,
+                  color: Colors.neutral[600],
+                }}
+                numberOfLines={1}
+              >
+                shortkki.com/invite/{selectedGroup?.id || "abc123"}
+              </Text>
+            </View>
+
+            {/* 버튼들 */}
+            <View style={{ gap: Spacing.sm, marginTop: Spacing.lg }}>
+              {/* 링크 복사 */}
+              <TouchableOpacity
+                onPress={handleCopyInviteLink}
+                activeOpacity={0.8}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: Colors.primary[500],
+                  borderRadius: BorderRadius.lg,
+                  paddingVertical: Spacing.md,
+                  gap: Spacing.sm,
+                }}
+              >
+                <Copy size={18} color="#FFFFFF" />
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "600",
+                    color: "#FFFFFF",
+                  }}
+                >
+                  링크 복사
+                </Text>
+              </TouchableOpacity>
+
+              {/* 공유하기 */}
+              <TouchableOpacity
+                onPress={() => {
+                  setShowInviteModal(false);
+                  Alert.alert("공유", "공유 기능이 호출되었습니다.");
+                }}
+                activeOpacity={0.8}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: Colors.neutral[100],
+                  borderRadius: BorderRadius.lg,
+                  paddingVertical: Spacing.md,
+                  gap: Spacing.sm,
+                }}
+              >
+                <Share2 size={18} color={Colors.neutral[700]} />
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "600",
+                    color: Colors.neutral[700],
+                  }}
+                >
+                  다른 앱으로 공유
                 </Text>
               </TouchableOpacity>
             </View>

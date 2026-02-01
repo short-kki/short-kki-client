@@ -16,13 +16,8 @@ import { useRouter, Link } from "expo-router";
 import {
   Search,
   Clock,
-  Play,
   Bell,
   ChevronRight,
-  Flame,
-  Utensils,
-  Timer,
-  Heart,
   TrendingUp,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
@@ -82,55 +77,49 @@ const SHORTS_DATA = [
   },
 ];
 
-// 큐레이션 섹션 데이터
-const CURATION_SECTIONS = [
-  {
-    id: "trending",
-    title: "🔥 지금 인기 급상승",
-    icon: TrendingUp,
-    recipes: [
-      { id: "t1", title: "마약계란장", thumbnail: "https://images.unsplash.com/photo-1510693206972-df098062cb71?w=400", duration: "10분", author: "요리왕" },
-      { id: "t2", title: "크림파스타", thumbnail: "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=400", duration: "20분", author: "파스타킹" },
-      { id: "t3", title: "김치볶음밥", thumbnail: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=400", duration: "10분", author: "백종원" },
-      { id: "t4", title: "된장찌개", thumbnail: "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?w=400", duration: "25분", author: "집밥선생" },
-    ],
-  },
+// 큐레이션 섹션 데이터 - 인기 급상승은 레시피 형태, 나머지는 숏폼 형태
+const TRENDING_RECIPES = [
+  { id: "t1", title: "마약계란장", thumbnail: "https://images.unsplash.com/photo-1510693206972-df098062cb71?w=400", duration: "10분", author: "요리왕" },
+  { id: "t2", title: "크림파스타", thumbnail: "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=400", duration: "20분", author: "파스타킹" },
+  { id: "t3", title: "김치볶음밥", thumbnail: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=400", duration: "10분", author: "백종원" },
+  { id: "t4", title: "된장찌개", thumbnail: "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?w=400", duration: "25분", author: "집밥선생" },
+];
+
+// 숏폼 큐레이션 섹션 데이터
+const SHORTS_CURATION_SECTIONS = [
   {
     id: "quick",
     title: "⏱️ 5분 안에 뚝딱",
-    icon: Timer,
-    recipes: [
-      { id: "q1", title: "계란후라이 덮밥", thumbnail: "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=400", duration: "5분", author: "간편요리" },
-      { id: "q2", title: "참치마요 주먹밥", thumbnail: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400", duration: "5분", author: "도시락왕" },
-      { id: "q3", title: "토스트 샌드위치", thumbnail: "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=400", duration: "5분", author: "아침식사" },
-      { id: "q4", title: "컵라면 업그레이드", thumbnail: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400", duration: "5분", author: "라면마스터" },
+    items: [
+      { id: "q1", videoId: "DkyZ9t12hpo", title: "계란후라이 덮밥", thumbnail: getYoutubeThumbnail("DkyZ9t12hpo"), author: "간편요리", views: "45만" },
+      { id: "q2", videoId: "NnhIbr5lmEg", title: "참치마요 주먹밥", thumbnail: getYoutubeThumbnail("NnhIbr5lmEg"), author: "도시락왕", views: "32만" },
+      { id: "q3", videoId: "ZPFVC78A2jM", title: "토스트 샌드위치", thumbnail: getYoutubeThumbnail("ZPFVC78A2jM"), author: "아침식사", views: "28만" },
+      { id: "q4", videoId: "gQDByCdjUXw", title: "컵라면 업그레이드", thumbnail: getYoutubeThumbnail("gQDByCdjUXw"), author: "라면마스터", views: "67만" },
     ],
   },
   {
     id: "single",
     title: "🏠 자취생 필수 레시피",
-    icon: Utensils,
-    recipes: [
-      { id: "s1", title: "원팬 파스타", thumbnail: "https://images.unsplash.com/photo-1563379926898-05f4575a45d8?w=400", duration: "15분", author: "자취생" },
-      { id: "s2", title: "간장계란밥", thumbnail: "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=400", duration: "5분", author: "혼밥러" },
-      { id: "s3", title: "참치김치찌개", thumbnail: "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?w=400", duration: "15분", author: "자취요리" },
-      { id: "s4", title: "스팸마요덮밥", thumbnail: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400", duration: "10분", author: "덮밥맛집" },
+    items: [
+      { id: "s1", videoId: "oc1bnLR38fE", title: "원팬 파스타", thumbnail: getYoutubeThumbnail("oc1bnLR38fE"), author: "자취생", views: "183만" },
+      { id: "s2", videoId: "DkyZ9t12hpo", title: "간장계란밥", thumbnail: getYoutubeThumbnail("DkyZ9t12hpo"), author: "혼밥러", views: "92만" },
+      { id: "s3", videoId: "NnhIbr5lmEg", title: "참치김치찌개", thumbnail: getYoutubeThumbnail("NnhIbr5lmEg"), author: "자취요리", views: "54만" },
+      { id: "s4", videoId: "ZPFVC78A2jM", title: "스팸마요덮밥", thumbnail: getYoutubeThumbnail("ZPFVC78A2jM"), author: "덮밥맛집", views: "127만" },
     ],
   },
   {
     id: "healthy",
     title: "🥗 건강한 한 끼",
-    icon: Heart,
-    recipes: [
-      { id: "hl1", title: "닭가슴살 샐러드", thumbnail: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400", duration: "10분", author: "헬시쿡" },
-      { id: "hl2", title: "연어 포케볼", thumbnail: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=400", duration: "15분", author: "다이어터" },
-      { id: "hl3", title: "두부 스테이크", thumbnail: "https://images.unsplash.com/photo-1546069901-d5bfd2cbfb1f?w=400", duration: "20분", author: "비건요리" },
-      { id: "hl4", title: "오트밀 죽", thumbnail: "https://images.unsplash.com/photo-1517673132405-a56a62b18caf?w=400", duration: "10분", author: "아침메뉴" },
+    items: [
+      { id: "hl1", videoId: "gQDByCdjUXw", title: "닭가슴살 샐러드", thumbnail: getYoutubeThumbnail("gQDByCdjUXw"), author: "헬시쿡", views: "76만" },
+      { id: "hl2", videoId: "oc1bnLR38fE", title: "연어 포케볼", thumbnail: getYoutubeThumbnail("oc1bnLR38fE"), author: "다이어터", views: "41만" },
+      { id: "hl3", videoId: "DkyZ9t12hpo", title: "두부 스테이크", thumbnail: getYoutubeThumbnail("DkyZ9t12hpo"), author: "비건요리", views: "38만" },
+      { id: "hl4", videoId: "NnhIbr5lmEg", title: "오트밀 죽", thumbnail: getYoutubeThumbnail("NnhIbr5lmEg"), author: "아침메뉴", views: "29만" },
     ],
   },
 ];
 
-// 쇼츠 카드 컴포넌트 (9:16 비율)
+// 쇼츠 카드 컴포넌트 (9:16 비율) - 썸네일과 정보 분리
 function ShortsCard({ item, onPress }: { item: typeof SHORTS_DATA[0]; onPress: () => void }) {
   const CARD_WIDTH = 120;
   const CARD_HEIGHT = CARD_WIDTH * (16 / 9); // 9:16 비율
@@ -139,8 +128,9 @@ function ShortsCard({ item, onPress }: { item: typeof SHORTS_DATA[0]; onPress: (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.9}
-      style={{ marginRight: Spacing.md }}
+      style={{ marginRight: Spacing.md, width: CARD_WIDTH }}
     >
+      {/* 썸네일 영역 */}
       <View
         style={{
           width: CARD_WIDTH,
@@ -155,31 +145,6 @@ function ShortsCard({ item, onPress }: { item: typeof SHORTS_DATA[0]; onPress: (
           style={{ width: "100%", height: "100%" }}
           contentFit="cover"
         />
-        {/* Play Icon Overlay */}
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <View
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              backgroundColor: "rgba(0,0,0,0.5)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <Play size={20} color="#FFFFFF" fill="#FFFFFF" />
-          </View>
-        </View>
         {/* Views Badge */}
         <View
           style={{
@@ -196,40 +161,30 @@ function ShortsCard({ item, onPress }: { item: typeof SHORTS_DATA[0]; onPress: (
             {item.views}
           </Text>
         </View>
-        {/* Bottom Info */}
-        <View
+      </View>
+      {/* 정보 영역 - 썸네일 하단에 분리 */}
+      <View style={{ paddingTop: 8, paddingHorizontal: 2 }}>
+        <Text
           style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            padding: 8,
-            background: "linear-gradient(transparent, rgba(0,0,0,0.8))",
+            color: Colors.neutral[900],
+            fontSize: 13,
+            fontWeight: "600",
+            lineHeight: 18,
           }}
+          numberOfLines={2}
         >
-          <Text
-            style={{
-              color: "#FFFFFF",
-              fontSize: 12,
-              fontWeight: "600",
-              textShadowColor: "rgba(0,0,0,0.8)",
-              textShadowOffset: { width: 0, height: 1 },
-              textShadowRadius: 2,
-            }}
-            numberOfLines={2}
-          >
-            {item.title}
-          </Text>
-          <Text
-            style={{
-              color: "rgba(255,255,255,0.8)",
-              fontSize: 10,
-              marginTop: 2,
-            }}
-          >
-            {item.author}
-          </Text>
-        </View>
+          {item.title}
+        </Text>
+        <Text
+          style={{
+            color: Colors.neutral[500],
+            fontSize: 11,
+            marginTop: 2,
+          }}
+          numberOfLines={1}
+        >
+          {item.author}
+        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -373,18 +328,17 @@ export default function HomeScreen() {
     router.push("/notifications");
   };
 
-  const handleCategoryPress = (category: string) => {
-    // Navigate to explore/shorts with category filter
-    router.push({
-      pathname: "/(tabs)/shorts",
-      params: { category },
-    });
-  };
-
   const handleSeeAllSection = (sectionId: string) => {
     router.push({
       pathname: "/(tabs)/shorts",
       params: { section: sectionId },
+    });
+  };
+
+  const handleSeeAllTrending = () => {
+    router.push({
+      pathname: "/(tabs)/shorts",
+      params: { section: "trending" },
     });
   };
 
@@ -417,50 +371,25 @@ export default function HomeScreen() {
           ))}
         </ScrollView>
 
-        {/* Quick Categories */}
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-around",
-            paddingHorizontal: Spacing.xl,
-            paddingVertical: Spacing.lg,
-            marginTop: Spacing.md,
-          }}
+        {/* 🔥 인기 급상승 섹션 - 레시피 카드 형태, 클릭 시 레시피 상세로 이동 */}
+        <SectionHeader title="🔥 인기 급상승" onSeeAll={handleSeeAllTrending} />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: Spacing.xl }}
         >
-          {[
-            { icon: Flame, label: "인기", color: "#FF6B6B", category: "trending" },
-            { icon: Timer, label: "5분요리", color: "#4ECDC4", category: "quick" },
-            { icon: Utensils, label: "자취생", color: "#FFE66D", category: "single" },
-            { icon: Heart, label: "건강식", color: "#95E1D3", category: "healthy" },
-          ].map((item, index) => (
-            <TouchableOpacity
-              key={index}
-              style={{ alignItems: "center" }}
-              activeOpacity={0.7}
-              onPress={() => handleCategoryPress(item.category)}
-            >
-              <View
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 28,
-                  backgroundColor: `${item.color}20`,
-                  justifyContent: "center",
-                  alignItems: "center",
-                  marginBottom: 6,
-                }}
-              >
-                <item.icon size={24} color={item.color} />
-              </View>
-              <Text style={{ fontSize: 12, color: Colors.neutral[700], fontWeight: "500" }}>
-                {item.label}
-              </Text>
-            </TouchableOpacity>
+          {TRENDING_RECIPES.map((recipe) => (
+            <RecipeCard
+              key={recipe.id}
+              item={recipe}
+              onPress={() => handleRecipePress(recipe.id)}
+              size="large"
+            />
           ))}
-        </View>
+        </ScrollView>
 
-        {/* Curation Sections */}
-        {CURATION_SECTIONS.map((section) => (
+        {/* 숏폼 큐레이션 섹션들 */}
+        {SHORTS_CURATION_SECTIONS.map((section) => (
           <View key={section.id}>
             <SectionHeader title={section.title} onSeeAll={() => handleSeeAllSection(section.id)} />
             <ScrollView
@@ -468,12 +397,11 @@ export default function HomeScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: Spacing.xl }}
             >
-              {section.recipes.map((recipe) => (
-                <RecipeCard
-                  key={recipe.id}
-                  item={recipe}
-                  onPress={() => handleRecipePress(recipe.id)}
-                  size={section.id === "trending" ? "large" : "medium"}
+              {section.items.map((item) => (
+                <ShortsCard
+                  key={item.id}
+                  item={item}
+                  onPress={() => handleShortsPress(item.id)}
                 />
               ))}
             </ScrollView>
@@ -487,7 +415,7 @@ export default function HomeScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: Spacing.xl }}
         >
-          {CURATION_SECTIONS[0].recipes.slice(0, 3).map((recipe, index) => (
+          {TRENDING_RECIPES.slice(0, 3).map((recipe, index) => (
             <TouchableOpacity
               key={recipe.id}
               onPress={() => handleRecipePress(recipe.id)}

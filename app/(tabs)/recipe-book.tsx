@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import {
   Plus,
   MoreVertical,
@@ -20,7 +20,6 @@ import {
   ChevronRight,
   Edit3,
   Trash2,
-  Share2,
   X,
   Lock,
   Users,
@@ -204,10 +203,12 @@ function RecipeBookCard({
   book,
   onPress,
   onMenuPress,
+  onGroupPress,
 }: {
   book: RecipeBook;
   onPress: () => void;
   onMenuPress: () => void;
+  onGroupPress?: () => void;
 }) {
   return (
     <TouchableOpacity
@@ -216,16 +217,21 @@ function RecipeBookCard({
       style={{
         backgroundColor: Colors.neutral[0],
         borderRadius: BorderRadius.xl,
-        marginBottom: Spacing.md,
+        marginBottom: Spacing.lg,
         overflow: "hidden",
         borderWidth: 1,
         borderColor: Colors.neutral[100],
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
       }}
     >
-      {/* 썸네일 그리드 */}
+      {/* 썸네일 그리드 - 높이 증가 */}
       <View
         style={{
-          height: 120,
+          height: 140,
           flexDirection: "row",
           backgroundColor: Colors.neutral[100],
         }}
@@ -241,7 +247,7 @@ function RecipeBookCard({
               />
             </View>
             {/* 서브 썸네일 (오른쪽 작은 이미지들) */}
-            <View style={{ width: 80, gap: 2 }}>
+            <View style={{ width: 90, gap: 2 }}>
               {book.thumbnails.slice(1, 3).map((thumb, index) => (
                 <View key={index} style={{ flex: 1 }}>
                   <Image
@@ -271,37 +277,75 @@ function RecipeBookCard({
             <Folder size={40} color={Colors.neutral[300]} />
           </View>
         )}
+
+        {/* 레시피 개수 뱃지 */}
+        <View
+          style={{
+            position: "absolute",
+            bottom: 8,
+            left: 8,
+            backgroundColor: "rgba(0,0,0,0.7)",
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            borderRadius: 6,
+          }}
+        >
+          <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "600" }}>
+            {book.recipeCount}개
+          </Text>
+        </View>
       </View>
 
-      {/* 정보 영역 */}
+      {/* 정보 영역 - 패딩 증가 */}
       <View
         style={{
           flexDirection: "row",
           alignItems: "center",
-          padding: Spacing.md,
+          padding: Spacing.lg,
         }}
       >
         <View style={{ flex: 1 }}>
           <Text
             style={{
-              fontSize: Typography.fontSize.base,
-              fontWeight: "600",
+              fontSize: Typography.fontSize.lg,
+              fontWeight: "700",
               color: Colors.neutral[900],
             }}
             numberOfLines={1}
           >
             {book.name}
           </Text>
-          <Text
-            style={{
-              fontSize: Typography.fontSize.sm,
-              color: Colors.neutral[500],
-              marginTop: 2,
-            }}
-          >
-            {book.recipeCount}개의 레시피
-          </Text>
+          {book.groupName && (
+            <Text
+              style={{
+                fontSize: Typography.fontSize.sm,
+                color: Colors.primary[600],
+                marginTop: 4,
+              }}
+            >
+              {book.groupName}
+            </Text>
+          )}
         </View>
+
+        {/* 그룹 레시피북인 경우 그룹 이동 버튼 */}
+        {book.groupId && onGroupPress && (
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation();
+              onGroupPress();
+            }}
+            style={{
+              padding: 8,
+              backgroundColor: Colors.neutral[100],
+              borderRadius: 20,
+              marginRight: 4,
+            }}
+            activeOpacity={0.7}
+          >
+            <ChevronRight size={20} color={Colors.neutral[600]} />
+          </TouchableOpacity>
+        )}
 
         {/* 메뉴 버튼 */}
         <TouchableOpacity
@@ -322,8 +366,13 @@ function RecipeBookCard({
 export default function RecipeBookScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ groupId?: string; groupName?: string; _t?: string }>();
 
-  const [activeTab, setActiveTab] = useState<"personal" | "group">("personal");
+  // 그룹에서 진입한 경우 그룹 탭으로 시작
+  const [activeTab, setActiveTab] = useState<"personal" | "group">(
+    params.groupId ? "group" : "personal"
+  );
+  const [filterGroupId, setFilterGroupId] = useState<string | null>(params.groupId || null);
   const [recipeBooks, setRecipeBooks] = useState<RecipeBook[]>(INITIAL_RECIPE_BOOKS);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -332,6 +381,14 @@ export default function RecipeBookScreen() {
   const [editingBook, setEditingBook] = useState<RecipeBook | null>(null);
   const [editBookName, setEditBookName] = useState("");
   const [selectedBook, setSelectedBook] = useState<RecipeBook | null>(null);
+
+  // params가 변경될 때 필터 업데이트 (_t 타임스탬프로 매번 새로운 네비게이션 감지)
+  useEffect(() => {
+    if (params.groupId) {
+      setFilterGroupId(params.groupId);
+      setActiveTab("group");
+    }
+  }, [params.groupId, params._t]);
 
   const handleRecipeBookPress = (bookId: string) => {
     router.push({
@@ -388,6 +445,20 @@ export default function RecipeBookScreen() {
     if (!newBookName.trim()) {
       Alert.alert("알림", "레시피북 이름을 입력해주세요.");
       return;
+    }
+
+    // 그룹 탭에서 그룹이 선택된 경우, 그룹당 1개 제한 체크
+    if (activeTab === "group" && filterGroupId) {
+      const existingGroupBooks = GROUP_RECIPE_BOOKS.filter(
+        (book) => book.groupId === filterGroupId
+      );
+      if (existingGroupBooks.length >= 1) {
+        Alert.alert(
+          "알림",
+          "그룹당 하나의 레시피북만 만들 수 있습니다.\n기존 레시피북을 이용해주세요."
+        );
+        return;
+      }
     }
 
     const newBook: RecipeBook = {
@@ -451,16 +522,24 @@ export default function RecipeBookScreen() {
             레시피북
           </Text>
         </View>
+        {/* 레시피북 추가 버튼 - 눈에 띄게 개선 */}
         <TouchableOpacity
           onPress={() => setShowCreateModal(true)}
-          activeOpacity={0.7}
+          activeOpacity={0.8}
           style={{
-            padding: 8,
+            flexDirection: "row",
+            alignItems: "center",
             backgroundColor: Colors.primary[500],
+            paddingHorizontal: Spacing.md,
+            paddingVertical: Spacing.sm,
             borderRadius: BorderRadius.full,
+            gap: 4,
           }}
         >
-          <Plus size={20} color="#FFF" />
+          <Plus size={18} color="#FFF" />
+          <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 14 }}>
+            추가
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -554,10 +633,63 @@ export default function RecipeBookScreen() {
           </>
         ) : (
           <>
+            {/* 특정 그룹 필터링 중일 때 헤더 표시 */}
+            {filterGroupId && params.groupName && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: Spacing.md,
+                  paddingVertical: Spacing.sm,
+                  paddingHorizontal: Spacing.md,
+                  backgroundColor: Colors.primary[50],
+                  borderRadius: BorderRadius.lg,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                  <Users size={16} color={Colors.primary[600]} />
+                  <Text
+                    style={{
+                      fontSize: Typography.fontSize.sm,
+                      fontWeight: "600",
+                      color: Colors.primary[700],
+                      marginLeft: Spacing.xs,
+                    }}
+                  >
+                    {params.groupName}의 레시피북
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setFilterGroupId(null)}
+                  activeOpacity={0.7}
+                  style={{
+                    paddingHorizontal: Spacing.sm,
+                    paddingVertical: Spacing.xs,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: Typography.fontSize.sm,
+                      color: Colors.primary[600],
+                      fontWeight: "500",
+                    }}
+                  >
+                    전체 보기
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* 그룹별로 레시피북 표시 */}
             {(() => {
+              // 필터링된 레시피북
+              const filteredBooks = filterGroupId
+                ? GROUP_RECIPE_BOOKS.filter((book) => book.groupId === filterGroupId)
+                : GROUP_RECIPE_BOOKS;
+
               // 그룹별로 레시피북 그룹화
-              const groupedBooks = GROUP_RECIPE_BOOKS.reduce((acc, book) => {
+              const groupedBooks = filteredBooks.reduce((acc, book) => {
                 const groupId = book.groupId || "";
                 if (!acc[groupId]) {
                   acc[groupId] = {
@@ -623,42 +755,44 @@ export default function RecipeBookScreen() {
                 const group = groupedBooks[groupId];
                 return (
                   <View key={groupId} style={{ marginBottom: Spacing.xl }}>
-                    {/* 그룹 헤더 */}
-                    <TouchableOpacity
-                      onPress={() => router.push("/(tabs)/group")}
-                      activeOpacity={0.7}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        marginBottom: Spacing.md,
-                        paddingVertical: Spacing.sm,
-                      }}
-                    >
-                      <View
+                    {/* 그룹 헤더 - 필터링 중이 아닐 때만 표시 */}
+                    {!filterGroupId && (
+                      <TouchableOpacity
+                        onPress={() => router.push("/(tabs)/group")}
+                        activeOpacity={0.7}
                         style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 16,
-                          backgroundColor: Colors.primary[100],
-                          justifyContent: "center",
+                          flexDirection: "row",
                           alignItems: "center",
-                          marginRight: Spacing.sm,
+                          marginBottom: Spacing.md,
+                          paddingVertical: Spacing.sm,
                         }}
                       >
-                        <Users size={16} color={Colors.primary[600]} />
-                      </View>
-                      <Text
-                        style={{
-                          fontSize: Typography.fontSize.base,
-                          fontWeight: "700",
-                          color: Colors.neutral[900],
-                          flex: 1,
-                        }}
-                      >
-                        {group.groupName}
-                      </Text>
-                      <ChevronRight size={20} color={Colors.neutral[400]} />
-                    </TouchableOpacity>
+                        <View
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 16,
+                            backgroundColor: Colors.primary[100],
+                            justifyContent: "center",
+                            alignItems: "center",
+                            marginRight: Spacing.sm,
+                          }}
+                        >
+                          <Users size={16} color={Colors.primary[600]} />
+                        </View>
+                        <Text
+                          style={{
+                            fontSize: Typography.fontSize.base,
+                            fontWeight: "700",
+                            color: Colors.neutral[900],
+                            flex: 1,
+                          }}
+                        >
+                          {group.groupName}
+                        </Text>
+                        <ChevronRight size={20} color={Colors.neutral[400]} />
+                      </TouchableOpacity>
+                    )}
 
                     {/* 해당 그룹의 레시피북들 */}
                     {group.books.map((book) => (
@@ -667,6 +801,14 @@ export default function RecipeBookScreen() {
                         book={book}
                         onPress={() => handleRecipeBookPress(book.id)}
                         onMenuPress={() => handleMenuPress(book)}
+                        onGroupPress={() => {
+                          if (book.groupId) {
+                            router.push({
+                              pathname: "/(tabs)/group",
+                              params: { groupId: book.groupId },
+                            });
+                          }
+                        }}
                       />
                     ))}
                   </View>
@@ -1016,42 +1158,6 @@ export default function RecipeBookScreen() {
                 {selectedBook?.isDefault && (
                   <Lock size={16} color={Colors.neutral[400]} />
                 )}
-              </TouchableOpacity>
-
-              {/* 공유 */}
-              <TouchableOpacity
-                onPress={() => handleMenuAction("share")}
-                activeOpacity={0.7}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: Spacing.md,
-                  paddingHorizontal: Spacing.xl,
-                }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: Colors.info.light,
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <Share2 size={20} color={Colors.info.main} />
-                </View>
-                <Text
-                  style={{
-                    flex: 1,
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: "500",
-                    color: Colors.neutral[900],
-                    marginLeft: Spacing.md,
-                  }}
-                >
-                  공유하기
-                </Text>
               </TouchableOpacity>
 
               {/* 삭제 */}

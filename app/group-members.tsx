@@ -185,10 +185,12 @@ function MemberCard({
   member,
   onMenuPress,
   isCurrentUser,
+  canShowMenu,
 }: {
   member: Member;
   onMenuPress: () => void;
   isCurrentUser: boolean;
+  canShowMenu: boolean;
 }) {
   return (
     <View
@@ -256,8 +258,8 @@ function MemberCard({
         </Text>
       </View>
 
-      {/* 메뉴 버튼 (방장이 아닌 경우만) */}
-      {member.role !== "owner" && (
+      {/* 메뉴 버튼 (관리자/방장만 볼 수 있고, 방장인 멤버에게는 표시 안함) */}
+      {canShowMenu && member.role !== "owner" && (
         <TouchableOpacity
           onPress={onMenuPress}
           style={{ padding: 8 }}
@@ -284,6 +286,11 @@ export default function GroupMembersScreen() {
 
   // 현재 사용자 ID (실제로는 AuthContext에서 가져옴)
   const currentUserId = "m3";
+
+  // 현재 사용자의 역할 확인
+  const currentUser = members.find((m) => m.id === currentUserId);
+  const currentUserRole = currentUser?.role || "member";
+  const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
 
   const handleMemberMenuPress = (member: Member) => {
     setSelectedMember(member);
@@ -434,6 +441,7 @@ export default function GroupMembersScreen() {
             member={member}
             onMenuPress={() => handleMemberMenuPress(member)}
             isCurrentUser={member.id === currentUserId}
+            canShowMenu={isAdmin}
           />
         ))}
 

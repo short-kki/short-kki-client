@@ -19,13 +19,19 @@ npm run lint         # Run ESLint
 
 ### EAS Build Commands
 ```bash
-eas build --platform ios --profile development    # iOS simulator dev build
-eas build --platform android --profile development # Android dev build
-eas build --platform all --profile production     # Production build (both platforms)
-eas update --branch production --message "msg"   # OTA update (JS only)
+eas build --platform ios --profile development         # iOS simulator dev build
+eas build --platform ios --profile development-device  # iOS device dev build
+eas build --platform android --profile development     # Android dev build
+eas build --platform all --profile production          # Production build (both platforms)
+eas update --branch production --message "msg"         # OTA update (JS only)
 ```
 
-Note: The development iOS profile builds for simulator only (`"simulator": true` in eas.json). For device testing, modify the profile or use preview.
+Note: The `development` iOS profile builds for simulator only (`"simulator": true` in eas.json). Use `development-device` for physical device testing.
+
+### Expo Go vs Development Build
+- **Expo Go**: Quick testing but limited - no push notifications, no custom native modules
+- **Development Build**: Full functionality - use EAS build commands above
+- Auth storage uses in-memory fallback when `expo-secure-store` is unavailable (Expo Go)
 
 ## Architecture
 
@@ -66,6 +72,11 @@ import { useGroups, useGroupFeeds } from '@/hooks';
 const { groups, loading, error, refetch } = useGroups();
 ```
 
+Available hooks:
+- `useShorts()`, `useCurationSections()` - Home feed data
+- `useGroups()`, `useGroupFeeds(id)`, `useGroupMembers(id)` - Group data
+- `usePersonalRecipeBooks()`, `useGroupRecipeBooks(id)`, `useRecipeBookDetail(id)`, `useShoppingList()` - Recipe data
+
 ### Video Feed Architecture
 The home screen uses a TikTok/Shorts-style vertical paging video feed:
 - `VideoFeed.tsx` - FlatList with `pagingEnabled` and snap-to-item scrolling
@@ -78,11 +89,20 @@ The home screen uses a TikTok/Shorts-style vertical paging video feed:
 1. OAuth authorization code flow: Login screen → OAuth provider → `oauth/[...callback].tsx`
 2. Backend exchange: Send auth code to `/api/auth/{provider}` → Receive JWT tokens
 3. State management: `AuthContext` wraps app, auto-redirects based on auth state (protected routes in `(tabs)`)
-4. Token storage: `expo-secure-store` for secure persistence
+4. Token storage: `expo-secure-store` for secure persistence (falls back to in-memory for Expo Go)
+
+### Push Notifications
+Push notifications are implemented via `services/pushNotification.ts`:
+- Requires development build (doesn't work in Expo Go)
+- `ENABLE_PUSH` flag gates functionality (set to `true` after building with EAS)
+- Uses Expo Notifications with Firebase (config in `GoogleService-Info.plist`/`google-services.json`)
+- Token registration/unregistration handled in `AuthContext` on login/logout
+- Notification types: `GROUP_INVITE`, `RECIPE_SHARED`, `CALENDAR_UPDATE`, `COMMENT_ADDED`
 
 ### Environment Configuration
 - `__DEV__` flag switches API URL: `localhost:8080` (dev) vs `api.shortkki.com` (prod)
 - `DEV_MODE.ENABLE_MOCK_LOGIN` in `constants/oauth.ts` enables mock login without backend
+- Typed routes enabled via `experiments.typedRoutes` in app.json
 
 ## Design System
 

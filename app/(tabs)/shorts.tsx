@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   Alert,
   Share,
+  Modal,
+  ScrollView,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,7 +20,6 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import {
   Bookmark,
   Share2,
-  ChefHat,
   CalendarPlus,
   VolumeX,
   Volume2,
@@ -26,9 +27,27 @@ import {
   MoreVertical,
   Play,
   ScrollText,
+  X,
+  Check,
+  BookOpen,
+  Users,
+  FolderPlus,
 } from "lucide-react-native";
-import { Colors } from "@/constants/design-system";
+import { Colors, BorderRadius, Spacing } from "@/constants/design-system";
 import { extractYoutubeId } from "@/utils/youtube";
+
+// 레시피북 더미 데이터
+const RECIPE_BOOKS = {
+  personal: [
+    { id: "p1", name: "기본 레시피북", recipeCount: 12, isDefault: true },
+    { id: "p2", name: "다이어트 레시피", recipeCount: 5 },
+    { id: "p3", name: "자취 필수 요리", recipeCount: 8 },
+  ],
+  group: [
+    { id: "g1", name: "우리 가족 식단", recipeCount: 24, groupName: "우리 가족" },
+    { id: "g2", name: "자취생 모임 레시피", recipeCount: 15, groupName: "자취생 요리 모임" },
+  ],
+};
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 85;
@@ -104,21 +123,16 @@ interface VideoItemProps {
   onMuteToggle: () => void;
   isMuted: boolean;
   onViewRecipe: () => void;
-  onAddToRecipeBook: () => void;
   onAddToMealPlan: () => void;
   onShare: () => void;
+  onBookmarkPress: () => void;
+  isBookmarked: boolean;
+  bookmarkCount: number;
 }
 
 // 개별 비디오 아이템 컴포넌트 (프로토타입 - 썸네일 기반)
-function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRecipe, onAddToRecipeBook, onAddToMealPlan, onShare }: VideoItemProps) {
-  const [isBookmarked, setIsBookmarked] = useState(false);
-  const [bookmarkCount, setBookmarkCount] = useState(item.bookmarks);
+function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onShare, onBookmarkPress, isBookmarked, bookmarkCount }: VideoItemProps) {
   const [isPlaying, setIsPlaying] = useState(false);
-
-  const toggleBookmark = useCallback(() => {
-    setIsBookmarked((prev) => !prev);
-    setBookmarkCount((prev) => (isBookmarked ? prev - 1 : prev + 1));
-  }, [isBookmarked]);
 
   const formatCount = (count: number) => {
     if (count >= 10000) {
@@ -300,46 +314,27 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
         </TouchableOpacity>
 
         {/* 북마크 */}
-        <Pressable onPress={toggleBookmark} style={{ alignItems: "center" }}>
+        <Pressable onPress={onBookmarkPress} style={{ alignItems: "center" }}>
           <View
             style={{
               width: 48,
               height: 48,
               borderRadius: 24,
-              backgroundColor: "rgba(0,0,0,0.4)",
+              backgroundColor: isBookmarked ? Colors.primary[500] : "rgba(0,0,0,0.4)",
               justifyContent: "center",
               alignItems: "center",
             }}
           >
             <Bookmark
               size={26}
-              color={isBookmarked ? Colors.primary[500] : "#FFF"}
-              fill={isBookmarked ? Colors.primary[500] : "transparent"}
+              color="#FFF"
+              fill={isBookmarked ? "#FFF" : "transparent"}
             />
           </View>
           <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "600", marginTop: 4 }}>
             {formatCount(bookmarkCount)}
           </Text>
         </Pressable>
-
-        {/* 레시피북 추가 */}
-        <TouchableOpacity onPress={onAddToRecipeBook} activeOpacity={0.8} style={{ alignItems: "center" }}>
-          <View
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 24,
-              backgroundColor: "rgba(0,0,0,0.4)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <ChefHat size={26} color="#FFF" />
-          </View>
-          <Text style={{ color: "#FFF", fontSize: 11, fontWeight: "500", marginTop: 4 }}>
-            레시피북
-          </Text>
-        </TouchableOpacity>
 
         {/* 식단 추가 */}
         <TouchableOpacity onPress={onAddToMealPlan} activeOpacity={0.8} style={{ alignItems: "center" }}>
@@ -392,6 +387,17 @@ export default function ShortsScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
 
+  // 북마크 관련 상태
+  const [showBookmarkSheet, setShowBookmarkSheet] = useState(false);
+  const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+  const [bookmarkTab, setBookmarkTab] = useState<"personal" | "group">("personal");
+  const [bookmarkedVideos, setBookmarkedVideos] = useState<Record<string, { bookId: string; count: number }>>({});
+  const [bookmarkCounts, setBookmarkCounts] = useState<Record<string, number>>(() => {
+    const initial: Record<string, number> = {};
+    SHORTS_DATA.forEach(item => { initial[item.id] = item.bookmarks; });
+    return initial;
+  });
+
   // 시작 인덱스가 있으면 해당 위치로 스크롤
   useEffect(() => {
     if (params.startIndex) {
@@ -424,16 +430,6 @@ export default function ShortsScreen() {
 
   const handleViewRecipe = useCallback((recipeId: string) => {
     router.push(`/recipe/${recipeId}`);
-  }, [router]);
-
-  const handleAddToRecipeBook = useCallback((title: string) => {
-    Alert.alert(
-      "레시피북에 저장",
-      `"${title}" 레시피가 레시피북에 추가되었습니다.`,
-      [
-        { text: "확인", onPress: () => router.push("/(tabs)/recipe-book") },
-      ]
-    );
   }, [router]);
 
   const handleAddToMealPlan = useCallback((title: string) => {
@@ -469,6 +465,48 @@ export default function ShortsScreen() {
     );
   }, []);
 
+  // 북마크 버튼 클릭 시 Bottom Sheet 표시
+  const handleBookmarkPress = useCallback((videoId: string) => {
+    setSelectedVideoId(videoId);
+    setShowBookmarkSheet(true);
+  }, []);
+
+  // 폴더 선택 시 저장
+  const handleSelectFolder = useCallback((bookId: string, bookName: string) => {
+    if (!selectedVideoId) return;
+
+    const isAlreadySaved = bookmarkedVideos[selectedVideoId]?.bookId === bookId;
+
+    if (isAlreadySaved) {
+      // 이미 저장된 폴더면 해제
+      setBookmarkedVideos(prev => {
+        const { [selectedVideoId]: _, ...rest } = prev;
+        return rest;
+      });
+      setBookmarkCounts(prev => ({
+        ...prev,
+        [selectedVideoId]: (prev[selectedVideoId] || 0) - 1,
+      }));
+      Alert.alert("북마크 해제", `"${bookName}"에서 삭제되었습니다.`);
+    } else {
+      // 새로 저장
+      const wasBookmarked = !!bookmarkedVideos[selectedVideoId];
+      setBookmarkedVideos(prev => ({
+        ...prev,
+        [selectedVideoId]: { bookId, count: prev[selectedVideoId]?.count || 0 },
+      }));
+      if (!wasBookmarked) {
+        setBookmarkCounts(prev => ({
+          ...prev,
+          [selectedVideoId]: (prev[selectedVideoId] || 0) + 1,
+        }));
+      }
+      Alert.alert("저장 완료", `"${bookName}"에 저장되었습니다.`);
+    }
+
+    setShowBookmarkSheet(false);
+  }, [selectedVideoId, bookmarkedVideos]);
+
   const renderItem = useCallback(
     ({ item, index }: { item: typeof SHORTS_DATA[0]; index: number }) => (
       <VideoItem
@@ -478,12 +516,14 @@ export default function ShortsScreen() {
         onMuteToggle={toggleMute}
         isMuted={isMuted}
         onViewRecipe={() => handleViewRecipe(item.id)}
-        onAddToRecipeBook={() => handleAddToRecipeBook(item.title)}
         onAddToMealPlan={() => handleAddToMealPlan(item.title)}
         onShare={() => handleShare(item.title)}
+        onBookmarkPress={() => handleBookmarkPress(item.id)}
+        isBookmarked={!!bookmarkedVideos[item.id]}
+        bookmarkCount={bookmarkCounts[item.id] || item.bookmarks}
       />
     ),
-    [activeIndex, isMuted, toggleMute, handleViewRecipe, handleAddToRecipeBook, handleAddToMealPlan, handleShare]
+    [activeIndex, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, handleShare, handleBookmarkPress, bookmarkedVideos, bookmarkCounts]
   );
 
   const keyExtractor = useCallback((item: typeof SHORTS_DATA[0]) => item.id, []);
@@ -576,6 +616,223 @@ export default function ShortsScreen() {
         snapToInterval={ITEM_HEIGHT}
         snapToAlignment="start"
       />
+
+      {/* 북마크 폴더 선택 Bottom Sheet */}
+      <Modal
+        visible={showBookmarkSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowBookmarkSheet(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
+          onPress={() => setShowBookmarkSheet(false)}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: Colors.neutral[0],
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            paddingTop: 8,
+            paddingBottom: insets.bottom + 20,
+            maxHeight: SCREEN_HEIGHT * 0.6,
+          }}
+        >
+          {/* 핸들 바 */}
+          <View style={{ alignItems: "center", paddingVertical: 8 }}>
+            <View
+              style={{
+                width: 40,
+                height: 4,
+                backgroundColor: Colors.neutral[300],
+                borderRadius: 2,
+              }}
+            />
+          </View>
+
+          {/* 헤더 */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingHorizontal: 20,
+              paddingVertical: 12,
+              borderBottomWidth: 1,
+              borderBottomColor: Colors.neutral[100],
+            }}
+          >
+            <Text style={{ fontSize: 18, fontWeight: "700", color: Colors.neutral[900] }}>
+              레시피북에 저장
+            </Text>
+            <TouchableOpacity onPress={() => setShowBookmarkSheet(false)}>
+              <X size={24} color={Colors.neutral[500]} />
+            </TouchableOpacity>
+          </View>
+
+          {/* 탭 */}
+          <View
+            style={{
+              flexDirection: "row",
+              paddingHorizontal: 20,
+              paddingVertical: 12,
+              gap: 8,
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => setBookmarkTab("personal")}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+                borderRadius: 20,
+                backgroundColor: bookmarkTab === "personal" ? Colors.neutral[900] : Colors.neutral[100],
+                gap: 6,
+              }}
+            >
+              <BookOpen size={16} color={bookmarkTab === "personal" ? "#FFF" : Colors.neutral[600]} />
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: bookmarkTab === "personal" ? "#FFF" : Colors.neutral[600],
+                }}
+              >
+                개인
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setBookmarkTab("group")}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+                borderRadius: 20,
+                backgroundColor: bookmarkTab === "group" ? Colors.neutral[900] : Colors.neutral[100],
+                gap: 6,
+              }}
+            >
+              <Users size={16} color={bookmarkTab === "group" ? "#FFF" : Colors.neutral[600]} />
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: bookmarkTab === "group" ? "#FFF" : Colors.neutral[600],
+                }}
+              >
+                그룹
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 폴더 목록 */}
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20 }}>
+            {(bookmarkTab === "personal" ? RECIPE_BOOKS.personal : RECIPE_BOOKS.group).map((book) => {
+              const isSelected = selectedVideoId && bookmarkedVideos[selectedVideoId]?.bookId === book.id;
+              return (
+                <TouchableOpacity
+                  key={book.id}
+                  onPress={() => handleSelectFolder(book.id, book.name)}
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: 14,
+                    borderBottomWidth: 1,
+                    borderBottomColor: Colors.neutral[100],
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      backgroundColor: isSelected ? Colors.primary[100] : Colors.neutral[100],
+                      justifyContent: "center",
+                      alignItems: "center",
+                      marginRight: 12,
+                    }}
+                  >
+                    <BookOpen size={22} color={isSelected ? Colors.primary[500] : Colors.neutral[500]} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontSize: 15,
+                        fontWeight: "600",
+                        color: Colors.neutral[900],
+                      }}
+                    >
+                      {book.name}
+                      {(book as any).isDefault && (
+                        <Text style={{ color: Colors.neutral[400], fontWeight: "400" }}> (기본)</Text>
+                      )}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: Colors.neutral[500], marginTop: 2 }}>
+                      {(book as any).groupName ? `${(book as any).groupName} · ` : ""}
+                      레시피 {book.recipeCount}개
+                    </Text>
+                  </View>
+                  {isSelected && (
+                    <View
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 12,
+                        backgroundColor: Colors.primary[500],
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Check size={14} color="#FFF" strokeWidth={3} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+
+            {/* 새 레시피북 만들기 */}
+            <TouchableOpacity
+              onPress={() => {
+                setShowBookmarkSheet(false);
+                router.push("/(tabs)/recipe-book");
+              }}
+              activeOpacity={0.7}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 14,
+              }}
+            >
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 10,
+                  backgroundColor: Colors.primary[50],
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginRight: 12,
+                  borderWidth: 1.5,
+                  borderColor: Colors.primary[200],
+                  borderStyle: "dashed",
+                }}
+              >
+                <FolderPlus size={22} color={Colors.primary[500]} />
+              </View>
+              <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.primary[500] }}>
+                새 레시피북 만들기
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
