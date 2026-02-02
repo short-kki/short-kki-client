@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useRef, useState, useEffect } from "react";
 import { Dimensions, Text, View, TouchableOpacity, Pressable } from "react-native";
-import YoutubePlayer, { YoutubeIframeRef } from "react-native-youtube-iframe";
+import { YoutubeView, useYouTubePlayer, useYouTubeEvent } from "react-native-youtube-bridge";
 import { useRouter } from "expo-router";
 import { extractYoutubeId } from "@/utils/youtube";
 import {

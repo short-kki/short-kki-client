@@ -36,11 +36,11 @@ Note: The `development` iOS profile builds for simulator only (`"simulator": tru
 ## Architecture
 
 ### Tech Stack
-- **Framework**: React Native with Expo SDK 54
+- **Framework**: React Native with Expo SDK 54, React Compiler enabled
 - **Language**: TypeScript
 - **Styling**: NativeWind v4 (Tailwind CSS for React Native)
 - **Navigation**: Expo Router (file-based routing)
-- **Video**: react-native-youtube-iframe for YouTube Shorts playback
+- **Video**: react-native-youtube-bridge for YouTube Shorts playback
 - **Auth**: expo-auth-session for OAuth (Naver, Google), expo-secure-store for token storage
 - **Icons**: lucide-react-native
 
@@ -60,11 +60,11 @@ Note: The `development` iOS profile builds for simulator only (`"simulator": tru
 Use `@/` for absolute imports from project root (e.g., `@/components/`, `@/contexts/`)
 
 ### Data Layer Pattern
-The app uses a mock-first pattern for development without a backend:
+The app uses a hooks-based data layer with optional mock data for development:
 1. **Hooks** (`hooks/useGroups.ts`, `useShorts.ts`, `useRecipes.ts`) - Abstract data fetching with loading/error states
-2. **Mock toggle**: `USE_MOCK` in `services/api.ts` (defaults to `__DEV__`)
+2. **Mock toggle**: `USE_MOCK` in `services/api.ts` - set to `true` for mock data, `false` for real API
 3. **Mock data**: `data/mock/` contains typed mock data matching API contracts
-4. **Server migration**: Set `USE_MOCK = false` and implement API endpoints - hooks auto-switch
+4. **API docs**: `docs/group-feed-shopping-api.md` contains Group, Feed, and Shopping List API specs
 
 Example hook usage:
 ```typescript
@@ -74,13 +74,21 @@ const { groups, loading, error, refetch } = useGroups();
 
 Available hooks:
 - `useShorts()`, `useCurationSections()` - Home feed data
-- `useGroups()`, `useGroupFeeds(id)`, `useGroupMembers(id)` - Group data
-- `usePersonalRecipeBooks()`, `useGroupRecipeBooks(id)`, `useRecipeBookDetail(id)`, `useShoppingList()` - Recipe data
+- `useGroups()`, `useGroupFeeds(id)`, `useGroupMembers(id)`, `useShoppingList(id)` - Group data
+- `usePersonalRecipeBooks()`, `useGroupRecipeBooks(id)`, `useRecipeBookDetail(id)` - Recipe data
+
+### Group Feature Architecture
+Groups are central to the app's social features:
+- **Group types**: `COUPLE`, `FAMILY`, `FRIENDS`, `ETC`
+- **Roles**: `ADMIN` (creator, can manage members) and `MEMBER`
+- **Invite flow**: Admin gets invite code → Share code → Others join via code
+- **Group feeds**: Activity feed within each group (USER_CREATED, DAILY_MENU_NOTIFICATION, NEW_RECIPE_ADDED)
+- **Shopping list**: Shared grocery list per group, populated from recipe ingredients
 
 ### Video Feed Architecture
 The home screen uses a TikTok/Shorts-style vertical paging video feed:
 - `VideoFeed.tsx` - FlatList with `pagingEnabled` and snap-to-item scrolling
-- `VideoFeedItem.tsx` - Individual video player using react-native-youtube-iframe
+- `VideoFeedItem.tsx` - Individual video player using react-native-youtube-bridge
 - Viewability-based playback: only the currently visible video plays (`onViewableItemsChanged` with 50% threshold)
 - Item height: `windowHeight - TAB_BAR_HEIGHT (85px)`
 - YouTube Shorts require `mute={true}` for autoplay (mobile OS policy)

@@ -126,185 +126,7 @@ const RECIPE_BOOKS_DATA: Record<string, { name: string; recipes: any[] }> = {
       },
     ],
   },
-  // 그룹 레시피북 데이터
-  // 우리 가족 식단 그룹
-  "g1-default": {
-    name: "가족 공유 레시피",
-    recipes: [
-      {
-        id: "gf1",
-        title: "엄마표 된장찌개",
-        author: "엄마",
-        thumbnail: "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?w=400",
-        duration: "20분",
-        likes: 156,
-        savedAt: "3일 전",
-      },
-      {
-        id: "gf2",
-        title: "아빠 특제 김치볶음밥",
-        author: "아빠",
-        thumbnail: "https://i.ytimg.com/vi/DkyZ9t12hpo/hq720.jpg",
-        duration: "10분",
-        likes: 89,
-        savedAt: "1주 전",
-      },
-      {
-        id: "gf3",
-        title: "주말 브런치 토스트",
-        author: "나",
-        thumbnail: "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=400",
-        duration: "15분",
-        likes: 45,
-        savedAt: "1주 전",
-      },
-    ],
-  },
-  "g1-1": {
-    name: "엄마표 레시피",
-    recipes: [
-      {
-        id: "gm1",
-        title: "소고기 미역국",
-        author: "엄마",
-        thumbnail: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=400",
-        duration: "30분",
-        likes: 234,
-        savedAt: "2일 전",
-      },
-      {
-        id: "gm2",
-        title: "잡채",
-        author: "엄마",
-        thumbnail: "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=400",
-        duration: "40분",
-        likes: 198,
-        savedAt: "5일 전",
-      },
-    ],
-  },
-  "g1-2": {
-    name: "아이들 간식",
-    recipes: [
-      {
-        id: "gk1",
-        title: "고구마 맛탕",
-        author: "엄마",
-        thumbnail: "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=400",
-        duration: "20분",
-        likes: 76,
-        savedAt: "1주 전",
-      },
-    ],
-  },
-  // 자취생 요리 모임 그룹
-  "g2-default": {
-    name: "자취 꿀팁 레시피",
-    recipes: [
-      {
-        id: "gs1",
-        title: "전자레인지 계란찜",
-        author: "자취생A",
-        thumbnail: "https://i.ytimg.com/vi/ZPFVC78A2jM/hq720.jpg",
-        duration: "5분",
-        likes: 523,
-        savedAt: "1일 전",
-      },
-      {
-        id: "gs2",
-        title: "원팬 파스타",
-        author: "요리왕",
-        thumbnail: "https://i.ytimg.com/vi/oc1bnLR38fE/hq720.jpg",
-        duration: "15분",
-        likes: 412,
-        savedAt: "2일 전",
-      },
-      {
-        id: "gs3",
-        title: "컵라면 업그레이드",
-        author: "자취생B",
-        thumbnail: "https://i.ytimg.com/vi/NnhIbr5lmEg/hq720.jpg",
-        duration: "7분",
-        likes: 687,
-        savedAt: "3일 전",
-      },
-    ],
-  },
-  "g2-1": {
-    name: "5분 완성 요리",
-    recipes: [
-      {
-        id: "gq1",
-        title: "참치마요 덮밥",
-        author: "맛집러버",
-        thumbnail: "https://i.ytimg.com/vi/ZPFVC78A2jM/hq720.jpg",
-        duration: "5분",
-        likes: 345,
-        savedAt: "2일 전",
-      },
-      {
-        id: "gq2",
-        title: "계란후라이 덮밥",
-        author: "자취생A",
-        thumbnail: "https://i.ytimg.com/vi/DkyZ9t12hpo/hq720.jpg",
-        duration: "3분",
-        likes: 289,
-        savedAt: "4일 전",
-      },
-    ],
-  },
-  "g2-2": {
-    name: "야식 메뉴",
-    recipes: [
-      {
-        id: "gn1",
-        title: "라면 + 치즈",
-        author: "자취생B",
-        thumbnail: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=400",
-        duration: "10분",
-        likes: 456,
-        savedAt: "3일 전",
-      },
-    ],
-  },
-  // 다이어트 챌린지 그룹
-  "g3-default": {
-    name: "다이어트 레시피 모음",
-    recipes: [
-      {
-        id: "gd1",
-        title: "그릭요거트 볼",
-        author: "다이어터",
-        thumbnail: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400",
-        duration: "5분",
-        likes: 234,
-        savedAt: "1일 전",
-      },
-      {
-        id: "gd2",
-        title: "닭가슴살 스테이크",
-        author: "헬스왕",
-        thumbnail: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=400",
-        duration: "15분",
-        likes: 187,
-        savedAt: "3일 전",
-      },
-    ],
-  },
-  "g3-1": {
-    name: "저칼로리 식단",
-    recipes: [
-      {
-        id: "gl1",
-        title: "곤약 비빔면",
-        author: "다이어터",
-        thumbnail: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400",
-        duration: "10분",
-        likes: 145,
-        savedAt: "2일 전",
-      },
-    ],
-  },
+  // 그룹 레시피북은 API에서 조회 (현재 미구현)
 };
 
 // 레시피 카드 컴포넌트
@@ -447,11 +269,14 @@ function RecipeCard({
 export default function RecipeBookDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ bookId: string }>();
+  const params = useLocalSearchParams<{ bookId: string; groupId?: string; groupName?: string }>();
 
   const bookId = params.bookId || "default";
+  const isGroupRecipeBook = bookId.startsWith("g");
+
+  // 그룹 레시피북은 API에서 조회 (현재 더미 데이터 없음)
   const bookData = RECIPE_BOOKS_DATA[bookId] || {
-    name: "레시피북",
+    name: isGroupRecipeBook ? (params.groupName ? `${params.groupName} 레시피북` : "그룹 레시피북") : "레시피북",
     recipes: [],
   };
 

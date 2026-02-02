@@ -1,24 +1,24 @@
-import React, { useEffect, useState } from "react";
+import * as AuthSession from "expo-auth-session";
 import { Image } from "expo-image";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
+  StyleSheet,
   Text,
   View,
-  StyleSheet,
-  ActivityIndicator,
-  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
-import * as AuthSession from "expo-auth-session";
-import * as WebBrowser from "expo-web-browser";
-import { useLocalSearchParams, useRouter } from "expo-router";
 
+import { Colors, SemanticColors, Spacing, Typography } from "@/constants/design-system";
+import { API_BASE_URL, DEV_MODE, GOOGLE_CONFIG, NAVER_CONFIG } from "@/constants/oauth";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthData } from "@/utils/auth-storage";
-import { NAVER_CONFIG, GOOGLE_CONFIG, API_BASE_URL, DEV_MODE } from "@/constants/oauth";
-import { Colors, Spacing, Typography, SemanticColors } from "@/constants/design-system";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -48,11 +48,12 @@ interface ApiResponse<T> {
 }
 
 interface LoginData {
+  memberId: number;
   accessToken: string;
   refreshToken: string;
   email: string;
   name: string;
-  newMember: boolean;
+  isNewMember: boolean;
 }
 
 async function sendCodeToServer(
@@ -213,7 +214,7 @@ export default function LoginScreen() {
           const result = await sendCodeToServer(provider, code, codeVerifier);
           const authData = createAuthDataFromResponse(result, provider);
           await signIn(authData);
-          if (result.newMember) {
+          if (result.isNewMember) {
             Alert.alert("환영합니다!", `${result.name}님, 숏끼에 오신 것을 환영해요!`);
           }
           return;
@@ -227,7 +228,7 @@ export default function LoginScreen() {
       const result = await sendCodeToServer(provider, code, codeVerifier);
       const authData = createAuthDataFromResponse(result, provider);
       await signIn(authData);
-      if (result.newMember) {
+      if (result.isNewMember) {
         Alert.alert("환영합니다!", `${result.name}님, 숏끼에 오신 것을 환영해요!`);
       }
     } catch (error) {
@@ -244,7 +245,7 @@ export default function LoginScreen() {
       refreshToken: response.refreshToken,
     },
     user: {
-      id: response.email,
+      id: response.memberId.toString(),
       email: response.email,
       name: response.name,
       provider,
@@ -286,10 +287,54 @@ export default function LoginScreen() {
     if (!DEV_MODE.ENABLE_MOCK_LOGIN) return;
     setIsLoading("naver");
     try {
-      const mockAuthData = createMockAuthData("naver");
-      await signIn(mockAuthData);
-    } catch {
-      Alert.alert("오류", "모의 로그인에 실패했습니다.");
+      // 개발자용 테스트 로그인 API 호출
+      const response = await fetch(`${API_BASE_URL}/api/dev/tokens?memberId=1`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`서버 에러: ${response.status} - ${errorText}`);
+      }
+
+      const apiResponse = await response.json();
+      console.log("Dev Login Response:", JSON.stringify(apiResponse, null, 2));
+
+      // 서버 응답 구조 확인 (data가 없을 수 있음)
+      const loginData = apiResponse.data || apiResponse;
+
+      if (!loginData.accessToken) {
+        throw new Error(`토큰이 없습니다. 응답: ${JSON.stringify(apiResponse)}`);
+      }
+
+      const authData: AuthData = {
+        tokens: {
+          accessToken: loginData.accessToken,
+          refreshToken: loginData.refreshToken || "",
+        },
+        user: {
+          id: String(loginData.memberId || loginData.id || "1"),
+          email: loginData.email || "",
+          name: loginData.name || "테스트 사용자",
+          provider: "naver",
+        },
+      };
+
+      await signIn(authData);
+
+      // 로그인 정보 표시
+      Alert.alert(
+        "로그인 성공",
+        `ID: ${authData.user.id}\n이름: ${authData.user.name}\n토큰: ${authData.tokens.accessToken.substring(0, 30)}...`
+      );
+    } catch (error) {
+      console.error("Dev Login Error:", error);
+      // 서버 연결 실패 시 에러 표시
+      Alert.alert(
+        "로그인 실패",
+        `서버 연결에 실패했습니다.\n\n${error instanceof Error ? error.message : "알 수 없는 오류"}\n\n서버가 실행 중인지 확인해주세요.`
+      );
     } finally {
       setIsLoading(null);
     }

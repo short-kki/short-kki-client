@@ -8,6 +8,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,183 +21,23 @@ import {
   ChevronRight,
   Edit3,
   Trash2,
-  X,
   Lock,
   Users,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
+import { usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
 
-// 레시피북 데이터 타입
+// 레시피북 데이터 타입 (hooks에서 가져온 타입과 호환)
 interface RecipeBook {
   id: string;
   name: string;
-  isDefault: boolean;
+  isDefault?: boolean;
   recipeCount: number;
-  thumbnails: string[]; // 최근 추가된 레시피 썸네일들
-  createdAt: string;
-  groupId?: string; // 그룹 레시피북인 경우 그룹 ID
-  groupName?: string; // 그룹 이름
+  thumbnails: string[];
+  createdAt?: string;
+  groupId?: string;
+  groupName?: string;
 }
-
-// 더미 개인 레시피북 데이터
-const INITIAL_RECIPE_BOOKS: RecipeBook[] = [
-  {
-    id: "default",
-    name: "기본 레시피북",
-    isDefault: true,
-    recipeCount: 12,
-    thumbnails: [
-      "https://i.ytimg.com/vi/DkyZ9t12hpo/hq720.jpg",
-      "https://i.ytimg.com/vi/oc1bnLR38fE/hq720.jpg",
-      "https://i.ytimg.com/vi/gQDByCdjUXw/hq720.jpg",
-      "https://i.ytimg.com/vi/ZPFVC78A2jM/hq720.jpg",
-    ],
-    createdAt: "",
-  },
-  {
-    id: "1",
-    name: "다이어트 레시피",
-    isDefault: false,
-    recipeCount: 8,
-    thumbnails: [
-      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400",
-      "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=400",
-    ],
-    createdAt: "2주 전",
-  },
-  {
-    id: "2",
-    name: "자취 필수 요리",
-    isDefault: false,
-    recipeCount: 15,
-    thumbnails: [
-      "https://i.ytimg.com/vi/NnhIbr5lmEg/hq720.jpg",
-      "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=400",
-      "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=400",
-    ],
-    createdAt: "1개월 전",
-  },
-  {
-    id: "3",
-    name: "손님 접대용",
-    isDefault: false,
-    recipeCount: 5,
-    thumbnails: [
-      "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=400",
-    ],
-    createdAt: "2개월 전",
-  },
-];
-
-// 그룹별 레시피북 데이터
-const GROUP_RECIPE_BOOKS: RecipeBook[] = [
-  // 우리 가족 식단 그룹
-  {
-    id: "g1-default",
-    name: "가족 공유 레시피",
-    isDefault: true,
-    recipeCount: 18,
-    thumbnails: [
-      "https://i.ytimg.com/vi/DkyZ9t12hpo/hq720.jpg",
-      "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?w=400",
-      "https://i.ytimg.com/vi/gQDByCdjUXw/hq720.jpg",
-    ],
-    createdAt: "",
-    groupId: "1",
-    groupName: "우리 가족 식단",
-  },
-  {
-    id: "g1-1",
-    name: "엄마표 레시피",
-    isDefault: false,
-    recipeCount: 12,
-    thumbnails: [
-      "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=400",
-      "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=400",
-    ],
-    createdAt: "1주 전",
-    groupId: "1",
-    groupName: "우리 가족 식단",
-  },
-  {
-    id: "g1-2",
-    name: "아이들 간식",
-    isDefault: false,
-    recipeCount: 6,
-    thumbnails: [
-      "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=400",
-    ],
-    createdAt: "2주 전",
-    groupId: "1",
-    groupName: "우리 가족 식단",
-  },
-  // 자취생 요리 모임 그룹
-  {
-    id: "g2-default",
-    name: "자취 꿀팁 레시피",
-    isDefault: true,
-    recipeCount: 25,
-    thumbnails: [
-      "https://i.ytimg.com/vi/ZPFVC78A2jM/hq720.jpg",
-      "https://i.ytimg.com/vi/oc1bnLR38fE/hq720.jpg",
-      "https://i.ytimg.com/vi/NnhIbr5lmEg/hq720.jpg",
-    ],
-    createdAt: "",
-    groupId: "2",
-    groupName: "자취생 요리 모임",
-  },
-  {
-    id: "g2-1",
-    name: "5분 완성 요리",
-    isDefault: false,
-    recipeCount: 10,
-    thumbnails: [
-      "https://i.ytimg.com/vi/ZPFVC78A2jM/hq720.jpg",
-      "https://i.ytimg.com/vi/DkyZ9t12hpo/hq720.jpg",
-    ],
-    createdAt: "3일 전",
-    groupId: "2",
-    groupName: "자취생 요리 모임",
-  },
-  {
-    id: "g2-2",
-    name: "야식 메뉴",
-    isDefault: false,
-    recipeCount: 8,
-    thumbnails: [
-      "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=400",
-    ],
-    createdAt: "1주 전",
-    groupId: "2",
-    groupName: "자취생 요리 모임",
-  },
-  // 다이어트 챌린지 그룹
-  {
-    id: "g3-default",
-    name: "다이어트 레시피 모음",
-    isDefault: true,
-    recipeCount: 15,
-    thumbnails: [
-      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400",
-      "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=400",
-    ],
-    createdAt: "",
-    groupId: "3",
-    groupName: "다이어트 챌린지",
-  },
-  {
-    id: "g3-1",
-    name: "저칼로리 식단",
-    isDefault: false,
-    recipeCount: 7,
-    thumbnails: [
-      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400",
-    ],
-    createdAt: "5일 전",
-    groupId: "3",
-    groupName: "다이어트 챌린지",
-  },
-];
 
 // 레시피북 카드 컴포넌트
 function RecipeBookCard({
@@ -368,12 +209,15 @@ export default function RecipeBookScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ groupId?: string; groupName?: string; _t?: string }>();
 
+  // hooks에서 데이터 가져오기
+  const { recipeBooks: personalBooks, loading: personalLoading, addRecipeBook, removeRecipeBook, renameRecipeBook } = usePersonalRecipeBooks();
+  const { recipeBooks: groupBooks, loading: groupLoading } = useGroupRecipeBooks();
+
   // 그룹에서 진입한 경우 그룹 탭으로 시작
   const [activeTab, setActiveTab] = useState<"personal" | "group">(
     params.groupId ? "group" : "personal"
   );
   const [filterGroupId, setFilterGroupId] = useState<string | null>(params.groupId || null);
-  const [recipeBooks, setRecipeBooks] = useState<RecipeBook[]>(INITIAL_RECIPE_BOOKS);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showMenuModal, setShowMenuModal] = useState(false);
@@ -434,7 +278,7 @@ export default function RecipeBookScreen() {
           text: "삭제",
           style: "destructive",
           onPress: () => {
-            setRecipeBooks((prev) => prev.filter((b) => b.id !== book.id));
+            removeRecipeBook(book.id);
           },
         },
       ]
@@ -449,7 +293,7 @@ export default function RecipeBookScreen() {
 
     // 그룹 탭에서 그룹이 선택된 경우, 그룹당 1개 제한 체크
     if (activeTab === "group" && filterGroupId) {
-      const existingGroupBooks = GROUP_RECIPE_BOOKS.filter(
+      const existingGroupBooks = groupBooks.filter(
         (book) => book.groupId === filterGroupId
       );
       if (existingGroupBooks.length >= 1) {
@@ -461,7 +305,7 @@ export default function RecipeBookScreen() {
       }
     }
 
-    const newBook: RecipeBook = {
+    const newBook = {
       id: Date.now().toString(),
       name: newBookName.trim(),
       isDefault: false,
@@ -470,7 +314,7 @@ export default function RecipeBookScreen() {
       createdAt: "방금",
     };
 
-    setRecipeBooks((prev) => [...prev, newBook]);
+    addRecipeBook(newBook);
     setNewBookName("");
     setShowCreateModal(false);
   };
@@ -481,11 +325,7 @@ export default function RecipeBookScreen() {
       return;
     }
 
-    setRecipeBooks((prev) =>
-      prev.map((book) =>
-        book.id === editingBook.id ? { ...book, name: editBookName.trim() } : book
-      )
-    );
+    renameRecipeBook(editingBook.id, editBookName.trim());
     setEditingBook(null);
     setEditBookName("");
     setShowEditModal(false);
@@ -591,7 +431,14 @@ export default function RecipeBookScreen() {
       >
         {activeTab === "personal" ? (
           <>
-            {recipeBooks.map((book) => (
+            {/* 로딩 상태 */}
+            {personalLoading && (
+              <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
+                <ActivityIndicator size="large" color={Colors.primary[500]} />
+              </View>
+            )}
+
+            {!personalLoading && personalBooks.map((book) => (
               <RecipeBookCard
                 key={book.id}
                 book={book}
@@ -600,7 +447,7 @@ export default function RecipeBookScreen() {
               />
             ))}
 
-            {recipeBooks.length === 0 && (
+            {!personalLoading && personalBooks.length === 0 && (
               <View
                 style={{
                   alignItems: "center",
@@ -681,12 +528,19 @@ export default function RecipeBookScreen() {
               </View>
             )}
 
+            {/* 로딩 상태 */}
+            {groupLoading && (
+              <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
+                <ActivityIndicator size="large" color={Colors.primary[500]} />
+              </View>
+            )}
+
             {/* 그룹별로 레시피북 표시 */}
-            {(() => {
+            {!groupLoading && (() => {
               // 필터링된 레시피북
               const filteredBooks = filterGroupId
-                ? GROUP_RECIPE_BOOKS.filter((book) => book.groupId === filterGroupId)
-                : GROUP_RECIPE_BOOKS;
+                ? groupBooks.filter((book) => book.groupId === filterGroupId)
+                : groupBooks;
 
               // 그룹별로 레시피북 그룹화
               const groupedBooks = filteredBooks.reduce((acc, book) => {

@@ -207,10 +207,6 @@ export default function MealPlanScreen() {
     router.push(`/recipe/${recipeId}`);
   };
 
-  const handleRecommendationPress = (recipeId: string) => {
-    router.push(`/recipe/${recipeId}`);
-  };
-
   return (
     <View style={{ flex: 1, backgroundColor: "#FEFEFE" }}>
       <StatusBar barStyle="dark-content" />
@@ -621,69 +617,8 @@ export default function MealPlanScreen() {
           )}
         </View>
 
-        {/* 추천 섹션 */}
-        <View style={{ marginTop: Spacing["2xl"], paddingBottom: 120 }}>
-          <View style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            paddingHorizontal: Spacing.xl,
-            marginBottom: Spacing.md,
-          }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Sparkles size={18} color={Colors.primary[500]} />
-              <Text style={{ fontSize: 16, fontWeight: "700", color: Colors.neutral[900] }}>
-                이런 레시피는 어때요?
-              </Text>
-            </View>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{
-              paddingHorizontal: Spacing.xl,
-              gap: Spacing.md,
-            }}
-          >
-            {[
-              { id: "r1", title: "15분 완성 돈까스", image: "https://images.unsplash.com/photo-1604908176997-125f25cc6f25?w=300" },
-              { id: "r2", title: "초간단 계란찜", image: "https://images.unsplash.com/photo-1482049016gy-2d3e7fd9b1e3?w=300" },
-              { id: "r3", title: "원팬 치킨 스테이크", image: "https://images.unsplash.com/photo-1532550907401-a500c9a57435?w=300" },
-            ].map((recipe) => (
-              <TouchableOpacity
-                key={recipe.id}
-                activeOpacity={0.8}
-                onPress={() => handleRecommendationPress(recipe.id)}
-                style={{
-                  width: 160,
-                  backgroundColor: "#FFFFFF",
-                  borderRadius: BorderRadius.xl,
-                  overflow: "hidden",
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.06,
-                  shadowRadius: 8,
-                  elevation: 2,
-                }}
-              >
-                <Image
-                  source={{ uri: recipe.image }}
-                  style={{ width: 160, height: 100 }}
-                  contentFit="cover"
-                />
-                <View style={{ padding: Spacing.sm }}>
-                  <Text
-                    style={{ fontSize: 14, fontWeight: "600", color: Colors.neutral[900] }}
-                    numberOfLines={1}
-                  >
-                    {recipe.title}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+        {/* 하단 여백 */}
+        <View style={{ paddingBottom: 120 }} />
       </ScrollView>
     </View>
   );

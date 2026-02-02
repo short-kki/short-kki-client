@@ -8,10 +8,8 @@ import {
   MOCK_PERSONAL_RECIPE_BOOKS,
   MOCK_GROUP_RECIPE_BOOKS,
   MOCK_RECIPE_BOOK_RECIPES,
-  MOCK_SHOPPING_ITEMS,
   type RecipeBook,
   type Recipe,
-  type ShoppingItem,
 } from '@/data/mock';
 
 /**
@@ -147,62 +145,3 @@ export function useRecipeBookDetail(bookId?: string) {
   };
 }
 
-/**
- * 장보기 목록 조회
- */
-export function useShoppingList(groupId?: string) {
-  const [items, setItems] = useState<ShoppingItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  const fetchItems = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      if (USE_MOCK) {
-        setItems(MOCK_SHOPPING_ITEMS);
-      } else {
-        const endpoint = groupId
-          ? `/groups/${groupId}/shopping-list`
-          : '/shopping-list';
-        const data = await api.get<ShoppingItem[]>(endpoint);
-        setItems(data);
-      }
-    } catch (err) {
-      setError(err as Error);
-    } finally {
-      setLoading(false);
-    }
-  }, [groupId]);
-
-  useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
-
-  const toggleItem = useCallback((itemId: string) => {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === itemId ? { ...item, isChecked: !item.isChecked } : item
-      )
-    );
-  }, []);
-
-  const addItem = useCallback((item: ShoppingItem) => {
-    setItems((prev) => [...prev, item]);
-  }, []);
-
-  const removeItem = useCallback((itemId: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== itemId));
-  }, []);
-
-  return {
-    items,
-    loading,
-    error,
-    refetch: fetchItems,
-    toggleItem,
-    addItem,
-    removeItem,
-  };
-}

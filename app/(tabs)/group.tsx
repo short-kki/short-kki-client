@@ -41,42 +41,67 @@ import type { Group } from "@/data/mock";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const FEED_IMAGE_SIZE = SCREEN_WIDTH - 32 - 2; // padding + border
 
+// 그룹 타입 정의
+const GROUP_TYPES = [
+  { value: 'COUPLE', label: '커플' },
+  { value: 'FAMILY', label: '가족' },
+  { value: 'FRIENDS', label: '친구' },
+  { value: 'ETC', label: '기타' },
+] as const;
+
+type GroupTypeValue = typeof GROUP_TYPES[number]['value'];
+
 export default function GroupScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
   // Hooks로 데이터 관리
-  const { groups, addGroup, removeGroup } = useGroups();
+  const { groups, createGroup, deleteGroup } = useGroups();
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const { feeds, toggleLike } = useGroupFeeds(selectedGroup?.id);
 
   // UI 상태
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupType, setNewGroupType] = useState<GroupTypeValue>('FAMILY');
   const [showGroupMenuModal, setShowGroupMenuModal] = useState(false);
   const [menuTargetGroup, setMenuTargetGroup] = useState<Group | null>(null);
   const [showFeedMenuModal, setShowFeedMenuModal] = useState(false);
   const [selectedFeedId, setSelectedFeedId] = useState<string | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
 
-  const handleCreateGroup = () => {
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleCreateGroup = async () => {
     if (!newGroupName.trim()) {
       Alert.alert("알림", "그룹 이름을 입력해주세요.");
       return;
     }
 
-    const newGroup: Group = {
-      id: Date.now().toString(),
-      name: newGroupName,
-      memberCount: 1,
-      thumbnail: null,
-      lastActivity: "방금",
-    };
+    if (isCreating) return;
 
-    addGroup(newGroup);
-    setNewGroupName("");
-    setShowCreateModal(false);
-    Alert.alert("완료", `"${newGroupName}" 그룹이 생성되었습니다.`);
+    try {
+      setIsCreating(true);
+
+      // 서버 API 호출
+      await createGroup({
+        name: newGroupName,
+        groupType: newGroupType,
+      });
+
+      setNewGroupName("");
+      setNewGroupType('FAMILY');
+      setShowCreateModal(false);
+      Alert.alert("완료", `"${newGroupName}" 그룹이 생성되었습니다.`);
+    } catch (error) {
+      console.error("그룹 생성 실패:", error);
+      Alert.alert(
+        "오류",
+        error instanceof Error ? error.message : "그룹 생성에 실패했습니다."
+      );
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleDeleteGroup = (groupId: string) => {
@@ -85,8 +110,17 @@ export default function GroupScreen() {
       {
         text: "삭제",
         style: "destructive",
-        onPress: () => {
-          removeGroup(groupId);
+        onPress: async () => {
+          try {
+            await deleteGroup(groupId);
+            Alert.alert("완료", "그룹이 삭제되었습니다.");
+          } catch (error) {
+            console.error("그룹 삭제 실패:", error);
+            Alert.alert(
+              "오류",
+              error instanceof Error ? error.message : "그룹 삭제에 실패했습니다."
+            );
+          }
         },
       },
     ]);
@@ -116,8 +150,18 @@ export default function GroupScreen() {
         case "leave":
           Alert.alert("그룹 나가기", `"${menuTargetGroup.name}" 그룹에서 나가시겠습니까?`, [
             { text: "취소", style: "cancel" },
-            { text: "나가기", style: "destructive", onPress: () => {
-              removeGroup(menuTargetGroup.id);
+            { text: "나가기", style: "destructive", onPress: async () => {
+              try {
+                // TODO: 실제로는 그룹 나가기 API를 호출해야 함
+                await deleteGroup(menuTargetGroup.id);
+                Alert.alert("완료", "그룹에서 나갔습니다.");
+              } catch (error) {
+                console.error("그룹 나가기 실패:", error);
+                Alert.alert(
+                  "오류",
+                  error instanceof Error ? error.message : "그룹 나가기에 실패했습니다."
+                );
+              }
             }},
           ]);
           break;
@@ -257,9 +301,7 @@ export default function GroupScreen() {
             >
               {selectedGroup.name}
             </Text>
-            <TouchableOpacity onPress={handleInviteMember} activeOpacity={0.7}>
-              <UserPlus size={24} color={Colors.neutral[600]} />
-            </TouchableOpacity>
+            <View style={{ width: 24 }} />
           </View>
 
           {/* Quick Actions */}
@@ -817,11 +859,63 @@ export default function GroupScreen() {
               onChangeText={setNewGroupName}
             />
 
+            {/* Group Type Selector */}
+            <Text
+              style={{
+                fontSize: 14,
+                color: Colors.neutral[600],
+                marginBottom: Spacing.sm,
+                marginTop: Spacing.lg,
+              }}
+            >
+              그룹 유형
+            </Text>
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: Spacing.sm,
+              }}
+            >
+              {GROUP_TYPES.map((type) => (
+                <TouchableOpacity
+                  key={type.value}
+                  onPress={() => setNewGroupType(type.value)}
+                  activeOpacity={0.7}
+                  style={{
+                    paddingHorizontal: Spacing.md,
+                    paddingVertical: Spacing.sm,
+                    borderRadius: BorderRadius.full,
+                    backgroundColor: newGroupType === type.value
+                      ? Colors.primary[500]
+                      : Colors.neutral[100],
+                    borderWidth: 1,
+                    borderColor: newGroupType === type.value
+                      ? Colors.primary[500]
+                      : Colors.neutral[200],
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: newGroupType === type.value ? '600' : '400',
+                      color: newGroupType === type.value
+                        ? '#FFFFFF'
+                        : Colors.neutral[700],
+                    }}
+                  >
+                    {type.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             {/* Create Button */}
             <Pressable
               onPress={handleCreateGroup}
+              disabled={isCreating}
               style={{
-                backgroundColor: Colors.primary[500],
+                backgroundColor: isCreating ? Colors.neutral[300] : Colors.primary[500],
                 borderRadius: BorderRadius.lg,
                 paddingVertical: Spacing.md,
                 alignItems: "center",
@@ -835,7 +929,7 @@ export default function GroupScreen() {
                   color: "#FFFFFF",
                 }}
               >
-                그룹 만들기
+                {isCreating ? "생성 중..." : "그룹 만들기"}
               </Text>
             </Pressable>
           </Pressable>

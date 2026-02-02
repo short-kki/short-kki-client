@@ -22,6 +22,7 @@ import {
   Send,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
+import { api, USE_MOCK } from "@/services/api";
 
 // 더미 이미지 URL (프로토타입용)
 const DUMMY_IMAGES = [
@@ -83,15 +84,37 @@ export default function GroupFeedCreateScreen() {
       return;
     }
 
+    if (!params.groupId) {
+      Alert.alert("오류", "그룹 정보가 없습니다.");
+      return;
+    }
+
     setIsSubmitting(true);
 
-    // API 호출 시뮬레이션
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      if (USE_MOCK) {
+        // Mock 모드: 시뮬레이션
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      } else {
+        // 실제 API 호출: POST /api/v1/groups/{groupId}/feeds
+        await api.post(`/api/v1/groups/${params.groupId}/feeds`, {
+          content: content.trim(),
+          feedType: 'USER_CREATED',
+        });
+      }
+
       Alert.alert("완료", "피드가 등록되었습니다.", [
         { text: "확인", onPress: () => router.back() },
       ]);
-    }, 1000);
+    } catch (error) {
+      console.error("피드 생성 실패:", error);
+      Alert.alert(
+        "오류",
+        error instanceof Error ? error.message : "피드 등록에 실패했습니다."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const canSubmit = content.trim() || images.length > 0;

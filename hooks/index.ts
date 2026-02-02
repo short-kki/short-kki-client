@@ -3,7 +3,7 @@
  */
 
 // 그룹 관련
-export { useGroups, useGroupFeeds, useGroupMembers } from './useGroups';
+export { useGroups, useGroupFeeds, useGroupMembers, useShoppingList } from './useGroups';
 
 // 쇼츠/홈 관련
 export { useShorts, useCurationSections } from './useShorts';
@@ -13,7 +13,6 @@ export {
   usePersonalRecipeBooks,
   useGroupRecipeBooks,
   useRecipeBookDetail,
-  useShoppingList,
 } from './useRecipes';
 
 // 기존 hooks

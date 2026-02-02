@@ -17,6 +17,7 @@ import {
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { YoutubeView, useYouTubePlayer, useYouTubeEvent } from "react-native-youtube-bridge";
 import {
   Bookmark,
   Share2,
@@ -26,6 +27,7 @@ import {
   ArrowLeft,
   MoreVertical,
   Play,
+  Pause,
   ScrollText,
   X,
   Check,
@@ -130,9 +132,56 @@ interface VideoItemProps {
   bookmarkCount: number;
 }
 
-// 개별 비디오 아이템 컴포넌트 (프로토타입 - 썸네일 기반)
+// 개별 비디오 아이템 컴포넌트 (YouTube 플레이어 - react-native-youtube-bridge)
 function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onShare, onBookmarkPress, isBookmarked, bookmarkCount }: VideoItemProps) {
+  const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  // react-native-youtube-bridge 플레이어 초기화
+  const player = useYouTubePlayer(item.videoId, {
+    autoplay: true,
+    muted: true, // 자동재생을 위해 항상 음소거로 시작
+    controls: false,
+    playsinline: true,
+    rel: false,
+    loop: true,
+  });
+
+  // 이벤트 리스너
+  useYouTubeEvent(player, 'ready', () => {
+    setIsReady(true);
+  });
+
+  useYouTubeEvent(player, 'stateChange', (state: string) => {
+    if (state === 'ended') {
+      player.seekTo(0, true);
+      player.play();
+    }
+  });
+
+  // 활성화 상태에 따라 재생/일시정지
+  useEffect(() => {
+    if (isReady) {
+      if (isActive) {
+        player.play();
+        setIsPlaying(true);
+      } else {
+        player.pause();
+        setIsPlaying(false);
+      }
+    }
+  }, [isActive, isReady, player]);
+
+  // 음소거 상태 변경
+  useEffect(() => {
+    if (isReady) {
+      if (isMuted) {
+        player.mute();
+      } else {
+        player.unMute();
+      }
+    }
+  }, [isMuted, isReady, player]);
 
   const formatCount = (count: number) => {
     if (count >= 10000) {
@@ -144,10 +193,16 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
     return count.toString();
   };
 
-  // 활성화되면 재생 중인 것처럼 표시
-  useEffect(() => {
-    setIsPlaying(isActive);
-  }, [isActive]);
+  // 재생/일시정지 토글
+  const togglePlayPause = useCallback(() => {
+    if (isPlaying) {
+      player.pause();
+      setIsPlaying(false);
+    } else {
+      player.play();
+      setIsPlaying(true);
+    }
+  }, [isPlaying, player]);
 
   return (
     <View
@@ -158,55 +213,113 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
         overflow: "hidden",
       }}
     >
-      {/* 썸네일 이미지 - 화면 꽉 채우기 */}
-      <Image
-        source={{ uri: item.thumbnail }}
+      {/* 로딩 중일 때 썸네일 표시 */}
+      {!isReady && (
+        <Image
+          source={{ uri: item.thumbnail }}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: SCREEN_WIDTH,
+            height: itemHeight,
+            zIndex: 1,
+          }}
+          contentFit="cover"
+        />
+      )}
+
+      {/* YouTube 플레이어 - 화면 꽉 채우기 */}
+      <Pressable
+        onPress={togglePlayPause}
         style={{
           position: "absolute",
           top: 0,
           left: 0,
-          width: SCREEN_WIDTH,
-          height: itemHeight,
+          right: 0,
+          bottom: 0,
+          justifyContent: "center",
+          alignItems: "center",
+          overflow: "hidden",
         }}
-        contentFit="cover"
-        transition={300}
-      />
+      >
+        <YoutubeView
+          player={player}
+          width={SCREEN_WIDTH}
+          height={SCREEN_WIDTH * (16 / 9)}
+          style={{
+            backgroundColor: "#000",
+          }}
+          webViewStyle={{
+            backgroundColor: "#000",
+          }}
+          webViewProps={{
+            allowsInlineMediaPlayback: true,
+            mediaPlaybackRequiresUserAction: false,
+            scrollEnabled: false,
+          }}
+        />
+      </Pressable>
 
-      {/* 재생 중 표시 (프로토타입) */}
-      {isPlaying && (
-        <View
+      {/* 일시정지 상태일 때 썸네일 + 재생 아이콘으로 YouTube UI 덮기 */}
+      {isReady && !isPlaying && (
+        <Pressable
+          onPress={togglePlayPause}
           style={{
             position: "absolute",
-            top: 16,
-            left: 16,
-            backgroundColor: "rgba(255,0,0,0.8)",
-            paddingHorizontal: 8,
-            paddingVertical: 4,
-            borderRadius: 4,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 4,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 5,
           }}
         >
+          {/* 썸네일로 YouTube UI 덮기 */}
+          <Image
+            source={{ uri: item.thumbnail }}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: SCREEN_WIDTH,
+              height: itemHeight,
+            }}
+            contentFit="cover"
+          />
+          {/* 어두운 오버레이 */}
           <View
             style={{
-              width: 8,
-              height: 8,
-              borderRadius: 4,
-              backgroundColor: "#FFF",
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.3)",
+              justifyContent: "center",
+              alignItems: "center",
             }}
-          />
-          <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "600" }}>
-            LIVE
-          </Text>
-        </View>
+          >
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: "rgba(0,0,0,0.6)",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <Play size={36} color="#FFF" fill="#FFF" />
+            </View>
+          </View>
+        </Pressable>
       )}
 
       {/* 좌측 하단 - 콘텐츠 정보 */}
       <View
         style={{
           position: "absolute",
-          bottom: 24,
+          bottom: 100,
           left: 16,
           right: 80,
           zIndex: 10,
@@ -277,10 +390,10 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
       <View
         style={{
           position: "absolute",
-          bottom: 24,
+          bottom: 100,
           right: 12,
           alignItems: "center",
-          gap: 20,
+          gap: 16,
           zIndex: 10,
         }}
       >
@@ -549,26 +662,11 @@ export default function ShortsScreen() {
           left: 16,
           right: 16,
           flexDirection: "row",
-          justifyContent: "space-between",
+          justifyContent: "flex-end",
           alignItems: "center",
           zIndex: 100,
         }}
       >
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={{
-            backgroundColor: "rgba(0,0,0,0.5)",
-            borderRadius: 20,
-            padding: 8,
-          }}
-        >
-          <ArrowLeft size={24} color="#FFF" />
-        </TouchableOpacity>
-
-        <Text style={{ color: "#FFF", fontSize: 18, fontWeight: "700" }}>
-          쇼츠
-        </Text>
-
         <View style={{ flexDirection: "row", gap: 8 }}>
           <TouchableOpacity
             onPress={toggleMute}

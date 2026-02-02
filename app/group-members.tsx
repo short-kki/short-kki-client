@@ -7,6 +7,7 @@ import {
   Pressable,
   Modal,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,6 +25,7 @@ import {
   Copy,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
+import { useGroupMembers } from "@/hooks";
 
 // 멤버 역할 타입
 type MemberRole = "owner" | "admin" | "member";
@@ -36,93 +38,6 @@ interface Member {
   role: MemberRole;
   joinedAt: string;
 }
-
-// 더미 멤버 데이터
-const DUMMY_MEMBERS: Record<string, Member[]> = {
-  "1": [
-    {
-      id: "m1",
-      name: "엄마",
-      avatar: "https://i.pravatar.cc/100?img=1",
-      role: "owner",
-      joinedAt: "2024년 1월",
-    },
-    {
-      id: "m2",
-      name: "아빠",
-      avatar: "https://i.pravatar.cc/100?img=2",
-      role: "admin",
-      joinedAt: "2024년 1월",
-    },
-    {
-      id: "m3",
-      name: "나",
-      avatar: "https://i.pravatar.cc/100?img=3",
-      role: "member",
-      joinedAt: "2024년 1월",
-    },
-    {
-      id: "m4",
-      name: "동생",
-      avatar: "https://i.pravatar.cc/100?img=4",
-      role: "member",
-      joinedAt: "2024년 2월",
-    },
-  ],
-  "2": [
-    {
-      id: "m5",
-      name: "요리왕",
-      avatar: "https://i.pravatar.cc/100?img=5",
-      role: "owner",
-      joinedAt: "2023년 12월",
-    },
-    {
-      id: "m6",
-      name: "맛집러버",
-      avatar: "https://i.pravatar.cc/100?img=6",
-      role: "admin",
-      joinedAt: "2024년 1월",
-    },
-    {
-      id: "m7",
-      name: "자취생A",
-      avatar: "https://i.pravatar.cc/100?img=7",
-      role: "member",
-      joinedAt: "2024년 1월",
-    },
-    {
-      id: "m8",
-      name: "자취생B",
-      avatar: "https://i.pravatar.cc/100?img=8",
-      role: "member",
-      joinedAt: "2024년 2월",
-    },
-    {
-      id: "m9",
-      name: "요리초보",
-      avatar: "https://i.pravatar.cc/100?img=9",
-      role: "member",
-      joinedAt: "2024년 2월",
-    },
-  ],
-  "3": [
-    {
-      id: "m10",
-      name: "다이어터",
-      avatar: "https://i.pravatar.cc/100?img=10",
-      role: "owner",
-      joinedAt: "2024년 1월",
-    },
-    {
-      id: "m11",
-      name: "헬스왕",
-      avatar: "https://i.pravatar.cc/100?img=11",
-      role: "member",
-      joinedAt: "2024년 1월",
-    },
-  ],
-};
 
 // 역할 배지 컴포넌트
 function RoleBadge({ role }: { role: MemberRole }) {
@@ -279,15 +194,27 @@ export default function GroupMembersScreen() {
 
   const groupId = params.groupId || "1";
   const groupName = params.groupName || "그룹";
-  const members = DUMMY_MEMBERS[groupId] || [];
+
+  // API에서 멤버 목록 조회
+  const { members: apiMembers, loading, error, refetch } = useGroupMembers(groupId);
+
+  // API 응답을 화면용 타입으로 변환
+  const members: Member[] = apiMembers.map((m) => ({
+    id: m.id,
+    name: m.name,
+    avatar: null, // API에서 avatar 미제공 시 null
+    role: m.role as MemberRole,
+    joinedAt: m.joinedAt,
+  }));
 
   const [showMemberMenuModal, setShowMemberMenuModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
 
   // 현재 사용자 ID (실제로는 AuthContext에서 가져옴)
-  const currentUserId = "m3";
+  // TODO: AuthContext에서 현재 사용자 정보 가져오기
+  const currentUserId = "";
 
-  // 현재 사용자의 역할 확인
+  // 현재 사용자의 역할 확인 (첫 번째 ADMIN을 방장으로 간주)
   const currentUser = members.find((m) => m.id === currentUserId);
   const currentUserRole = currentUser?.role || "member";
   const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
@@ -353,6 +280,67 @@ export default function GroupMembersScreen() {
     const roleOrder: Record<MemberRole, number> = { owner: 0, admin: 1, member: 2 };
     return roleOrder[a.role] - roleOrder[b.role];
   });
+
+  // 로딩 상태
+  if (loading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: Colors.neutral[50],
+          paddingTop: insets.top,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <ActivityIndicator size="large" color={Colors.primary[500]} />
+        <Text style={{ marginTop: Spacing.md, color: Colors.neutral[500] }}>
+          멤버 목록을 불러오는 중...
+        </Text>
+      </View>
+    );
+  }
+
+  // 에러 상태
+  if (error) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: Colors.neutral[50],
+          paddingTop: insets.top,
+          justifyContent: "center",
+          alignItems: "center",
+          paddingHorizontal: Spacing.xl,
+        }}
+      >
+        <User size={48} color={Colors.neutral[300]} />
+        <Text
+          style={{
+            fontSize: Typography.fontSize.lg,
+            fontWeight: "600",
+            color: Colors.neutral[500],
+            marginTop: Spacing.md,
+            textAlign: "center",
+          }}
+        >
+          멤버 목록을 불러올 수 없습니다
+        </Text>
+        <TouchableOpacity
+          onPress={refetch}
+          style={{
+            marginTop: Spacing.lg,
+            backgroundColor: Colors.primary[500],
+            paddingHorizontal: 24,
+            paddingVertical: 12,
+            borderRadius: BorderRadius.lg,
+          }}
+        >
+          <Text style={{ color: "#FFF", fontWeight: "600" }}>다시 시도</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View
