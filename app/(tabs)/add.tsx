@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import {
   Link,
   Search,
@@ -71,8 +71,9 @@ interface ParsedRecipe {
 export default function AddRecipeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ mode?: string }>();
 
-  const [mode, setMode] = useState<"select" | "url">("select");
+  const [mode, setMode] = useState<"select" | "url">(params.mode === "url" ? "url" : "select");
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [parsedRecipe, setParsedRecipe] = useState<ParsedRecipe | null>(null);
