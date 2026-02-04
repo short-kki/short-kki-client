@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { YoutubeView, useYouTubePlayer, useYouTubeEvent } from "react-native-youtube-bridge";
 import {
@@ -52,9 +53,6 @@ const RECIPE_BOOKS = {
 };
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const TAB_BAR_HEIGHT = 85;
-const ITEM_HEIGHT = SCREEN_HEIGHT - TAB_BAR_HEIGHT;
-
 // 쇼츠 비디오 데이터 (홈과 동일한 데이터)
 const CURATION_AS_SHORTS: ShortsItem[] = MOCK_CURATION_SECTIONS.flatMap((section) =>
   section.recipes.map((recipe) => ({
@@ -92,6 +90,7 @@ interface VideoItemProps {
 function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onShare, onBookmarkPress, isBookmarked, bookmarkCount }: VideoItemProps) {
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const playerWidth = Math.max(SCREEN_WIDTH, itemHeight * (16 / 9));
 
   // react-native-youtube-bridge 플레이어 초기화
   const player = useYouTubePlayer(item.videoId, {
@@ -196,25 +195,34 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
           bottom: 0,
           justifyContent: "center",
           alignItems: "center",
-          overflow: "hidden",
         }}
       >
-        <YoutubeView
-          player={player}
-          width={SCREEN_WIDTH}
-          height={SCREEN_WIDTH * (16 / 9)}
+        <View
           style={{
-            backgroundColor: "#000",
+            width: SCREEN_WIDTH,
+            height: itemHeight,
+            justifyContent: "center",
+            alignItems: "center",
+            overflow: "hidden",
           }}
-          webViewStyle={{
-            backgroundColor: "#000",
-          }}
-          webViewProps={{
-            allowsInlineMediaPlayback: true,
-            mediaPlaybackRequiresUserAction: false,
-            scrollEnabled: false,
-          }}
-        />
+        >
+          <YoutubeView
+            player={player}
+            width={playerWidth}
+            height={itemHeight}
+            style={{
+              backgroundColor: "#000",
+            }}
+            webViewStyle={{
+              backgroundColor: "#000",
+            }}
+            webViewProps={{
+              allowsInlineMediaPlayback: true,
+              mediaPlaybackRequiresUserAction: false,
+              scrollEnabled: false,
+            }}
+          />
+        </View>
       </Pressable>
 
       {/* 일시정지 상태일 때 썸네일 + 재생 아이콘으로 YouTube UI 덮기 */}
@@ -449,9 +457,11 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
 
 export default function ShortsScreen() {
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const router = useRouter();
   const params = useLocalSearchParams<{ startIndex?: string }>();
   const flatListRef = useRef<FlatList>(null);
+  const itemHeight = SCREEN_HEIGHT - tabBarHeight;
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
@@ -581,7 +591,7 @@ export default function ShortsScreen() {
       <VideoItem
         item={item}
         isActive={index === activeIndex}
-        itemHeight={ITEM_HEIGHT}
+        itemHeight={itemHeight}
         onMuteToggle={toggleMute}
         isMuted={isMuted}
         onViewRecipe={() => handleViewRecipe(item.id)}
@@ -599,11 +609,11 @@ export default function ShortsScreen() {
 
   const getItemLayout = useCallback(
     (_: any, index: number) => ({
-      length: ITEM_HEIGHT,
-      offset: ITEM_HEIGHT * index,
+      length: itemHeight,
+      offset: itemHeight * index,
       index,
     }),
-    []
+    [itemHeight]
   );
 
   return (
@@ -658,16 +668,18 @@ export default function ShortsScreen() {
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         pagingEnabled
+        disableIntervalMomentum
         decelerationRate="fast"
         showsVerticalScrollIndicator={false}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         getItemLayout={getItemLayout}
-        initialNumToRender={1}
-        maxToRenderPerBatch={2}
-        windowSize={3}
-        removeClippedSubviews={true}
-        snapToInterval={ITEM_HEIGHT}
+        initialNumToRender={2}
+        maxToRenderPerBatch={3}
+        windowSize={5}
+        updateCellsBatchingPeriod={50}
+        removeClippedSubviews={false}
+        snapToInterval={itemHeight}
         snapToAlignment="start"
       />
 
