@@ -53,9 +53,32 @@ export const GOOGLE_CONFIG = {
 // Response: { code, message, data: { accessToken, refreshToken, email, name, newMember } }
 // ============================================================================
 
-export const API_BASE_URL = __DEV__
-  ? "http://localhost:8080"
-  : "https://api.shortkki.com"; // TODO: 실제 프로덕션 URL로 변경
+import Constants from "expo-constants";
+
+// ngrok HTTPS 터널 URL (개발용)
+// ngrok http 8080 실행 후 생성되는 URL로 변경
+const NGROK_URL = ""; // ngrok 껐으므로 로컬 IP 사용
+
+export const API_BASE_URL = (() => {
+  if (!__DEV__) {
+    // TODO: 실제 프로덕션 URL로 변경
+    return "https://api.shortkki.com";
+  }
+
+  // ngrok URL이 있으면 사용 (iOS 실제 기기에서 HTTP 차단 우회)
+  if (NGROK_URL) {
+    return NGROK_URL;
+  }
+
+  // Expo에서 debuggerHost 가져오기
+  const debuggerHost = Constants.expoConfig?.hostUri;
+  const localhost = debuggerHost?.split(":")[0];
+
+  // debuggerHost가 없으면 현재 네트워크 IP 사용
+  const fallbackIp = "192.168.219.106";
+
+  return `http://${localhost || fallbackIp}:8080`;
+})();
 
 // ============================================================================
 // DEV MODE - 백엔드 없이 테스트용
