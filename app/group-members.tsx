@@ -8,6 +8,8 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
+  Share,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,7 +27,10 @@ import {
   Copy,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
-import { useGroupMembers } from "@/hooks";
+import { useGroupMembers, getGroupInviteCode } from "@/hooks";
+
+// 딥링크 베이스 URL
+const INVITE_BASE_URL = "https://shortkki.com";
 
 // 멤버 역할 타입
 type MemberRole = "owner" | "admin" | "member";
@@ -37,6 +42,15 @@ interface Member {
   avatar: string | null;
   role: MemberRole;
   joinedAt: string;
+}
+
+// 날짜 포맷 함수 (YYYY-MM-DDTHH:mm:ss -> YYYY.MM.DD)
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}.${month}.${day}`;
 }
 
 // 역할 배지 컴포넌트
@@ -169,7 +183,7 @@ function MemberCard({
             marginTop: 2,
           }}
         >
-          {member.joinedAt} 가입
+          {formatDate(member.joinedAt)} 가입
         </Text>
       </View>
 
@@ -269,10 +283,39 @@ export default function GroupMembersScreen() {
     }, 200);
   };
 
-  const handleInvite = () => {
-    Alert.alert("멤버 초대", "초대 링크가 클립보드에 복사되었습니다!", [
-      { text: "확인" },
-    ]);
+  const [inviteLoading, setInviteLoading] = useState(false);
+
+  const handleInvite = async () => {
+    try {
+      setInviteLoading(true);
+
+      // API에서 초대 코드 받기
+      const inviteCode = await getGroupInviteCode(groupId);
+
+      // 딥링크 URL 생성
+      const inviteUrl = `${INVITE_BASE_URL}/group/invite/${inviteCode}`;
+
+      // 시스템 공유 시트 열기
+      // iOS: url을 별도로 전달하면 메시지와 링크가 분리됨
+      // Android: url 파라미터가 없으므로 message에 포함해야 함
+      await Share.share(
+        Platform.OS === "ios"
+          ? {
+              message: `${groupName} 그룹에 초대합니다!`,
+              url: inviteUrl,
+            }
+          : {
+              message: `${groupName} 그룹에 초대합니다!\n${inviteUrl}`,
+            }
+      );
+    } catch (err) {
+      // 사용자가 공유를 취소한 경우는 에러로 처리하지 않음
+      if ((err as Error).message !== "User did not share") {
+        Alert.alert("오류", "초대 링크를 생성할 수 없습니다. 다시 시도해주세요.");
+      }
+    } finally {
+      setInviteLoading(false);
+    }
   };
 
   // 역할별로 멤버 정렬 (방장 > 관리자 > 일반)
@@ -395,17 +438,22 @@ export default function GroupMembersScreen() {
         <TouchableOpacity
           onPress={handleInvite}
           activeOpacity={0.7}
+          disabled={inviteLoading}
           style={{
             flexDirection: "row",
             alignItems: "center",
-            backgroundColor: Colors.primary[500],
+            backgroundColor: inviteLoading ? Colors.primary[300] : Colors.primary[500],
             paddingHorizontal: 14,
             paddingVertical: 8,
             borderRadius: BorderRadius.full,
             gap: 6,
           }}
         >
-          <UserPlus size={18} color="#FFF" />
+          {inviteLoading ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <UserPlus size={18} color="#FFF" />
+          )}
           <Text
             style={{
               fontSize: 14,
@@ -553,7 +601,7 @@ export default function GroupMembersScreen() {
                         marginTop: 2,
                       }}
                     >
-                      {selectedMember.joinedAt} 가입
+                      {formatDate(selectedMember.joinedAt)} 가입
                     </Text>
                   </View>
                 </>

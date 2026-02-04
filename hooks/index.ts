@@ -3,7 +3,15 @@
  */
 
 // 그룹 관련
-export { useGroups, useGroupFeeds, useGroupMembers, useShoppingList } from './useGroups';
+export {
+  useGroups,
+  useGroupFeeds,
+  useGroupMembers,
+  useShoppingList,
+  getGroupInviteCode,
+  getGroupPreviewByInviteCode,
+  joinGroupByInviteCode,
+} from './useGroups';
 
 // 쇼츠/홈 관련
 export { useShorts, useCurationSections } from './useShorts';

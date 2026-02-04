@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   Plus,
   Bell,
@@ -58,7 +59,16 @@ export default function GroupScreen() {
   // Hooks로 데이터 관리
   const { groups, createGroup, deleteGroup } = useGroups();
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
-  const { feeds, toggleLike } = useGroupFeeds(selectedGroup?.id);
+  const { feeds, toggleLike, refetch: refetchFeeds } = useGroupFeeds(selectedGroup?.id);
+
+  // 화면에 포커스될 때 피드 새로고침
+  useFocusEffect(
+    useCallback(() => {
+      if (selectedGroup) {
+        refetchFeeds();
+      }
+    }, [selectedGroup, refetchFeeds])
+  );
 
   // UI 상태
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -282,14 +292,22 @@ export default function GroupScreen() {
             style={{
               flexDirection: "row",
               alignItems: "center",
-              justifyContent: "space-between",
+              justifyContent: "center",
               paddingHorizontal: Spacing.xl,
               paddingVertical: Spacing.md,
               borderBottomWidth: 1,
               borderBottomColor: Colors.neutral[100],
+              position: "relative",
             }}
           >
-            <Pressable onPress={() => setSelectedGroup(null)}>
+            <Pressable
+              onPress={() => setSelectedGroup(null)}
+              style={{
+                position: "absolute",
+                left: Spacing.xl,
+                zIndex: 1,
+              }}
+            >
               <Text style={{ fontSize: 16, color: Colors.primary[500] }}>← 뒤로</Text>
             </Pressable>
             <Text
@@ -298,10 +316,10 @@ export default function GroupScreen() {
                 fontWeight: Typography.fontWeight.bold,
                 color: Colors.neutral[900],
               }}
+              numberOfLines={1}
             >
               {selectedGroup.name}
             </Text>
-            <View style={{ width: 24 }} />
           </View>
 
           {/* Quick Actions */}
@@ -483,6 +501,8 @@ export default function GroupScreen() {
 
                     {/* Like Button */}
                     <TouchableOpacity
+                      onPress={() => toggleLike(item.id)}
+                      activeOpacity={0.7}
                       style={{
                         flexDirection: "row",
                         alignItems: "center",

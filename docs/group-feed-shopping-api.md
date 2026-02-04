@@ -52,12 +52,19 @@ POST /api/v1/groups
 **인증**: 필수
 
 **Request Body**:
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| name | String | O | 그룹 이름 (최대 50자) |
+| description | String | X | 그룹 설명 (최대 500자) |
+| thumbnailImgUrl | String | X | 썸네일 이미지 URL |
+| groupType | GroupType | O | 그룹 타입 (COUPLE, FAMILY, FRIENDS, ETC) |
+
 ```json
 {
-  "name": "우리 가족",           // 필수, 최대 50자
-  "description": "가족 레시피 공유", // 선택, 최대 500자
-  "thumbnailImgUrl": "https://...", // 선택
-  "groupType": "FAMILY"          // 필수 (COUPLE, FAMILY, FRIENDS, ETC)
+  "name": "우리 가족",
+  "description": "가족 레시피 공유",
+  "thumbnailImgUrl": "https://...",
+  "groupType": "FAMILY"
 }
 ```
 
@@ -93,10 +100,17 @@ PUT /api/v1/groups/{groupId}
 | groupId | Long | 그룹 ID |
 
 **Request Body**:
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| name | String | O | 그룹 이름 (최대 50자) |
+| description | String | X | 그룹 설명 (최대 500자) |
+| thumbnailImgUrl | String | X | 썸네일 이미지 URL |
+| groupType | GroupType | O | 그룹 타입 |
+
 ```json
 {
   "name": "우리 가족 (수정)",
-  "description": "수정된 설명",
+  "description": "가족 레시피 공유 그룹",
   "thumbnailImgUrl": "https://...",
   "groupType": "FAMILY"
 }
@@ -133,6 +147,8 @@ DELETE /api/v1/groups/{groupId}
   "data": null
 }
 ```
+
+> 그룹 삭제 시 관련 피드, 장볼거리, 초대 링크, 멤버 정보가 모두 삭제됩니다.
 
 ---
 
@@ -192,7 +208,7 @@ GET /api/v1/groups/my
     {
       "id": 2,
       "name": "친구들",
-      "description": null,
+      "description": "친구들과 레시피 공유",
       "thumbnailImgUrl": null,
       "groupType": "FRIENDS",
       "myRole": "MEMBER",
@@ -321,11 +337,13 @@ GET /api/v1/groups/{groupId}/invites
   "code": "SUCCESS",
   "message": "성공",
   "data": {
-    "inviteCode": "ABC123XY",
+    "inviteCode": "ABC12345",
     "expiresAt": "2025-01-22T10:30:00"
   }
 }
 ```
+
+> 유효한 초대 코드가 없으면 새로 생성하여 반환합니다.
 
 ---
 
@@ -351,6 +369,8 @@ DELETE /api/v1/groups/{groupId}/members/{memberId}
 }
 ```
 
+> 본인을 강퇴할 수 없습니다.
+
 ---
 
 ## Feed API
@@ -360,7 +380,7 @@ DELETE /api/v1/groups/{groupId}/members/{memberId}
 GET /api/v1/groups/{groupId}/feeds
 ```
 
-**인증**: 필수
+**인증**: 필수 (그룹 멤버만)
 
 **Path Parameters**:
 | 파라미터 | 타입 | 설명 |
@@ -379,6 +399,8 @@ GET /api/v1/groups/{groupId}/feeds
       "feedType": "USER_CREATED",
       "authorId": 1,
       "authorName": "홍길동",
+      "likes": 5,
+      "likedByMe": true,
       "createdAt": "2025-01-15T18:30:00"
     },
     {
@@ -387,11 +409,25 @@ GET /api/v1/groups/{groupId}/feeds
       "feedType": "NEW_RECIPE_ADDED",
       "authorId": 2,
       "authorName": "김철수",
-      "createdAt": "2025-01-15T12:00:00"
+      "likes": 2,
+      "likedByMe": false,
+      "createdAt": "2025-01-16T12:00:00"
     }
   ]
 }
 ```
+
+**Response 필드**:
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| id | Long | 피드 ID |
+| content | String | 피드 내용 |
+| feedType | FeedType | 피드 타입 |
+| authorId | Long | 작성자 ID |
+| authorName | String | 작성자 이름 |
+| likes | Long | 좋아요 수 |
+| likedByMe | boolean | 내가 좋아요 했는지 여부 |
+| createdAt | LocalDateTime | 작성일시 |
 
 ---
 
@@ -400,7 +436,7 @@ GET /api/v1/groups/{groupId}/feeds
 POST /api/v1/groups/{groupId}/feeds
 ```
 
-**인증**: 필수
+**인증**: 필수 (그룹 멤버만)
 
 **Path Parameters**:
 | 파라미터 | 타입 | 설명 |
@@ -408,10 +444,15 @@ POST /api/v1/groups/{groupId}/feeds
 | groupId | Long | 그룹 ID |
 
 **Request Body**:
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| content | String | O | 피드 내용 (최대 2000자) |
+| feedType | FeedType | O | 피드 타입 (USER_CREATED, DAILY_MENU_NOTIFICATION, NEW_RECIPE_ADDED) |
+
 ```json
 {
-  "content": "오늘 저녁은 김치찌개!",  // 필수, 최대 2000자
-  "feedType": "USER_CREATED"           // 필수
+  "content": "오늘 저녁은 김치찌개!",
+  "feedType": "USER_CREATED"
 }
 ```
 
@@ -426,6 +467,84 @@ POST /api/v1/groups/{groupId}/feeds
 
 ---
 
+### 3. 피드 삭제
+```
+DELETE /api/v1/groups/{groupId}/feeds/{feedId}
+```
+
+**인증**: 필수 (작성자 본인만)
+
+**Path Parameters**:
+| 파라미터 | 타입 | 설명 |
+|---------|------|------|
+| groupId | Long | 그룹 ID |
+| feedId | Long | 피드 ID |
+
+**Response** (200 OK):
+```json
+{
+  "code": "SUCCESS",
+  "message": "성공",
+  "data": null
+}
+```
+
+> 피드 삭제 시 관련 좋아요 기록도 함께 삭제됩니다.
+
+---
+
+### 4. 피드 좋아요
+```
+POST /api/v1/groups/{groupId}/feeds/{feedId}/like
+```
+
+**인증**: 필수 (그룹 멤버만)
+
+**Path Parameters**:
+| 파라미터 | 타입 | 설명 |
+|---------|------|------|
+| groupId | Long | 그룹 ID |
+| feedId | Long | 피드 ID |
+
+**Response** (200 OK):
+```json
+{
+  "code": "SUCCESS",
+  "message": "성공",
+  "data": null
+}
+```
+
+> 이미 좋아요한 피드에 다시 좋아요를 누르면 `FEED_001` 에러가 발생합니다.
+
+---
+
+### 5. 피드 좋아요 취소
+```
+DELETE /api/v1/groups/{groupId}/feeds/{feedId}/like
+```
+
+**인증**: 필수 (그룹 멤버만)
+
+**Path Parameters**:
+| 파라미터 | 타입 | 설명 |
+|---------|------|------|
+| groupId | Long | 그룹 ID |
+| feedId | Long | 피드 ID |
+
+**Response** (200 OK):
+```json
+{
+  "code": "SUCCESS",
+  "message": "성공",
+  "data": null
+}
+```
+
+> 좋아요하지 않은 피드의 좋아요를 취소하면 `FEED_002` 에러가 발생합니다.
+
+---
+
 ## Shopping List API
 
 ### 1. 장볼거리 목록 조회
@@ -434,11 +553,6 @@ GET /api/v1/groups/{groupId}/shopping-list
 ```
 
 **인증**: 필수
-
-**Path Parameters**:
-| 파라미터 | 타입 | 설명 |
-|---------|------|------|
-| groupId | Long | 그룹 ID |
 
 **Response** (200 OK):
 ```json
@@ -450,12 +564,6 @@ GET /api/v1/groups/{groupId}/shopping-list
       "id": 1,
       "name": "양파",
       "ingredientId": 10,
-      "createdAt": "2025-01-15T10:30:00"
-    },
-    {
-      "id": 2,
-      "name": "대파",
-      "ingredientId": 11,
       "createdAt": "2025-01-15T10:30:00"
     }
   ]
@@ -471,18 +579,12 @@ POST /api/v1/groups/{groupId}/shopping-list/bulk
 
 **인증**: 필수
 
-**Path Parameters**:
-| 파라미터 | 타입 | 설명 |
-|---------|------|------|
-| groupId | Long | 그룹 ID |
-
 **Request Body**:
 ```json
 {
-  "items": [                    // 필수, 최소 1개
+  "items": [
     { "recipeIngredientId": 1 },
-    { "recipeIngredientId": 2 },
-    { "recipeIngredientId": 3 }
+    { "recipeIngredientId": 2 }
   ]
 }
 ```
@@ -505,21 +607,6 @@ DELETE /api/v1/groups/{groupId}/shopping-list/{shoppingListId}
 
 **인증**: 필수
 
-**Path Parameters**:
-| 파라미터 | 타입 | 설명 |
-|---------|------|------|
-| groupId | Long | 그룹 ID |
-| shoppingListId | Long | 장볼거리 ID |
-
-**Response** (200 OK):
-```json
-{
-  "code": "SUCCESS",
-  "message": "성공",
-  "data": null
-}
-```
-
 ---
 
 ## 에러 코드
@@ -537,3 +624,5 @@ DELETE /api/v1/groups/{groupId}/shopping-list/{shoppingListId}
 | GROUP_011 | 404 | 그룹 멤버를 찾을 수 없습니다 |
 | SHOPPING_LIST_001 | 404 | 장볼거리를 찾을 수 없습니다 |
 | SHOPPING_LIST_002 | 400 | 해당 그룹의 장볼거리가 아닙니다 |
+| FEED_001 | 409 | 이미 좋아요한 피드입니다 |
+| FEED_002 | 404 | 좋아요 기록을 찾을 수 없습니다 |

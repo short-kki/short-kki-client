@@ -41,6 +41,8 @@ interface ApiFeed {
   feedType: 'USER_CREATED' | 'DAILY_MENU_NOTIFICATION' | 'NEW_RECIPE_ADDED';
   authorId: number;
   authorName: string;
+  likes: number;
+  likedByMe: boolean;
   createdAt: string;
 }
 
@@ -50,6 +52,11 @@ interface ApiGroupMember {
   email: string;
   role: 'ADMIN' | 'MEMBER';
   joinedAt: string;
+}
+
+interface ApiInviteCode {
+  inviteCode: string;
+  expiresAt: string;
 }
 
 // API -> 클라이언트 타입 변환
@@ -71,10 +78,10 @@ function mapApiFeedToFeedItem(apiFeed: ApiFeed): FeedItem {
     userAvatar: apiFeed.authorName.substring(0, 1),
     content: apiFeed.content,
     images: [],
-    likes: 0,
+    likes: apiFeed.likes || 0,
     comments: 0,
     time: formatRelativeTime(apiFeed.createdAt),
-    isLiked: false,
+    isLiked: apiFeed.likedByMe,
   };
 }
 
@@ -233,7 +240,16 @@ export function useGroupFeeds(groupId?: string) {
     fetchFeeds();
   }, [fetchFeeds]);
 
-  const toggleLike = useCallback((feedId: string) => {
+  const toggleLike = useCallback(async (feedId: string) => {
+    if (!groupId) return;
+
+    // 현재 피드의 좋아요 상태 확인
+    const currentFeed = feeds.find((f) => f.id === feedId && f.type === 'post');
+    if (!currentFeed) return;
+
+    const isCurrentlyLiked = currentFeed.isLiked;
+
+    // 낙관적 업데이트: 먼저 UI 반영
     setFeeds((prev) =>
       prev.map((feed) => {
         if (feed.id === feedId && feed.type === 'post') {
@@ -246,7 +262,34 @@ export function useGroupFeeds(groupId?: string) {
         return feed;
       })
     );
-  }, []);
+
+    if (USE_MOCK) return;
+
+    try {
+      if (isCurrentlyLiked) {
+        // 좋아요 취소: DELETE /api/v1/groups/{groupId}/feeds/{feedId}/like
+        await api.delete(`/api/v1/groups/${groupId}/feeds/${feedId}/like`);
+      } else {
+        // 좋아요: POST /api/v1/groups/{groupId}/feeds/{feedId}/like
+        await api.post(`/api/v1/groups/${groupId}/feeds/${feedId}/like`, {});
+      }
+    } catch (err) {
+      // API 실패 시 롤백
+      console.error('좋아요 처리 실패:', err);
+      setFeeds((prev) =>
+        prev.map((feed) => {
+          if (feed.id === feedId && feed.type === 'post') {
+            return {
+              ...feed,
+              isLiked: isCurrentlyLiked,
+              likes: isCurrentlyLiked ? feed.likes + 1 : feed.likes - 1,
+            };
+          }
+          return feed;
+        })
+      );
+    }
+  }, [groupId, feeds]);
 
   // 피드 작성
   const createFeed = useCallback(async (content: string) => {
@@ -441,4 +484,83 @@ export function useShoppingList(groupId?: string) {
     deleteItem,
     addItemsFromRecipe,
   };
+}
+
+/**
+ * 그룹 초대 코드 조회
+ */
+export async function getGroupInviteCode(groupId: string): Promise<string> {
+  if (USE_MOCK) {
+    // Mock 모드: 랜덤 초대 코드 반환
+    return `MOCK${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  }
+
+  // 실제 API 호출: GET /api/v1/groups/{groupId}/invites
+  const response = await api.get<ApiResponse<ApiInviteCode>>(
+    `/api/v1/groups/${groupId}/invites`
+  );
+  return response.data.inviteCode;
+}
+
+/**
+ * 초대 코드로 그룹 미리보기
+ */
+export async function getGroupPreviewByInviteCode(inviteCode: string): Promise<{
+  id: string;
+  name: string;
+  description: string | null;
+  thumbnailImgUrl: string | null;
+  groupType: string;
+  memberCount: number;
+}> {
+  if (USE_MOCK) {
+    // Mock 모드
+    return {
+      id: '1',
+      name: '테스트 그룹',
+      description: '테스트 그룹 설명입니다.',
+      thumbnailImgUrl: null,
+      groupType: 'FRIENDS',
+      memberCount: 3,
+    };
+  }
+
+  // 실제 API 호출: GET /api/v1/groups/invite/{inviteCode}
+  const response = await api.get<ApiResponse<{
+    id: number;
+    name: string;
+    description: string | null;
+    thumbnailImgUrl: string | null;
+    groupType: string;
+    memberCount: number;
+  }>>(`/api/v1/groups/invite/${inviteCode}`, false); // 인증 불필요
+
+  return {
+    ...response.data,
+    id: response.data.id.toString(),
+  };
+}
+
+/**
+ * 초대 코드로 그룹 참여
+ */
+export async function joinGroupByInviteCode(inviteCode: string): Promise<Group> {
+  if (USE_MOCK) {
+    // Mock 모드
+    return {
+      id: Date.now().toString(),
+      name: '테스트 그룹',
+      memberCount: 4,
+      thumbnail: null,
+      lastActivity: '방금',
+    };
+  }
+
+  // 실제 API 호출: POST /api/v1/groups/invite/{inviteCode}/join
+  const response = await api.post<ApiResponse<ApiGroup>>(
+    `/api/v1/groups/invite/${inviteCode}/join`,
+    {}
+  );
+
+  return mapApiGroupToGroup(response.data);
 }

@@ -47,6 +47,7 @@ function RootLayoutNav() {
         <Stack.Screen name="group-members" options={{ headerShown: false }} />
         <Stack.Screen name="group-edit" options={{ headerShown: false }} />
         <Stack.Screen name="group-feed-create" options={{ headerShown: false, presentation: "modal" }} />
+        <Stack.Screen name="group/invite/[inviteCode]" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
     </>
