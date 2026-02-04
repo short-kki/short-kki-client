@@ -36,7 +36,7 @@ import {
   FolderPlus,
 } from "lucide-react-native";
 import { Colors, BorderRadius, Spacing } from "@/constants/design-system";
-import { extractYoutubeId } from "@/utils/youtube";
+import { MOCK_SHORTS, MOCK_CURATION_SECTIONS, type ShortsItem } from "@/data/mock";
 
 // 레시피북 더미 데이터
 const RECIPE_BOOKS = {
@@ -55,71 +55,27 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 85;
 const ITEM_HEIGHT = SCREEN_HEIGHT - TAB_BAR_HEIGHT;
 
-// YouTube 썸네일 URL 생성 함수
-const getYoutubeThumbnail = (videoId: string) =>
-  `https://i.ytimg.com/vi/${videoId}/hq720.jpg`;
-
 // 쇼츠 비디오 데이터 (홈과 동일한 데이터)
-const SHORTS_DATA = [
-  {
-    id: "1",
-    videoId: "DkyZ9t12hpo",
-    videoUrl: "https://www.youtube.com/shorts/DkyZ9t12hpo",
-    title: "초간단 계란 볶음밥 🍳",
-    author: "백종원의 요리비책",
-    authorAvatar: "백",
-    tags: ["#볶음밥", "#자취요리", "#5분완성"],
-    bookmarks: 15234,
-    thumbnail: getYoutubeThumbnail("DkyZ9t12hpo"),
-  },
-  {
-    id: "2",
-    videoId: "NnhIbr5lmEg",
-    videoUrl: "https://www.youtube.com/shorts/NnhIbr5lmEg",
-    title: "편스토랑 류수영의 꿀팁 요리",
-    author: "KBS 편스토랑",
-    authorAvatar: "편",
-    tags: ["#편스토랑", "#류수영", "#1분요리"],
-    bookmarks: 8921,
-    thumbnail: getYoutubeThumbnail("NnhIbr5lmEg"),
-  },
-  {
-    id: "3",
-    videoId: "ZPFVC78A2jM",
-    videoUrl: "https://www.youtube.com/shorts/ZPFVC78A2jM",
-    title: "한국인이 좋아하는 속도의 요리",
-    author: "1분요리 뚝딱이형",
-    authorAvatar: "뚝",
-    tags: ["#한식", "#뚝딱이형", "#빠른요리"],
-    bookmarks: 22847,
-    thumbnail: getYoutubeThumbnail("ZPFVC78A2jM"),
-  },
-  {
-    id: "4",
-    videoId: "gQDByCdjUXw",
-    videoUrl: "https://www.youtube.com/shorts/gQDByCdjUXw",
-    title: "마약 옥수수 만들기",
-    author: "요리왕비룡",
-    authorAvatar: "비",
-    tags: ["#간식", "#옥수수", "#초간단"],
-    bookmarks: 5629,
-    thumbnail: getYoutubeThumbnail("gQDByCdjUXw"),
-  },
-  {
-    id: "5",
-    videoId: "oc1bnLR38fE",
-    videoUrl: "https://www.youtube.com/shorts/oc1bnLR38fE",
-    title: "크림파스타 황금레시피",
-    author: "자취생 요리",
-    authorAvatar: "자",
-    tags: ["#파스타", "#양식", "#혼밥"],
-    bookmarks: 18392,
-    thumbnail: getYoutubeThumbnail("oc1bnLR38fE"),
-  },
-];
+const CURATION_AS_SHORTS: ShortsItem[] = MOCK_CURATION_SECTIONS.flatMap((section) =>
+  section.recipes.map((recipe) => ({
+    id: recipe.id,
+    videoId: recipe.id,
+    videoUrl: `https://www.youtube.com/shorts/${recipe.id}`,
+    title: recipe.title,
+    author: recipe.author,
+    authorAvatar: recipe.author?.[0],
+    creatorName: recipe.creatorName,
+    thumbnail: recipe.thumbnail,
+    views: undefined,
+    tags: [],
+    bookmarks: recipe.bookmarks ?? 0,
+  }))
+);
+
+const SHORTS_DATA: ShortsItem[] = [...MOCK_SHORTS, ...CURATION_AS_SHORTS];
 
 interface VideoItemProps {
-  item: typeof SHORTS_DATA[0];
+  item: ShortsItem;
   isActive: boolean;
   itemHeight: number;
   onMuteToggle: () => void;
@@ -339,7 +295,7 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
             }}
           >
             <Text style={{ color: "#FFF", fontWeight: "bold", fontSize: 16 }}>
-              {item.authorAvatar}
+              {item.authorAvatar ?? item.author?.[0] ?? "?"}
             </Text>
           </View>
           <View>
@@ -368,7 +324,7 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
 
         {/* 태그 */}
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-          {item.tags.map((tag, index) => (
+          {(item.tags ?? []).map((tag, index) => (
             <View
               key={index}
               style={{
@@ -507,7 +463,7 @@ export default function ShortsScreen() {
   const [bookmarkedVideos, setBookmarkedVideos] = useState<Record<string, { bookId: string; count: number }>>({});
   const [bookmarkCounts, setBookmarkCounts] = useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {};
-    SHORTS_DATA.forEach(item => { initial[item.id] = item.bookmarks; });
+    SHORTS_DATA.forEach(item => { initial[item.id] = item.bookmarks ?? 0; });
     return initial;
   });
 
@@ -621,7 +577,7 @@ export default function ShortsScreen() {
   }, [selectedVideoId, bookmarkedVideos]);
 
   const renderItem = useCallback(
-    ({ item, index }: { item: typeof SHORTS_DATA[0]; index: number }) => (
+    ({ item, index }: { item: ShortsItem; index: number }) => (
       <VideoItem
         item={item}
         isActive={index === activeIndex}
@@ -633,13 +589,13 @@ export default function ShortsScreen() {
         onShare={() => handleShare(item.title)}
         onBookmarkPress={() => handleBookmarkPress(item.id)}
         isBookmarked={!!bookmarkedVideos[item.id]}
-        bookmarkCount={bookmarkCounts[item.id] || item.bookmarks}
+        bookmarkCount={bookmarkCounts[item.id] ?? item.bookmarks ?? 0}
       />
     ),
     [activeIndex, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, handleShare, handleBookmarkPress, bookmarkedVideos, bookmarkCounts]
   );
 
-  const keyExtractor = useCallback((item: typeof SHORTS_DATA[0]) => item.id, []);
+  const keyExtractor = useCallback((item: ShortsItem) => item.id, []);
 
   const getItemLayout = useCallback(
     (_: any, index: number) => ({

@@ -1,28 +1,27 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
   ScrollView,
   Pressable,
   TouchableOpacity,
-  Dimensions,
   StatusBar,
   Animated,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
   Search,
-  Clock,
   Bell,
   ChevronRight,
+  Bookmark,
 } from "lucide-react-native";
-import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
+import { Colors, Typography, Spacing, BorderRadius, Shadows, SemanticColors } from "@/constants/design-system";
 import { useShorts, useCurationSections } from "@/hooks";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+import Svg, { Path, Defs, LinearGradient, Stop, Rect } from "react-native-svg";
 
 // YouTube 썸네일 URL 생성 함수
 const getYoutubeThumbnail = (videoId: string) =>
@@ -36,20 +35,80 @@ interface ShortsCardItem {
   author: string;
   thumbnail: string;
   views: string;
+  bookmarks?: number;
+  creatorName?: string;
 }
 
-// 쇼츠 카드 컴포넌트 (9:16 비율) - 썸네일과 정보 분리
-function ShortsCard({ item, onPress }: { item: ShortsCardItem; onPress: () => void }) {
-  const CARD_WIDTH = 120;
-  const CARD_HEIGHT = CARD_WIDTH * (16 / 9); // 9:16 비율
+function formatBookmarkCount(count?: number) {
+  if (!count) return "0";
+  if (count >= 1000) return `${(count / 1000).toFixed(count >= 10000 ? 0 : 1)}k`;
+  return `${count}`;
+}
 
+function YouTubeBadge({ creatorName }: { creatorName?: string }) {
+  if (!creatorName) return null;
+  return (
+    <View
+      style={{
+        position: "absolute",
+        top: 10,
+        right: 10,
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#FFFFFF",
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 999,
+        maxWidth: 110,
+        overflow: "hidden",
+        ...Shadows.xs,
+      }}
+    >
+      <View
+        style={{
+          width: 18,
+          height: 12,
+          borderRadius: 3,
+          backgroundColor: "#FF0000",
+          alignItems: "center",
+          justifyContent: "center",
+          marginRight: 6,
+        }}
+      >
+        <Svg width={10} height={10} viewBox="0 0 24 24">
+          <Path d="M8 6.5l10 5.5-10 5.5z" fill="#FFFFFF" />
+        </Svg>
+      </View>
+      <Text
+        style={{ fontSize: 11, fontWeight: "600", color: Colors.neutral[800], flexShrink: 1 }}
+        numberOfLines={1}
+        ellipsizeMode="tail"
+      >
+        {creatorName}
+      </Text>
+    </View>
+  );
+}
+
+function TopRankCard({
+  item,
+  rank,
+  onPress,
+}: {
+  item: ShortsCardItem;
+  rank: number;
+  onPress: () => void;
+}) {
+  const { width: screenWidth } = useWindowDimensions();
+  const CARD_WIDTH = Math.min(220, Math.max(170, Math.round(screenWidth * 0.55)));
+  const CARD_HEIGHT = Math.round(CARD_WIDTH * 1.42);
+  const [rankTitleLines, setRankTitleLines] = React.useState(1);
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.9}
       style={{ marginRight: Spacing.md, width: CARD_WIDTH }}
     >
-      {/* 썸네일 영역 */}
       <View
         style={{
           width: CARD_WIDTH,
@@ -63,47 +122,159 @@ function ShortsCard({ item, onPress }: { item: ShortsCardItem; onPress: () => vo
           source={{ uri: item.thumbnail }}
           style={{ width: "100%", height: "100%" }}
           contentFit="cover"
+          contentPosition="center"
         />
-        {/* Views Badge */}
+        <Svg
+          width="100%"
+          height="100%"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
+          pointerEvents="none"
+        >
+          <Defs>
+            <LinearGradient id="topCardOverlay" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0.55" stopColor="#000000" stopOpacity="0" />
+              <Stop offset="0.8" stopColor="#000000" stopOpacity="0.25" />
+              <Stop offset="1" stopColor="#000000" stopOpacity="0.55" />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#topCardOverlay)" />
+        </Svg>
         <View
           style={{
             position: "absolute",
-            top: 8,
-            left: 8,
-            backgroundColor: "rgba(0,0,0,0.7)",
-            paddingHorizontal: 6,
-            paddingVertical: 3,
-            borderRadius: 4,
+            left: 12,
+            bottom: 10,
+            flexDirection: "row",
+            alignItems: rankTitleLines === 1 ? "center" : "flex-end",
           }}
         >
-          <Text style={{ color: "#FFFFFF", fontSize: 10, fontWeight: "600" }}>
-            {item.views}
+          <Text
+            style={{
+              fontSize: 40,
+              fontWeight: "900",
+              color: "#FFFFFF",
+              textShadowColor: "rgba(0,0,0,0.7)",
+              textShadowOffset: { width: 0, height: 2 },
+              textShadowRadius: 6,
+            }}
+          >
+            {rank}
+          </Text>
+          <Text
+            style={{
+              color: "#FFFFFF",
+              fontSize: 16,
+              fontWeight: "700",
+              marginLeft: 10,
+              marginBottom: rankTitleLines === 1 ? 0 : 6,
+              maxWidth: Math.max(80, Math.round(CARD_WIDTH * 0.6)),
+              textShadowColor: "rgba(0,0,0,0.7)",
+              textShadowOffset: { width: 0, height: 1 },
+              textShadowRadius: 4,
+            }}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+            onTextLayout={(e) => {
+              const lines = e.nativeEvent.lines?.length ?? 1;
+              if (lines !== rankTitleLines) setRankTitleLines(lines);
+            }}
+          >
+            {item.title}
           </Text>
         </View>
       </View>
-      {/* 정보 영역 - 썸네일 하단에 분리 */}
-      <View style={{ paddingTop: 8, paddingHorizontal: 2 }}>
-        <Text
+    </TouchableOpacity>
+  );
+}
+
+// 통일 카드 컴포넌트
+function ShortsCard({ item, onPress }: { item: ShortsCardItem; onPress: () => void }) {
+  const { width: screenWidth } = useWindowDimensions();
+  const CARD_WIDTH = Math.min(190, Math.max(150, Math.round(screenWidth * 0.48)));
+  const CARD_HEIGHT = Math.round(CARD_WIDTH * 1.7);
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.9}
+      style={{ marginRight: Spacing.md, width: CARD_WIDTH }}
+    >
+      <View
+        style={{
+          width: CARD_WIDTH,
+          borderRadius: BorderRadius.md,
+          backgroundColor: Colors.neutral[0],
+          ...Shadows.xs,
+        }}
+      >
+        <View
           style={{
-            color: Colors.neutral[900],
-            fontSize: 13,
-            fontWeight: "600",
-            lineHeight: 18,
+            width: CARD_WIDTH,
+            height: CARD_HEIGHT,
+            backgroundColor: Colors.neutral[200],
+            borderRadius: BorderRadius.md,
+            overflow: "hidden",
           }}
-          numberOfLines={2}
         >
-          {item.title}
-        </Text>
-        <Text
-          style={{
-            color: Colors.neutral[500],
-            fontSize: 11,
-            marginTop: 2,
-          }}
-          numberOfLines={1}
-        >
-          {item.author}
-        </Text>
+          <Image
+            source={{ uri: item.thumbnail }}
+            style={{ width: "100%", height: "100%" }}
+            contentFit="cover"
+            contentPosition="center"
+          />
+          <YouTubeBadge creatorName={item.creatorName} />
+          <View
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: Math.round(CARD_HEIGHT * 0.35),
+              justifyContent: "flex-end",
+              borderBottomLeftRadius: BorderRadius.md,
+              borderBottomRightRadius: BorderRadius.md,
+            }}
+          >
+            <Svg
+              width="100%"
+              height="100%"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
+              pointerEvents="none"
+            >
+              <Defs>
+                <LinearGradient id="cardOverlay" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0.5" stopColor="#000000" stopOpacity="0" />
+                  <Stop offset="0.75" stopColor="#000000" stopOpacity="0.2" />
+                  <Stop offset="1" stopColor="#000000" stopOpacity="0.5" />
+                </LinearGradient>
+              </Defs>
+              <Rect x="0" y="0" width="100%" height="100%" fill="url(#cardOverlay)" />
+            </Svg>
+            <View style={{ paddingHorizontal: 10, paddingTop: 10, paddingBottom: 10 }}>
+              <Text
+                style={{
+                  color: "#FFFFFF",
+                  fontSize: 16,
+                  fontWeight: "700",
+                  lineHeight: 20,
+                }}
+                numberOfLines={2}
+              >
+                {item.title}
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}>
+                <Bookmark size={12} color="#FFFFFF" />
+                <Text style={{ color: "#FFFFFF", fontSize: 12, marginLeft: 4 }}>
+                  {formatBookmarkCount(item.bookmarks)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -111,83 +282,34 @@ function ShortsCard({ item, onPress }: { item: ShortsCardItem; onPress: () => vo
 
 // 레시피 카드 컴포넌트 (가로 스크롤용)
 function RecipeCard({ item, onPress, size = "medium" }: { item: any; onPress: () => void; size?: "small" | "medium" | "large" }) {
-  const cardWidth = size === "large" ? SCREEN_WIDTH * 0.7 : size === "medium" ? 140 : 120;
-  const cardHeight = size === "large" ? 200 : size === "medium" ? 180 : 150;
-
+  void size;
   return (
-    <TouchableOpacity
+    <ShortsCard
+      item={{
+        id: item.id,
+        videoId: item.videoId ?? item.id,
+        title: item.title,
+        author: item.author,
+        thumbnail: item.thumbnail,
+        views: item.views ?? "0",
+        bookmarks: item.bookmarks,
+        creatorName: item.creatorName,
+      }}
       onPress={onPress}
-      activeOpacity={0.8}
-      style={{ marginRight: Spacing.md }}
-    >
-      <View
-        style={{
-          width: cardWidth,
-          height: cardHeight,
-          borderRadius: BorderRadius.lg,
-          overflow: "hidden",
-          backgroundColor: Colors.neutral[200],
-        }}
-      >
-        <Image
-          source={{ uri: item.thumbnail }}
-          style={{ width: "100%", height: "100%" }}
-          contentFit="cover"
-        />
-        {/* Duration Badge */}
-        <View
-          style={{
-            position: "absolute",
-            top: 8,
-            right: 8,
-            backgroundColor: "rgba(0,0,0,0.7)",
-            paddingHorizontal: 8,
-            paddingVertical: 4,
-            borderRadius: 4,
-            flexDirection: "row",
-            alignItems: "center",
-          }}
-        >
-          <Clock size={10} color="#FFFFFF" />
-          <Text style={{ color: "#FFFFFF", fontSize: 10, fontWeight: "600", marginLeft: 3 }}>
-            {item.duration}
-          </Text>
-        </View>
-        {/* Info */}
-        <View style={{ position: "absolute", bottom: 8, left: 8, right: 8 }}>
-          <Text
-            style={{
-              color: "#FFFFFF",
-              fontSize: size === "large" ? 15 : 13,
-              fontWeight: "600",
-              textShadowColor: "rgba(0,0,0,0.8)",
-              textShadowOffset: { width: 0, height: 1 },
-              textShadowRadius: 3,
-            }}
-            numberOfLines={2}
-          >
-            {item.title}
-          </Text>
-          <Text
-            style={{
-              color: "rgba(255,255,255,0.8)",
-              fontSize: 11,
-              marginTop: 2,
-              textShadowColor: "rgba(0,0,0,0.8)",
-              textShadowOffset: { width: 0, height: 1 },
-              textShadowRadius: 2,
-            }}
-          >
-            {item.author}
-          </Text>
-        </View>
-      </View>
-    </TouchableOpacity>
+    />
   );
 }
 
 // 섹션 헤더 컴포넌트
-function SectionHeader({ title, onSeeAll }: { title: string; onSeeAll?: () => void }) {
+function SectionHeader({
+  title,
+  description,
+  onSeeAll,
+}: {
+  title: string;
+  description?: string;
+  onSeeAll?: () => void;
+}) {
   return (
     <View
       style={{
@@ -199,19 +321,43 @@ function SectionHeader({ title, onSeeAll }: { title: string; onSeeAll?: () => vo
         marginBottom: Spacing.md,
       }}
     >
-      <Text
-        style={{
-          fontSize: Typography.fontSize.lg,
-          fontWeight: Typography.fontWeight.bold,
-          color: Colors.neutral[900],
-        }}
-      >
-        {title}
-      </Text>
+      <View style={{ flex: 1, paddingRight: Spacing.md }}>
+        <Text
+          style={{
+            fontSize: Typography.fontSize.xl,
+            fontWeight: Typography.fontWeight.bold,
+            color: Colors.neutral[900],
+            letterSpacing: -0.3,
+          }}
+        >
+          {title}
+        </Text>
+        {description && (
+          <Text
+            style={{
+              marginTop: 4,
+              fontSize: 12,
+              color: Colors.neutral[500],
+            }}
+          >
+            {description}
+          </Text>
+        )}
+      </View>
       {onSeeAll && (
-        <Pressable onPress={onSeeAll} style={{ flexDirection: "row", alignItems: "center" }}>
-          <Text style={{ fontSize: 13, color: Colors.neutral[500] }}>더보기</Text>
-          <ChevronRight size={16} color={Colors.neutral[500]} />
+        <Pressable
+          onPress={onSeeAll}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: Colors.neutral[100],
+            paddingVertical: 6,
+            paddingHorizontal: 10,
+            borderRadius: BorderRadius.full,
+          }}
+        >
+          <Text style={{ fontSize: 12, color: Colors.neutral[600], fontWeight: "600" }}>더보기</Text>
+          <ChevronRight size={16} color={Colors.neutral[600]} />
         </Pressable>
       )}
     </View>
@@ -222,13 +368,25 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const scrollY = useRef(new Animated.Value(0)).current;
+  const { width: screenWidth } = useWindowDimensions();
+  const [selectedFilter, setSelectedFilter] = useState("전체");
+  const FILTER_BAR_HEIGHT = 44;
+  const HEADER_BAR_HEIGHT = 48;
+  const [headerHeight, setHeaderHeight] = useState(
+    insets.top + HEADER_BAR_HEIGHT + FILTER_BAR_HEIGHT
+  );
+  const headerTranslate = Animated.diffClamp(scrollY, 0, headerHeight);
+  const logoSize = Math.min(52, Math.max(40, Math.round(screenWidth * 0.12)));
 
   // hooks에서 데이터 가져오기
   const { shorts, loading: shortsLoading } = useShorts();
   const { sections, loading: sectionsLoading } = useCurationSections();
 
   const handleRecipePress = (recipeId: string) => {
-    router.push(`/recipe/${recipeId}`);
+    router.push({
+      pathname: "/(tabs)/shorts",
+      params: { startIndex: recipeId },
+    });
   };
 
   const handleShortsPress = (shortsId: string) => {
@@ -265,18 +423,25 @@ export default function HomeScreen() {
     });
   };
 
+  const FILTERS = ["전체", "한식", "양식", "일식", "디저트", "안주"];
+
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.neutral[50] }}>
+    <View style={{ flex: 1, backgroundColor: SemanticColors.backgroundSecondary }}>
       <StatusBar barStyle="dark-content" />
 
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
+        bounces={false}
+        overScrollMode="never"
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
+          { useNativeDriver: true }
         )}
         scrollEventThrottle={16}
-        contentContainerStyle={{ paddingTop: insets.top + 56, paddingBottom: 100 }}
+        contentContainerStyle={{
+          paddingTop: headerHeight + Spacing.sm,
+          paddingBottom: 16,
+        }}
       >
         {/* 로딩 상태 */}
         {(shortsLoading || sectionsLoading) && (
@@ -300,17 +465,24 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* 🎬 쇼츠 섹션 - 최상단 */}
+        {/* TOP 레시피 랭킹 */}
         {shorts.length > 0 && (
-          <>
-            <SectionHeader title="🎬 오늘의 쇼츠" onSeeAll={handleSeeAllShorts} />
+          <View style={{ paddingTop: Spacing.base, paddingBottom: Spacing.lg }}>
+            <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.base }}>
+              <Text style={{ fontSize: 24, fontWeight: "800", color: Colors.neutral[900], letterSpacing: -0.4 }}>
+                TOP 레시피
+              </Text>
+              <Text style={{ fontSize: 12, color: Colors.neutral[600], marginTop: 2 }}>
+                가장 많이 저장된 레시피
+              </Text>
+            </View>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: Spacing.xl }}
+              contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}
             >
-              {shorts.map((item) => (
-                <ShortsCard
+              {shorts.slice(0, 5).map((item, index) => (
+                <TopRankCard
                   key={item.id}
                   item={{
                     id: item.id,
@@ -319,22 +491,29 @@ export default function HomeScreen() {
                     author: item.author,
                     thumbnail: item.thumbnail || getYoutubeThumbnail(item.videoId),
                     views: item.views || "0",
+                    creatorName: item.creatorName,
+                    bookmarks: item.bookmarks,
                   }}
+                  rank={index + 1}
                   onPress={() => handleShortsPress(item.id)}
                 />
               ))}
             </ScrollView>
-          </>
+          </View>
         )}
 
         {/* 큐레이션 섹션들 */}
         {sections.map((section) => (
-          <View key={section.id}>
-            <SectionHeader title={section.title} onSeeAll={() => handleSeeAllSection(section.id)} />
+          <View key={section.id} style={{ marginBottom: Spacing.base }}>
+            <SectionHeader
+              title={section.title}
+              description={section.description}
+              onSeeAll={() => handleSeeAllSection(section.id)}
+            />
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: Spacing.xl }}
+              contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}
             >
               {section.recipes?.map((recipe) => (
                 <RecipeCard
@@ -350,7 +529,11 @@ export default function HomeScreen() {
       </Animated.ScrollView>
 
       {/* Fixed Header - rendered after ScrollView to receive touch events */}
-      <View
+      <Animated.View
+        onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          if (h && h !== headerHeight) setHeaderHeight(h);
+        }}
         style={{
           position: "absolute",
           top: 0,
@@ -358,7 +541,8 @@ export default function HomeScreen() {
           right: 0,
           zIndex: 100,
           paddingTop: insets.top,
-          backgroundColor: Colors.neutral[50],
+          backgroundColor: SemanticColors.backgroundSecondary,
+          transform: [{ translateY: Animated.multiply(headerTranslate, -1) }],
         }}
       >
         <View
@@ -369,18 +553,20 @@ export default function HomeScreen() {
             paddingVertical: Spacing.sm,
           }}
         >
-          <Text
-            style={{
-              fontSize: 24,
-              fontWeight: "800",
-              color: Colors.primary[500],
-            }}
-          >
-            숏끼
-          </Text>
+          <Image
+            source={require("@/assets/images/icon_resized.png")}
+            style={{ width: logoSize, height: logoSize }}
+            contentFit="contain"
+          />
           <View style={{ flex: 1 }} />
           <Pressable
-            style={{ padding: 8 }}
+            style={{
+              paddingVertical: 8,
+              paddingHorizontal: 10,
+              borderRadius: BorderRadius.full,
+              backgroundColor: Colors.neutral[100],
+              marginRight: 6,
+            }}
             onPress={() => {
               console.log("Search pressed");
               router.push("/search");
@@ -389,7 +575,12 @@ export default function HomeScreen() {
             <Search size={24} color={Colors.neutral[700]} />
           </Pressable>
           <Pressable
-            style={{ padding: 8 }}
+            style={{
+              paddingVertical: 8,
+              paddingHorizontal: 10,
+              borderRadius: BorderRadius.full,
+              backgroundColor: Colors.neutral[100],
+            }}
             onPress={() => {
               console.log("Notifications pressed");
               router.push("/notifications");
@@ -410,7 +601,47 @@ export default function HomeScreen() {
             />
           </Pressable>
         </View>
-      </View>
+        <View style={{ height: FILTER_BAR_HEIGHT }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingLeft: Spacing.xl,
+              paddingRight: Spacing.sm,
+              alignItems: "center",
+              height: FILTER_BAR_HEIGHT,
+            }}
+          >
+            {FILTERS.map((label) => {
+              const isSelected = selectedFilter === label;
+              return (
+                <Pressable
+                  key={label}
+                  onPress={() => setSelectedFilter(label)}
+                  style={{
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                    borderRadius: 999,
+                    backgroundColor: isSelected ? Colors.neutral[900] : Colors.neutral[100],
+                    marginRight: 8,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: "700",
+                      color: isSelected ? "#FFF" : Colors.neutral[700],
+                    }}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+        <View style={{ height: 1, backgroundColor: Colors.neutral[100] }} />
+      </Animated.View>
     </View>
   );
 }

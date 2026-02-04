@@ -8,7 +8,7 @@ import { API_BASE_URL } from '@/constants/oauth';
 import { getAuthData } from '@/utils/auth-storage';
 
 // Mock 데이터 사용 여부 (개발 모드에서 true)
-export const USE_MOCK = false;
+export const USE_MOCK = __DEV__;
 
 // API 기본 설정
 const defaultHeaders = {
