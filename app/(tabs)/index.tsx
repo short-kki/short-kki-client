@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Animated,
   ActivityIndicator,
   useWindowDimensions,
+  SectionList,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -90,7 +91,7 @@ function YouTubeBadge({ creatorName }: { creatorName?: string }) {
   );
 }
 
-function TopRankCard({
+const TopRankCard = React.memo(function TopRankCard({
   item,
   rank,
   onPress,
@@ -103,21 +104,24 @@ function TopRankCard({
   const CARD_WIDTH = Math.min(220, Math.max(170, Math.round(screenWidth * 0.55)));
   const CARD_HEIGHT = Math.round(CARD_WIDTH * 1.42);
   const [rankTitleLines, setRankTitleLines] = React.useState(1);
+  const gradientId = `topCardOverlay-${item.id}`;
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.9}
       style={{ marginRight: Spacing.md, width: CARD_WIDTH }}
     >
-      <View
-        style={{
-          width: CARD_WIDTH,
-          height: CARD_HEIGHT,
-          borderRadius: BorderRadius.lg,
-          overflow: "hidden",
-          backgroundColor: Colors.neutral[900],
-        }}
-      >
+        <View
+          style={{
+            width: CARD_WIDTH,
+            height: CARD_HEIGHT,
+            borderRadius: BorderRadius.lg,
+            overflow: "hidden",
+            backgroundColor: Colors.neutral[900],
+            renderToHardwareTextureAndroid: true,
+            shouldRasterizeIOS: true,
+          }}
+        >
         <Image
           source={{ uri: item.thumbnail }}
           style={{ width: "100%", height: "100%" }}
@@ -133,13 +137,13 @@ function TopRankCard({
           pointerEvents="none"
         >
           <Defs>
-            <LinearGradient id="topCardOverlay" x1="0" y1="0" x2="0" y2="1">
+            <LinearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0.55" stopColor="#000000" stopOpacity="0" />
               <Stop offset="0.8" stopColor="#000000" stopOpacity="0.25" />
               <Stop offset="1" stopColor="#000000" stopOpacity="0.55" />
             </LinearGradient>
           </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" fill="url(#topCardOverlay)" />
+          <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${gradientId})`} />
         </Svg>
         <View
           style={{
@@ -157,7 +161,7 @@ function TopRankCard({
               color: "#FFFFFF",
               textShadowColor: "rgba(0,0,0,0.7)",
               textShadowOffset: { width: 0, height: 2 },
-              textShadowRadius: 6,
+              textShadowRadius: 3,
             }}
           >
             {rank}
@@ -172,7 +176,7 @@ function TopRankCard({
               maxWidth: Math.max(80, Math.round(CARD_WIDTH * 0.6)),
               textShadowColor: "rgba(0,0,0,0.7)",
               textShadowOffset: { width: 0, height: 1 },
-              textShadowRadius: 4,
+              textShadowRadius: 2,
             }}
             numberOfLines={2}
             ellipsizeMode="tail"
@@ -187,13 +191,15 @@ function TopRankCard({
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 // 통일 카드 컴포넌트
-function ShortsCard({ item, onPress }: { item: ShortsCardItem; onPress: () => void }) {
+const ShortsCard = React.memo(function ShortsCard({ item, onPress }: { item: ShortsCardItem; onPress: () => void }) {
   const { width: screenWidth } = useWindowDimensions();
   const CARD_WIDTH = Math.min(190, Math.max(150, Math.round(screenWidth * 0.48)));
-  const CARD_HEIGHT = Math.round(CARD_WIDTH * 1.7);
+  const CARD_HEIGHT = Math.round(CARD_WIDTH * (16 / 9));
+  const topGradientId = `cardOverlayTop-${item.id}`;
+  const bottomGradientId = `cardOverlayBottom-${item.id}`;
 
   return (
     <TouchableOpacity
@@ -207,6 +213,8 @@ function ShortsCard({ item, onPress }: { item: ShortsCardItem; onPress: () => vo
           borderRadius: BorderRadius.md,
           backgroundColor: Colors.neutral[0],
           ...Shadows.xs,
+          renderToHardwareTextureAndroid: true,
+          shouldRasterizeIOS: true,
         }}
       >
         <View
@@ -224,6 +232,22 @@ function ShortsCard({ item, onPress }: { item: ShortsCardItem; onPress: () => vo
             contentFit="cover"
             contentPosition="center"
           />
+          <Svg
+            width="100%"
+            height="30%"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            style={{ position: "absolute", left: 0, right: 0, top: 0 }}
+            pointerEvents="none"
+          >
+            <Defs>
+              <LinearGradient id={topGradientId} x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor="#000000" stopOpacity="0.35" />
+                <Stop offset="1" stopColor="#000000" stopOpacity="0" />
+              </LinearGradient>
+            </Defs>
+            <Rect x="-1" y="-1" width="102%" height="102%" fill={`url(#${topGradientId})`} />
+          </Svg>
           <YouTubeBadge creatorName={item.creatorName} />
           <View
             style={{
@@ -246,13 +270,13 @@ function ShortsCard({ item, onPress }: { item: ShortsCardItem; onPress: () => vo
               pointerEvents="none"
             >
               <Defs>
-                <LinearGradient id="cardOverlay" x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0.5" stopColor="#000000" stopOpacity="0" />
-                  <Stop offset="0.75" stopColor="#000000" stopOpacity="0.2" />
-                  <Stop offset="1" stopColor="#000000" stopOpacity="0.5" />
+                <LinearGradient id={bottomGradientId} x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0.4" stopColor="#000000" stopOpacity="0" />
+                  <Stop offset="0.7" stopColor="#000000" stopOpacity="0.45" />
+                  <Stop offset="1" stopColor="#000000" stopOpacity="0.8" />
                 </LinearGradient>
               </Defs>
-              <Rect x="0" y="0" width="100%" height="100%" fill="url(#cardOverlay)" />
+              <Rect x="-1" y="-1" width="102%" height="102%" fill={`url(#${bottomGradientId})`} />
             </Svg>
             <View style={{ paddingHorizontal: 10, paddingTop: 10, paddingBottom: 10 }}>
               <Text
@@ -278,10 +302,10 @@ function ShortsCard({ item, onPress }: { item: ShortsCardItem; onPress: () => vo
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 // 레시피 카드 컴포넌트 (가로 스크롤용)
-function RecipeCard({ item, onPress, size = "medium" }: { item: any; onPress: () => void; size?: "small" | "medium" | "large" }) {
+const RecipeCard = React.memo(function RecipeCard({ item, onPress, size = "medium" }: { item: any; onPress: () => void; size?: "small" | "medium" | "large" }) {
   void size;
   return (
     <ShortsCard
@@ -298,10 +322,10 @@ function RecipeCard({ item, onPress, size = "medium" }: { item: any; onPress: ()
       onPress={onPress}
     />
   );
-}
+});
 
 // 섹션 헤더 컴포넌트
-function SectionHeader({
+const SectionHeader = React.memo(function SectionHeader({
   title,
   description,
   onSeeAll,
@@ -362,7 +386,7 @@ function SectionHeader({
       )}
     </View>
   );
-}
+});
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -424,12 +448,35 @@ export default function HomeScreen() {
   };
 
   const FILTERS = ["전체", "한식", "양식", "일식", "디저트", "안주"];
+  const AnimatedSectionList = useRef(Animated.createAnimatedComponent(SectionList)).current;
+  const curationSections = sections.map((section) => ({
+    ...section,
+    data: [section],
+  }));
+  const topShorts = useMemo(
+    () =>
+      shorts.slice(0, 5).map((item, index) => ({
+        key: item.id,
+        rank: index + 1,
+        item: {
+          id: item.id,
+          videoId: item.videoId,
+          title: item.title,
+          author: item.author,
+          thumbnail: item.thumbnail || getYoutubeThumbnail(item.videoId),
+          views: item.views || "0",
+          creatorName: item.creatorName,
+          bookmarks: item.bookmarks,
+        },
+      })),
+    [shorts]
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: SemanticColors.backgroundSecondary }}>
       <StatusBar barStyle="dark-content" />
 
-      <Animated.ScrollView
+      <AnimatedSectionList
         showsVerticalScrollIndicator={false}
         bounces={false}
         overScrollMode="never"
@@ -442,69 +489,10 @@ export default function HomeScreen() {
           paddingTop: headerHeight + Spacing.sm,
           paddingBottom: 16,
         }}
-      >
-        {/* 로딩 상태 */}
-        {(shortsLoading || sectionsLoading) && (
-          <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
-            <ActivityIndicator size="large" color={Colors.primary[500]} />
-            <Text style={{ marginTop: Spacing.md, color: Colors.neutral[500] }}>
-              로딩 중...
-            </Text>
-          </View>
-        )}
-
-        {/* 데이터가 없을 때 */}
-        {!shortsLoading && !sectionsLoading && shorts.length === 0 && sections.length === 0 && (
-          <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
-            <Text style={{ fontSize: Typography.fontSize.lg, fontWeight: "600", color: Colors.neutral[500] }}>
-              콘텐츠가 없습니다
-            </Text>
-            <Text style={{ fontSize: Typography.fontSize.sm, color: Colors.neutral[400], marginTop: Spacing.xs }}>
-              서버 연결을 확인해주세요
-            </Text>
-          </View>
-        )}
-
-        {/* TOP 레시피 랭킹 */}
-        {shorts.length > 0 && (
-          <View style={{ paddingTop: Spacing.base, paddingBottom: Spacing.lg }}>
-            <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.base }}>
-              <Text style={{ fontSize: 24, fontWeight: "800", color: Colors.neutral[900], letterSpacing: -0.4 }}>
-                TOP 레시피
-              </Text>
-              <Text style={{ fontSize: 12, color: Colors.neutral[600], marginTop: 2 }}>
-                가장 많이 저장된 레시피
-              </Text>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}
-            >
-              {shorts.slice(0, 5).map((item, index) => (
-                <TopRankCard
-                  key={item.id}
-                  item={{
-                    id: item.id,
-                    videoId: item.videoId,
-                    title: item.title,
-                    author: item.author,
-                    thumbnail: item.thumbnail || getYoutubeThumbnail(item.videoId),
-                    views: item.views || "0",
-                    creatorName: item.creatorName,
-                    bookmarks: item.bookmarks,
-                  }}
-                  rank={index + 1}
-                  onPress={() => handleShortsPress(item.id)}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {/* 큐레이션 섹션들 */}
-        {sections.map((section) => (
-          <View key={section.id} style={{ marginBottom: Spacing.base }}>
+        sections={curationSections}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item: section }) => (
+          <View style={{ marginBottom: Spacing.base }}>
             <SectionHeader
               title={section.title}
               description={section.description}
@@ -513,6 +501,7 @@ export default function HomeScreen() {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
+              removeClippedSubviews
               contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}
             >
               {section.recipes?.map((recipe) => (
@@ -525,8 +514,68 @@ export default function HomeScreen() {
               ))}
             </ScrollView>
           </View>
-        ))}
-      </Animated.ScrollView>
+        )}
+        ListHeaderComponent={
+          <View>
+            {/* 로딩 상태 */}
+            {(shortsLoading || sectionsLoading) && (
+              <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
+                <ActivityIndicator size="large" color={Colors.primary[500]} />
+                <Text style={{ marginTop: Spacing.md, color: Colors.neutral[500] }}>
+                  로딩 중...
+                </Text>
+              </View>
+            )}
+
+            {/* 데이터가 없을 때 */}
+            {!shortsLoading && !sectionsLoading && shorts.length === 0 && sections.length === 0 && (
+              <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
+                <Text style={{ fontSize: Typography.fontSize.lg, fontWeight: "600", color: Colors.neutral[500] }}>
+                  콘텐츠가 없습니다
+                </Text>
+                <Text style={{ fontSize: Typography.fontSize.sm, color: Colors.neutral[400], marginTop: Spacing.xs }}>
+                  서버 연결을 확인해주세요
+                </Text>
+              </View>
+            )}
+
+            {/* TOP 레시피 랭킹 */}
+            {shorts.length > 0 && (
+              <View style={{ paddingTop: Spacing.base, paddingBottom: Spacing.lg }}>
+                <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.base }}>
+                  <Text style={{ fontSize: 24, fontWeight: "800", color: Colors.neutral[900], letterSpacing: -0.4 }}>
+                    TOP 레시피
+                  </Text>
+                  <Text style={{ fontSize: 12, color: Colors.neutral[600], marginTop: 2 }}>
+                    가장 많이 저장된 레시피
+                  </Text>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  removeClippedSubviews
+                  contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}
+                >
+                  {topShorts.map(({ key, item, rank }) => (
+                    <TopRankCard
+                      key={key}
+                      item={item}
+                      rank={rank}
+                      onPress={() => handleShortsPress(item.id)}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+        }
+        removeClippedSubviews
+        initialNumToRender={3}
+        maxToRenderPerBatch={4}
+        windowSize={7}
+        updateCellsBatchingPeriod={50}
+      >
+      </AnimatedSectionList>
 
       {/* Fixed Header - rendered after ScrollView to receive touch events */}
       <Animated.View

@@ -1,43 +1,42 @@
-import React, { useCallback, useRef, useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  Dimensions,
-  StatusBar,
-  ViewToken,
-  TouchableOpacity,
-  Pressable,
-  ActivityIndicator,
-  Alert,
-  Share,
-  Modal,
-  ScrollView,
-} from "react-native";
-import { Image } from "expo-image";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Colors } from "@/constants/design-system";
+import { MOCK_CURATION_SECTIONS, MOCK_SHORTS, type ShortsItem } from "@/data/mock";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import { YoutubeView, useYouTubePlayer, useYouTubeEvent } from "react-native-youtube-bridge";
+import { Image } from "expo-image";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
+  BookOpen,
   Bookmark,
-  Share2,
   CalendarPlus,
-  VolumeX,
-  Volume2,
-  ArrowLeft,
+  Check,
+  ExternalLink,
+  FolderPlus,
   MoreVertical,
   Play,
-  Pause,
   ScrollText,
-  X,
-  Check,
-  BookOpen,
   Users,
-  FolderPlus,
+  Volume2,
+  VolumeX,
+  X
 } from "lucide-react-native";
-import { Colors, BorderRadius, Spacing } from "@/constants/design-system";
-import { MOCK_SHORTS, MOCK_CURATION_SECTIONS, type ShortsItem } from "@/data/mock";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Alert,
+  Animated,
+  Dimensions,
+  Easing,
+  FlatList,
+  Linking,
+  Modal,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewToken
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { PlayerState, YoutubeView, useYouTubeEvent, useYouTubePlayer } from "react-native-youtube-bridge";
 
 // 레시피북 더미 데이터
 const RECIPE_BOOKS = {
@@ -80,14 +79,13 @@ interface VideoItemProps {
   isMuted: boolean;
   onViewRecipe: () => void;
   onAddToMealPlan: () => void;
-  onShare: () => void;
   onBookmarkPress: () => void;
   isBookmarked: boolean;
   bookmarkCount: number;
 }
 
 // 개별 비디오 아이템 컴포넌트 (YouTube 플레이어 - react-native-youtube-bridge)
-function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onShare, onBookmarkPress, isBookmarked, bookmarkCount }: VideoItemProps) {
+function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onBookmarkPress, isBookmarked, bookmarkCount }: VideoItemProps) {
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const playerWidth = Math.max(SCREEN_WIDTH, itemHeight * (16 / 9));
@@ -107,12 +105,18 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
     setIsReady(true);
   });
 
-  useYouTubeEvent(player, 'stateChange', (state: string) => {
-    if (state === 'ended') {
-      player.seekTo(0, true);
+  useYouTubeEvent(player, 'stateChange', (state) => {
+    if (state === PlayerState.ENDED) {
+      player.seekTo(0);
       player.play();
     }
-  });
+    if (state === PlayerState.PLAYING || state === PlayerState.BUFFERING) {
+      setIsPlaying(true);
+    }
+    if (state === PlayerState.PAUSED) {
+      setIsPlaying(false);
+    }
+  }, []);
 
   // 활성화 상태에 따라 재생/일시정지
   useEffect(() => {
@@ -279,11 +283,11 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
         </Pressable>
       )}
 
-      {/* 좌측 하단 - 콘텐츠 정보 */}
+      {/* 좌측 하단 - 콘텐츠 정보 (탭바 바로 위) */}
       <View
         style={{
           position: "absolute",
-          bottom: 100,
+          bottom: 16,
           left: 16,
           right: 80,
           zIndex: 10,
@@ -354,7 +358,7 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
       <View
         style={{
           position: "absolute",
-          bottom: 100,
+          bottom: 16,
           right: 12,
           alignItems: "center",
           gap: 16,
@@ -428,12 +432,12 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
             <CalendarPlus size={26} color="#FFF" />
           </View>
           <Text style={{ color: "#FFF", fontSize: 11, fontWeight: "500", marginTop: 4 }}>
-            식단추가
+            식단
           </Text>
         </TouchableOpacity>
 
-        {/* 공유 */}
-        <TouchableOpacity onPress={onShare} activeOpacity={0.8} style={{ alignItems: "center" }}>
+        {/* YouTube 원본 */}
+        <TouchableOpacity onPress={() => Linking.openURL(`https://www.youtube.com/shorts/${item.videoId}`)} activeOpacity={0.8} style={{ alignItems: "center" }}>
           <View
             style={{
               width: 48,
@@ -444,10 +448,10 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
               alignItems: "center",
             }}
           >
-            <Share2 size={26} color="#FFF" />
+            <ExternalLink size={26} color="#FFF" />
           </View>
           <Text style={{ color: "#FFF", fontSize: 11, fontWeight: "500", marginTop: 4 }}>
-            공유
+            출처
           </Text>
         </TouchableOpacity>
       </View>
@@ -468,6 +472,8 @@ export default function ShortsScreen() {
 
   // 북마크 관련 상태
   const [showBookmarkSheet, setShowBookmarkSheet] = useState(false);
+  const bookmarkOverlayOpacity = useRef(new Animated.Value(0)).current;
+  const bookmarkSheetTranslateY = useRef(new Animated.Value(400)).current;
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [bookmarkTab, setBookmarkTab] = useState<"personal" | "group">("personal");
   const [bookmarkedVideos, setBookmarkedVideos] = useState<Record<string, { bookId: string; count: number }>>({});
@@ -523,16 +529,6 @@ export default function ShortsScreen() {
     );
   }, [router]);
 
-  const handleShare = useCallback(async (title: string) => {
-    try {
-      await Share.share({
-        message: `숏끼에서 "${title}" 레시피를 확인해보세요!`,
-      });
-    } catch (e) {
-      console.log(e);
-    }
-  }, []);
-
   const handleMoreOptions = useCallback(() => {
     Alert.alert(
       "더보기",
@@ -544,11 +540,43 @@ export default function ShortsScreen() {
     );
   }, []);
 
-  // 북마크 버튼 클릭 시 Bottom Sheet 표시
-  const handleBookmarkPress = useCallback((videoId: string) => {
+  // 북마크 시트 열기 (페이드 오버레이 + 슬라이드업)
+  const openBookmarkSheet = useCallback((videoId: string) => {
     setSelectedVideoId(videoId);
     setShowBookmarkSheet(true);
-  }, []);
+    Animated.parallel([
+      Animated.timing(bookmarkOverlayOpacity, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bookmarkSheetTranslateY, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [bookmarkOverlayOpacity, bookmarkSheetTranslateY]);
+
+  // 북마크 시트 닫기
+  const closeBookmarkSheet = useCallback((onDone?: () => void) => {
+    Animated.parallel([
+      Animated.timing(bookmarkOverlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bookmarkSheetTranslateY, {
+        toValue: 400,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowBookmarkSheet(false);
+      onDone?.();
+    });
+  }, [bookmarkOverlayOpacity, bookmarkSheetTranslateY]);
 
   // 폴더 선택 시 저장
   const handleSelectFolder = useCallback((bookId: string, bookName: string) => {
@@ -583,8 +611,8 @@ export default function ShortsScreen() {
       Alert.alert("저장 완료", `"${bookName}"에 저장되었습니다.`);
     }
 
-    setShowBookmarkSheet(false);
-  }, [selectedVideoId, bookmarkedVideos]);
+    closeBookmarkSheet();
+  }, [selectedVideoId, bookmarkedVideos, closeBookmarkSheet]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: ShortsItem; index: number }) => (
@@ -596,13 +624,12 @@ export default function ShortsScreen() {
         isMuted={isMuted}
         onViewRecipe={() => handleViewRecipe(item.id)}
         onAddToMealPlan={() => handleAddToMealPlan(item.title)}
-        onShare={() => handleShare(item.title)}
-        onBookmarkPress={() => handleBookmarkPress(item.id)}
+        onBookmarkPress={() => openBookmarkSheet(item.id)}
         isBookmarked={!!bookmarkedVideos[item.id]}
         bookmarkCount={bookmarkCounts[item.id] ?? item.bookmarks ?? 0}
       />
     ),
-    [activeIndex, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, handleShare, handleBookmarkPress, bookmarkedVideos, bookmarkCounts]
+    [activeIndex, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, bookmarkedVideos, bookmarkCounts]
   );
 
   const keyExtractor = useCallback((item: ShortsItem) => item.id, []);
@@ -687,27 +714,37 @@ export default function ShortsScreen() {
       <Modal
         visible={showBookmarkSheet}
         transparent
-        animationType="slide"
-        onRequestClose={() => setShowBookmarkSheet(false)}
+        statusBarTranslucent
+        animationType="none"
+        onRequestClose={() => closeBookmarkSheet()}
       >
-        <Pressable
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
-          onPress={() => setShowBookmarkSheet(false)}
-        />
-        <View
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            backgroundColor: Colors.neutral[0],
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            paddingTop: 8,
-            paddingBottom: insets.bottom + 20,
-            maxHeight: SCREEN_HEIGHT * 0.6,
-          }}
-        >
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          {/* 오버레이 - 페이드 */}
+          <Animated.View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              opacity: bookmarkOverlayOpacity,
+            }}
+          >
+            <Pressable style={{ flex: 1 }} onPress={() => closeBookmarkSheet()} />
+          </Animated.View>
+
+          {/* 시트 - 슬라이드업 */}
+          <Animated.View
+            style={{
+              transform: [{ translateY: bookmarkSheetTranslateY }],
+              backgroundColor: Colors.neutral[0],
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              paddingTop: 8,
+              paddingBottom: insets.bottom + 20,
+            }}
+          >
           {/* 핸들 바 */}
           <View style={{ alignItems: "center", paddingVertical: 8 }}>
             <View
@@ -735,7 +772,7 @@ export default function ShortsScreen() {
             <Text style={{ fontSize: 18, fontWeight: "700", color: Colors.neutral[900] }}>
               레시피북에 저장
             </Text>
-            <TouchableOpacity onPress={() => setShowBookmarkSheet(false)}>
+            <TouchableOpacity onPress={() => closeBookmarkSheet()}>
               <X size={24} color={Colors.neutral[500]} />
             </TouchableOpacity>
           </View>
@@ -798,7 +835,7 @@ export default function ShortsScreen() {
           </View>
 
           {/* 폴더 목록 */}
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20 }}>
+          <ScrollView style={{ maxHeight: 150 }} contentContainerStyle={{ paddingHorizontal: 20 }}>
             {(bookmarkTab === "personal" ? RECIPE_BOOKS.personal : RECIPE_BOOKS.group).map((book) => {
               const isSelected = selectedVideoId && bookmarkedVideos[selectedVideoId]?.bookId === book.id;
               return (
@@ -866,8 +903,9 @@ export default function ShortsScreen() {
             {/* 새 레시피북 만들기 */}
             <TouchableOpacity
               onPress={() => {
-                setShowBookmarkSheet(false);
-                router.push("/(tabs)/recipe-book");
+                closeBookmarkSheet(() => {
+                  router.push("/(tabs)/recipe-book");
+                });
               }}
               activeOpacity={0.7}
               style={{
@@ -897,6 +935,7 @@ export default function ShortsScreen() {
               </Text>
             </TouchableOpacity>
           </ScrollView>
+          </Animated.View>
         </View>
       </Modal>
     </View>
