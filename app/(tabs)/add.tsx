@@ -40,6 +40,7 @@ import {
 import { uploadImage } from "@/services/fileUpload";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { recipeApi, type RecipeCreateRequest } from "@/services/recipeApi";
+import { ingredientApi } from "@/services/ingredientApi";
 
 // ============================================================================
 // TYPES
@@ -155,7 +156,12 @@ export default function AddRecipeScreen() {
     { id: "1", name: "", amount: "", unit: "" },
   ]);
   const [steps, setSteps] = useState<Step[]>([{ id: "1", description: "" }]);
-  const [tags, setTags] = useState("");
+  const [tagList, setTagList] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+
+  // Ingredient Autocomplete State
+  const [suggestions, setSuggestions] = useState<{ id: number; name: string }[]>([]);
+  const [activeIngredientId, setActiveIngredientId] = useState<string | null>(null);
 
   // ============================================================================
   // URL Mode Handlers
@@ -246,6 +252,42 @@ export default function AddRecipeScreen() {
     setSteps(steps.map((step) => (step.id === id ? { ...step, description } : step)));
   };
 
+  const addTag = () => {
+    const trimmed = tagInput.trim();
+    if (trimmed) {
+      if (!tagList.includes(trimmed)) {
+        setTagList([...tagList, trimmed]);
+      }
+      setTagInput("");
+    }
+  };
+
+  const removeTag = (index: number) => {
+    setTagList(tagList.filter((_, i) => i !== index));
+  };
+
+  const handleIngredientNameChange = async (id: string, text: string) => {
+    updateIngredient(id, "name", text);
+    setActiveIngredientId(id);
+
+    if (text.trim().length > 0) {
+      try {
+        const results = await ingredientApi.search(text);
+        setSuggestions(results);
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      setSuggestions([]);
+    }
+  };
+
+  const selectIngredientSuggestion = (id: string, name: string) => {
+    updateIngredient(id, "name", name);
+    setSuggestions([]);
+    setActiveIngredientId(null);
+  };
+
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -298,10 +340,7 @@ export default function AddRecipeScreen() {
         }
       }
 
-      const tagList = tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter((t) => t.length > 0);
+      // const tagList = tags.split... (Removed)
 
       const request: RecipeCreateRequest = {
         basicInfo: {
@@ -325,7 +364,7 @@ export default function AddRecipeScreen() {
           description: step.description.trim(),
         })),
         recipeSource: "USER",
-        tags: tagList.length > 0 ? tagList : undefined,
+        tags: tagList,
       };
 
       await recipeApi.create(request);
@@ -367,7 +406,8 @@ export default function AddRecipeScreen() {
     setMealType("MAIN");
     setIngredients([{ id: "1", name: "", amount: "", unit: "" }]);
     setSteps([{ id: "1", description: "" }]);
-    setTags("");
+    setTagList([]);
+    setTagInput("");
   };
 
   const handleBack = () => {
@@ -1119,21 +1159,68 @@ export default function AddRecipeScreen() {
                       alignItems: "center",
                     }}
                   >
-                    <TextInput
-                      style={{
-                        flex: 2,
-                        backgroundColor: Colors.neutral[0],
-                        borderWidth: 1,
-                        borderColor: Colors.neutral[200],
-                        borderRadius: BorderRadius.lg,
-                        padding: Spacing.md,
-                        fontSize: Typography.fontSize.sm,
-                      }}
-                      placeholder="재료명"
-                      placeholderTextColor={Colors.neutral[400]}
-                      value={ing.name}
-                      onChangeText={(v) => updateIngredient(ing.id, "name", v)}
-                    />
+                    <View style={{ flex: 2, position: "relative", zIndex: 10 }}>
+                      <TextInput
+                        style={{
+                          backgroundColor: Colors.neutral[0],
+                          borderWidth: 1,
+                          borderColor: Colors.neutral[200],
+                          borderRadius: BorderRadius.lg,
+                          padding: Spacing.md,
+                          fontSize: Typography.fontSize.sm,
+                        }}
+                        placeholder="재료명"
+                        placeholderTextColor={Colors.neutral[400]}
+                        value={ing.name}
+                        onChangeText={(v) => handleIngredientNameChange(ing.id, v)}
+                        onFocus={() => setActiveIngredientId(ing.id)}
+                        onBlur={() => {
+                          // 딜레이를 주어 클릭 이벤트가 먼저 발생하도록 함
+                          setTimeout(() => {
+                            if (activeIngredientId === ing.id) {
+                              setActiveIngredientId(null);
+                            }
+                          }, 200);
+                        }}
+                      />
+                      {activeIngredientId === ing.id && suggestions.length > 0 && (
+                        <View
+                          style={{
+                            position: "absolute",
+                            top: "100%",
+                            left: 0,
+                            right: 0,
+                            backgroundColor: Colors.neutral[0],
+                            borderWidth: 1,
+                            borderColor: Colors.neutral[200],
+                            borderRadius: BorderRadius.md,
+                            marginTop: 4,
+                            zIndex: 1000,
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 4,
+                            elevation: 5,
+                          }}
+                        >
+                          {suggestions.map((item) => (
+                            <TouchableOpacity
+                              key={item.id}
+                              style={{
+                                padding: Spacing.md,
+                                borderBottomWidth: 1,
+                                borderBottomColor: Colors.neutral[100],
+                              }}
+                              onPress={() => selectIngredientSuggestion(ing.id, item.name)}
+                            >
+                              <Text style={{ fontSize: Typography.fontSize.sm, color: Colors.neutral[800] }}>
+                                {item.name}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                    </View>
                     <TextInput
                       style={{
                         flex: 1,
@@ -1284,6 +1371,27 @@ export default function AddRecipeScreen() {
                 >
                   태그
                 </Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                  {tagList.map((tag, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      onPress={() => removeTag(index)}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        backgroundColor: Colors.primary[100],
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: BorderRadius.full,
+                      }}
+                    >
+                      <Text style={{ fontSize: 13, color: Colors.primary[700], marginRight: 4 }}>
+                        #{tag}
+                      </Text>
+                      <X size={14} color={Colors.primary[700]} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
                 <TextInput
                   style={{
                     backgroundColor: Colors.neutral[0],
@@ -1294,10 +1402,13 @@ export default function AddRecipeScreen() {
                     fontSize: Typography.fontSize.base,
                     color: Colors.neutral[900],
                   }}
-                  placeholder="쉼표로 구분 (예: 간단요리, 한그릇, 자취생)"
+                  placeholder="태그 입력 후 엔터 (예: 간단요리)"
                   placeholderTextColor={Colors.neutral[400]}
-                  value={tags}
-                  onChangeText={setTags}
+                  value={tagInput}
+                  onChangeText={setTagInput}
+                  onSubmitEditing={addTag}
+                  returnKeyType="done"
+                  blurOnSubmit={false}
                 />
               </View>
             </View>
