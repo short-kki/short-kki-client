@@ -1,11 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   TextInput,
   ScrollView,
   TouchableOpacity,
-  Pressable,
   StatusBar,
   Alert,
   ActivityIndicator,
@@ -22,45 +21,110 @@ import {
   X,
   Clock,
   Users,
-  ChefHat,
   ImagePlus,
   Trash2,
-  GripVertical,
+  Check,
 } from "lucide-react-native";
-import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/design-system";
+import { recipeApi, type RecipeCreateRequest } from "@/services/recipeApi";
+
+// ============================================================================
+// TYPES
+// ============================================================================
 
 interface Ingredient {
   id: string;
   name: string;
   amount: string;
+  unit: string;
 }
 
 interface Step {
   id: string;
-  content: string;
+  description: string;
 }
+
+type Difficulty = "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+type CuisineType = "KOREAN" | "WESTERN" | "JAPANESE" | "CHINESE" | "ASIAN" | "FUSION" | "ETC";
+type MealType = "MAIN" | "SIDE_DISH" | "SNACK" | "DESSERT" | "SIDE_FOR_DRINK" | "ETC";
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const DIFFICULTY_OPTIONS: { value: Difficulty; label: string }[] = [
+  { value: "BEGINNER", label: "초급" },
+  { value: "INTERMEDIATE", label: "중급" },
+  { value: "ADVANCED", label: "고급" },
+];
+
+const CUISINE_OPTIONS: { value: CuisineType; label: string }[] = [
+  { value: "KOREAN", label: "한식" },
+  { value: "WESTERN", label: "양식" },
+  { value: "JAPANESE", label: "일식" },
+  { value: "CHINESE", label: "중식" },
+  { value: "ASIAN", label: "아시아" },
+  { value: "FUSION", label: "퓨전" },
+  { value: "ETC", label: "기타" },
+];
+
+const MEAL_TYPE_OPTIONS: { value: MealType; label: string }[] = [
+  { value: "MAIN", label: "밥" },
+  { value: "SIDE_DISH", label: "반찬" },
+  { value: "SNACK", label: "간식" },
+  { value: "DESSERT", label: "디저트" },
+  { value: "SIDE_FOR_DRINK", label: "안주" },
+  { value: "ETC", label: "기타" },
+];
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
 
 export default function RecipeCreateManualScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
+  // Basic Info
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [duration, setDuration] = useState("");
+  const [cookingTime, setCookingTime] = useState("");
   const [servings, setServings] = useState("2");
-  const [difficulty, setDifficulty] = useState<"쉬움" | "보통" | "어려움">("보통");
-  const [ingredients, setIngredients] = useState<Ingredient[]>([
-    { id: "1", name: "", amount: "" },
-  ]);
-  const [steps, setSteps] = useState<Step[]>([{ id: "1", content: "" }]);
-  const [tags, setTags] = useState("");
   const [thumbnail, setThumbnail] = useState<string | null>(null);
+
+  // Category Info
+  const [difficulty, setDifficulty] = useState<Difficulty>("BEGINNER");
+  const [cuisineType, setCuisineType] = useState<CuisineType>("KOREAN");
+  const [mealType, setMealType] = useState<MealType>("MAIN");
+
+  // Ingredients & Steps
+  const [ingredients, setIngredients] = useState<Ingredient[]>([
+    { id: "1", name: "", amount: "", unit: "" },
+  ]);
+  const [steps, setSteps] = useState<Step[]>([{ id: "1", description: "" }]);
+
+  // Tags
+  const [tags, setTags] = useState("");
+
+  // UI State
   const [isSaving, setIsSaving] = useState(false);
+
+  // Debug: 컴포넌트 마운트 확인
+  useEffect(() => {
+    console.log("🎨 RecipeCreateManualScreen 마운트됨!");
+    return () => {
+      console.log("🎨 RecipeCreateManualScreen 언마운트됨!");
+    };
+  }, []);
+
+  // ============================================================================
+  // HANDLERS - Ingredients
+  // ============================================================================
 
   const addIngredient = () => {
     setIngredients([
       ...ingredients,
-      { id: Date.now().toString(), name: "", amount: "" },
+      { id: Date.now().toString(), name: "", amount: "", unit: "" },
     ]);
   };
 
@@ -70,14 +134,22 @@ export default function RecipeCreateManualScreen() {
     }
   };
 
-  const updateIngredient = (id: string, field: "name" | "amount", value: string) => {
+  const updateIngredient = (
+    id: string,
+    field: "name" | "amount" | "unit",
+    value: string
+  ) => {
     setIngredients(
       ingredients.map((ing) => (ing.id === id ? { ...ing, [field]: value } : ing))
     );
   };
 
+  // ============================================================================
+  // HANDLERS - Steps
+  // ============================================================================
+
   const addStep = () => {
-    setSteps([...steps, { id: Date.now().toString(), content: "" }]);
+    setSteps([...steps, { id: Date.now().toString(), description: "" }]);
   };
 
   const removeStep = (id: string) => {
@@ -86,9 +158,13 @@ export default function RecipeCreateManualScreen() {
     }
   };
 
-  const updateStep = (id: string, content: string) => {
-    setSteps(steps.map((step) => (step.id === id ? { ...step, content } : step)));
+  const updateStep = (id: string, description: string) => {
+    setSteps(steps.map((step) => (step.id === id ? { ...step, description } : step)));
   };
+
+  // ============================================================================
+  // HANDLERS - Image
+  // ============================================================================
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -103,7 +179,12 @@ export default function RecipeCreateManualScreen() {
     }
   };
 
+  // ============================================================================
+  // HANDLERS - Save
+  // ============================================================================
+
   const handleSave = async () => {
+    // Validation
     if (!title.trim()) {
       Alert.alert("알림", "레시피 제목을 입력해주세요.");
       return;
@@ -115,17 +196,49 @@ export default function RecipeCreateManualScreen() {
       return;
     }
 
-    const validSteps = steps.filter((step) => step.content.trim());
+    const validSteps = steps.filter((step) => step.description.trim());
     if (validSteps.length === 0) {
       Alert.alert("알림", "최소 1개 이상의 조리 단계를 입력해주세요.");
       return;
     }
 
+    const cookingTimeNum = parseInt(cookingTime) || 30;
+    const servingsNum = parseInt(servings) || 2;
+
     setIsSaving(true);
 
     try {
-      // 실제로는 서버에 저장
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Parse tags
+      const tagList = tags
+        .split(/[,\s#]+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+
+      const request: RecipeCreateRequest = {
+        basicInfo: {
+          title: title.trim(),
+          description: description.trim() || undefined,
+          servingSize: servingsNum,
+          cookingTime: cookingTimeNum,
+        },
+        categoryInfo: {
+          cuisineType,
+          mealType,
+          difficulty,
+        },
+        ingredients: validIngredients.map((ing) => ({
+          name: ing.name.trim(),
+          unit: ing.unit.trim() || "개",
+          amount: parseFloat(ing.amount) || 1,
+        })),
+        steps: validSteps.map((step) => ({
+          description: step.description.trim(),
+        })),
+        recipeSource: "USER",
+        tags: tagList.length > 0 ? tagList : undefined,
+      };
+
+      await recipeApi.create(request);
 
       Alert.alert("저장 완료", `"${title}" 레시피가 저장되었습니다.`, [
         {
@@ -134,11 +247,52 @@ export default function RecipeCreateManualScreen() {
         },
       ]);
     } catch (error) {
+      console.error("Recipe create error:", error);
       Alert.alert("오류", "레시피 저장 중 오류가 발생했습니다.");
     } finally {
       setIsSaving(false);
     }
   };
+
+  // ============================================================================
+  // RENDER HELPERS
+  // ============================================================================
+
+  const renderChipSelector = <T extends string>(
+    options: { value: T; label: string }[],
+    selected: T,
+    onSelect: (value: T) => void
+  ) => (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm }}>
+      {options.map((option) => (
+        <TouchableOpacity
+          key={option.value}
+          onPress={() => onSelect(option.value)}
+          style={{
+            paddingVertical: Spacing.sm,
+            paddingHorizontal: Spacing.md,
+            borderRadius: BorderRadius.full,
+            backgroundColor:
+              selected === option.value ? Colors.primary[500] : Colors.neutral[100],
+          }}
+        >
+          <Text
+            style={{
+              fontSize: Typography.fontSize.sm,
+              fontWeight: selected === option.value ? "600" : "400",
+              color: selected === option.value ? "#FFF" : Colors.neutral[600],
+            }}
+          >
+            {option.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
 
   return (
     <KeyboardAvoidingView
@@ -153,7 +307,6 @@ export default function RecipeCreateManualScreen() {
           style={{
             flexDirection: "row",
             alignItems: "center",
-            justifyContent: "space-between",
             paddingHorizontal: Spacing.lg,
             paddingVertical: Spacing.md,
             borderBottomWidth: 1,
@@ -166,48 +319,26 @@ export default function RecipeCreateManualScreen() {
           </TouchableOpacity>
           <Text
             style={{
+              flex: 1,
+              textAlign: "center",
               fontSize: Typography.fontSize.lg,
               fontWeight: Typography.fontWeight.bold,
               color: Colors.neutral[900],
+              marginRight: 28,
             }}
           >
             레시피 작성
           </Text>
-          <TouchableOpacity
-            onPress={handleSave}
-            disabled={isSaving}
-            style={{
-              backgroundColor: isSaving ? Colors.neutral[300] : Colors.primary[500],
-              paddingHorizontal: Spacing.md,
-              paddingVertical: Spacing.sm,
-              borderRadius: BorderRadius.lg,
-            }}
-          >
-            {isSaving ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : (
-              <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 14 }}>저장</Text>
-            )}
-          </TouchableOpacity>
         </View>
 
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ padding: Spacing.xl, paddingBottom: 100 }}
+          contentContainerStyle={{ padding: Spacing.xl, paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
         >
           {/* 썸네일 이미지 */}
           <View style={{ marginBottom: Spacing.xl }}>
-            <Text
-              style={{
-                fontSize: Typography.fontSize.sm,
-                fontWeight: Typography.fontWeight.medium,
-                color: Colors.neutral[700],
-                marginBottom: Spacing.sm,
-              }}
-            >
-              대표 이미지
-            </Text>
+            <Text style={styles.label}>대표 이미지</Text>
             <TouchableOpacity
               onPress={pickImage}
               activeOpacity={0.8}
@@ -258,27 +389,9 @@ export default function RecipeCreateManualScreen() {
 
           {/* 제목 */}
           <View style={{ marginBottom: Spacing.lg }}>
-            <Text
-              style={{
-                fontSize: Typography.fontSize.sm,
-                fontWeight: Typography.fontWeight.medium,
-                color: Colors.neutral[700],
-                marginBottom: Spacing.sm,
-              }}
-            >
-              레시피 제목 *
-            </Text>
+            <Text style={styles.label}>레시피 제목 *</Text>
             <TextInput
-              style={{
-                backgroundColor: Colors.neutral[0],
-                borderWidth: 1,
-                borderColor: Colors.neutral[200],
-                borderRadius: BorderRadius.lg,
-                paddingHorizontal: Spacing.md,
-                paddingVertical: Spacing.md,
-                fontSize: Typography.fontSize.base,
-                color: Colors.neutral[900],
-              }}
+              style={styles.input}
               placeholder="예: 초간단 계란볶음밥"
               placeholderTextColor={Colors.neutral[400]}
               value={title}
@@ -288,29 +401,9 @@ export default function RecipeCreateManualScreen() {
 
           {/* 설명 */}
           <View style={{ marginBottom: Spacing.lg }}>
-            <Text
-              style={{
-                fontSize: Typography.fontSize.sm,
-                fontWeight: Typography.fontWeight.medium,
-                color: Colors.neutral[700],
-                marginBottom: Spacing.sm,
-              }}
-            >
-              간단 설명
-            </Text>
+            <Text style={styles.label}>간단 설명</Text>
             <TextInput
-              style={{
-                backgroundColor: Colors.neutral[0],
-                borderWidth: 1,
-                borderColor: Colors.neutral[200],
-                borderRadius: BorderRadius.lg,
-                paddingHorizontal: Spacing.md,
-                paddingVertical: Spacing.md,
-                fontSize: Typography.fontSize.base,
-                color: Colors.neutral[900],
-                minHeight: 80,
-                textAlignVertical: "top",
-              }}
+              style={[styles.input, { minHeight: 80, textAlignVertical: "top", paddingTop: Spacing.md }]}
               placeholder="레시피에 대한 간단한 설명을 입력하세요"
               placeholderTextColor={Colors.neutral[400]}
               value={description}
@@ -319,80 +412,29 @@ export default function RecipeCreateManualScreen() {
             />
           </View>
 
-          {/* 시간, 인분, 난이도 */}
+          {/* 시간, 인분 */}
           <View style={{ flexDirection: "row", gap: Spacing.md, marginBottom: Spacing.lg }}>
-            {/* 조리 시간 */}
             <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.sm,
-                  fontWeight: Typography.fontWeight.medium,
-                  color: Colors.neutral[700],
-                  marginBottom: Spacing.sm,
-                }}
-              >
-                조리 시간
-              </Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  backgroundColor: Colors.neutral[0],
-                  borderWidth: 1,
-                  borderColor: Colors.neutral[200],
-                  borderRadius: BorderRadius.lg,
-                  paddingHorizontal: Spacing.md,
-                }}
-              >
+              <Text style={styles.label}>조리 시간 (분)</Text>
+              <View style={styles.inputWithIcon}>
                 <Clock size={18} color={Colors.neutral[400]} />
                 <TextInput
-                  style={{
-                    flex: 1,
-                    paddingVertical: Spacing.md,
-                    marginLeft: Spacing.sm,
-                    fontSize: Typography.fontSize.base,
-                    color: Colors.neutral[900],
-                  }}
-                  placeholder="15분"
+                  style={styles.inputInner}
+                  placeholder="30"
                   placeholderTextColor={Colors.neutral[400]}
-                  value={duration}
-                  onChangeText={setDuration}
+                  value={cookingTime}
+                  onChangeText={setCookingTime}
+                  keyboardType="number-pad"
                 />
               </View>
             </View>
 
-            {/* 인분 */}
             <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.sm,
-                  fontWeight: Typography.fontWeight.medium,
-                  color: Colors.neutral[700],
-                  marginBottom: Spacing.sm,
-                }}
-              >
-                인분
-              </Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  backgroundColor: Colors.neutral[0],
-                  borderWidth: 1,
-                  borderColor: Colors.neutral[200],
-                  borderRadius: BorderRadius.lg,
-                  paddingHorizontal: Spacing.md,
-                }}
-              >
+              <Text style={styles.label}>인분</Text>
+              <View style={styles.inputWithIcon}>
                 <Users size={18} color={Colors.neutral[400]} />
                 <TextInput
-                  style={{
-                    flex: 1,
-                    paddingVertical: Spacing.md,
-                    marginLeft: Spacing.sm,
-                    fontSize: Typography.fontSize.base,
-                    color: Colors.neutral[900],
-                  }}
+                  style={styles.inputInner}
                   placeholder="2"
                   placeholderTextColor={Colors.neutral[400]}
                   value={servings}
@@ -403,73 +445,29 @@ export default function RecipeCreateManualScreen() {
             </View>
           </View>
 
+          {/* 요리 종류 */}
+          <View style={{ marginBottom: Spacing.lg }}>
+            <Text style={styles.label}>요리 종류</Text>
+            {renderChipSelector(CUISINE_OPTIONS, cuisineType, setCuisineType)}
+          </View>
+
+          {/* 식사 유형 */}
+          <View style={{ marginBottom: Spacing.lg }}>
+            <Text style={styles.label}>식사 유형</Text>
+            {renderChipSelector(MEAL_TYPE_OPTIONS, mealType, setMealType)}
+          </View>
+
           {/* 난이도 */}
           <View style={{ marginBottom: Spacing.xl }}>
-            <Text
-              style={{
-                fontSize: Typography.fontSize.sm,
-                fontWeight: Typography.fontWeight.medium,
-                color: Colors.neutral[700],
-                marginBottom: Spacing.sm,
-              }}
-            >
-              난이도
-            </Text>
-            <View style={{ flexDirection: "row", gap: Spacing.sm }}>
-              {(["쉬움", "보통", "어려움"] as const).map((level) => (
-                <TouchableOpacity
-                  key={level}
-                  onPress={() => setDifficulty(level)}
-                  style={{
-                    flex: 1,
-                    paddingVertical: Spacing.md,
-                    borderRadius: BorderRadius.lg,
-                    backgroundColor: difficulty === level ? Colors.primary[500] : Colors.neutral[100],
-                    alignItems: "center",
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: "600",
-                      color: difficulty === level ? "#FFF" : Colors.neutral[600],
-                    }}
-                  >
-                    {level}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <Text style={styles.label}>난이도</Text>
+            {renderChipSelector(DIFFICULTY_OPTIONS, difficulty, setDifficulty)}
           </View>
 
           {/* 재료 */}
           <View style={{ marginBottom: Spacing.xl }}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: Spacing.sm,
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.sm,
-                  fontWeight: Typography.fontWeight.medium,
-                  color: Colors.neutral[700],
-                }}
-              >
-                재료 *
-              </Text>
-              <TouchableOpacity
-                onPress={addIngredient}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingHorizontal: Spacing.sm,
-                  paddingVertical: 4,
-                }}
-              >
+            <View style={styles.sectionHeader}>
+              <Text style={styles.label}>재료 *</Text>
+              <TouchableOpacity onPress={addIngredient} style={styles.addButton}>
                 <Plus size={16} color={Colors.primary[500]} />
                 <Text style={{ color: Colors.primary[500], marginLeft: 4, fontWeight: "600" }}>
                   추가
@@ -477,56 +475,36 @@ export default function RecipeCreateManualScreen() {
               </TouchableOpacity>
             </View>
 
-            {ingredients.map((ingredient, index) => (
-              <View
-                key={ingredient.id}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: Spacing.sm,
-                  marginBottom: Spacing.sm,
-                }}
-              >
+            {ingredients.map((ingredient) => (
+              <View key={ingredient.id} style={styles.ingredientRow}>
                 <TextInput
-                  style={{
-                    flex: 2,
-                    backgroundColor: Colors.neutral[0],
-                    borderWidth: 1,
-                    borderColor: Colors.neutral[200],
-                    borderRadius: BorderRadius.lg,
-                    paddingHorizontal: Spacing.md,
-                    paddingVertical: Spacing.sm,
-                    fontSize: 14,
-                    color: Colors.neutral[900],
-                  }}
+                  style={[styles.input, { flex: 2 }]}
                   placeholder="재료명"
                   placeholderTextColor={Colors.neutral[400]}
                   value={ingredient.name}
                   onChangeText={(text) => updateIngredient(ingredient.id, "name", text)}
                 />
                 <TextInput
-                  style={{
-                    flex: 1,
-                    backgroundColor: Colors.neutral[0],
-                    borderWidth: 1,
-                    borderColor: Colors.neutral[200],
-                    borderRadius: BorderRadius.lg,
-                    paddingHorizontal: Spacing.md,
-                    paddingVertical: Spacing.sm,
-                    fontSize: 14,
-                    color: Colors.neutral[900],
-                  }}
-                  placeholder="양"
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="수량"
                   placeholderTextColor={Colors.neutral[400]}
                   value={ingredient.amount}
                   onChangeText={(text) => updateIngredient(ingredient.id, "amount", text)}
+                  keyboardType="decimal-pad"
+                />
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="단위"
+                  placeholderTextColor={Colors.neutral[400]}
+                  value={ingredient.unit}
+                  onChangeText={(text) => updateIngredient(ingredient.id, "unit", text)}
                 />
                 {ingredients.length > 1 && (
                   <TouchableOpacity
                     onPress={() => removeIngredient(ingredient.id)}
-                    style={{ padding: 4 }}
+                    style={{ padding: 8 }}
                   >
-                    <Trash2 size={18} color={Colors.error[500]} />
+                    <Trash2 size={18} color={Colors.error.main} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -535,32 +513,9 @@ export default function RecipeCreateManualScreen() {
 
           {/* 조리 순서 */}
           <View style={{ marginBottom: Spacing.xl }}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: Spacing.sm,
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.sm,
-                  fontWeight: Typography.fontWeight.medium,
-                  color: Colors.neutral[700],
-                }}
-              >
-                조리 순서 *
-              </Text>
-              <TouchableOpacity
-                onPress={addStep}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingHorizontal: Spacing.sm,
-                  paddingVertical: 4,
-                }}
-              >
+            <View style={styles.sectionHeader}>
+              <Text style={styles.label}>조리 순서 *</Text>
+              <TouchableOpacity onPress={addStep} style={styles.addButton}>
                 <Plus size={16} color={Colors.primary[500]} />
                 <Text style={{ color: Colors.primary[500], marginLeft: 4, fontWeight: "600" }}>
                   추가
@@ -569,56 +524,26 @@ export default function RecipeCreateManualScreen() {
             </View>
 
             {steps.map((step, index) => (
-              <View
-                key={step.id}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "flex-start",
-                  gap: Spacing.sm,
-                  marginBottom: Spacing.sm,
-                }}
-              >
-                <View
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 14,
-                    backgroundColor: Colors.primary[500],
-                    justifyContent: "center",
-                    alignItems: "center",
-                    marginTop: 8,
-                  }}
-                >
+              <View key={step.id} style={styles.stepRow}>
+                <View style={styles.stepNumber}>
                   <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 14 }}>
                     {index + 1}
                   </Text>
                 </View>
                 <TextInput
-                  style={{
-                    flex: 1,
-                    backgroundColor: Colors.neutral[0],
-                    borderWidth: 1,
-                    borderColor: Colors.neutral[200],
-                    borderRadius: BorderRadius.lg,
-                    paddingHorizontal: Spacing.md,
-                    paddingVertical: Spacing.md,
-                    fontSize: 14,
-                    color: Colors.neutral[900],
-                    minHeight: 60,
-                    textAlignVertical: "top",
-                  }}
+                  style={[styles.input, { flex: 1, minHeight: 60, textAlignVertical: "top", paddingTop: Spacing.md }]}
                   placeholder={`${index + 1}단계 조리 방법`}
                   placeholderTextColor={Colors.neutral[400]}
-                  value={step.content}
+                  value={step.description}
                   onChangeText={(text) => updateStep(step.id, text)}
                   multiline
                 />
                 {steps.length > 1 && (
                   <TouchableOpacity
                     onPress={() => removeStep(step.id)}
-                    style={{ padding: 4, marginTop: 8 }}
+                    style={{ padding: 8, marginTop: 8 }}
                   >
-                    <Trash2 size={18} color={Colors.error[500]} />
+                    <Trash2 size={18} color={Colors.error.main} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -627,44 +552,142 @@ export default function RecipeCreateManualScreen() {
 
           {/* 태그 */}
           <View style={{ marginBottom: Spacing.xl }}>
-            <Text
-              style={{
-                fontSize: Typography.fontSize.sm,
-                fontWeight: Typography.fontWeight.medium,
-                color: Colors.neutral[700],
-                marginBottom: Spacing.sm,
-              }}
-            >
-              태그
-            </Text>
+            <Text style={styles.label}>태그</Text>
             <TextInput
-              style={{
-                backgroundColor: Colors.neutral[0],
-                borderWidth: 1,
-                borderColor: Colors.neutral[200],
-                borderRadius: BorderRadius.lg,
-                paddingHorizontal: Spacing.md,
-                paddingVertical: Spacing.md,
-                fontSize: Typography.fontSize.base,
-                color: Colors.neutral[900],
-              }}
+              style={styles.input}
               placeholder="#한식 #볶음밥 #간편요리"
               placeholderTextColor={Colors.neutral[400]}
               value={tags}
               onChangeText={setTags}
             />
-            <Text
-              style={{
-                fontSize: 12,
-                color: Colors.neutral[400],
-                marginTop: Spacing.xs,
-              }}
-            >
-              쉼표 또는 공백으로 구분하세요
+            <Text style={{ fontSize: 12, color: Colors.neutral[400], marginTop: Spacing.xs }}>
+              쉼표, 공백 또는 #으로 구분하세요
             </Text>
           </View>
         </ScrollView>
+
+        {/* 하단 저장 버튼 */}
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            paddingHorizontal: Spacing.xl,
+            paddingTop: Spacing.md,
+            paddingBottom: insets.bottom + Spacing.md,
+            backgroundColor: Colors.neutral[0],
+            borderTopWidth: 1,
+            borderTopColor: Colors.neutral[100],
+            ...Shadows.md,
+          }}
+        >
+          <TouchableOpacity
+            onPress={handleSave}
+            disabled={isSaving}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: isSaving ? Colors.neutral[300] : Colors.primary[500],
+              paddingVertical: Spacing.md,
+              borderRadius: BorderRadius.xl,
+              ...Shadows.primary,
+            }}
+          >
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <>
+                <Check size={20} color="#FFF" />
+                <Text
+                  style={{
+                    color: "#FFF",
+                    fontWeight: "700",
+                    fontSize: Typography.fontSize.base,
+                    marginLeft: Spacing.sm,
+                  }}
+                >
+                  저장하기
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
 }
+
+// ============================================================================
+// STYLES
+// ============================================================================
+
+const styles = {
+  label: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium as "500",
+    color: Colors.neutral[700],
+    marginBottom: Spacing.sm,
+  },
+  input: {
+    backgroundColor: Colors.neutral[0],
+    borderWidth: 1,
+    borderColor: Colors.neutral[200],
+    borderRadius: BorderRadius.xl,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[900],
+  },
+  inputWithIcon: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    backgroundColor: Colors.neutral[0],
+    borderWidth: 1,
+    borderColor: Colors.neutral[200],
+    borderRadius: BorderRadius.xl,
+    paddingHorizontal: Spacing.md,
+  },
+  inputInner: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    marginLeft: Spacing.sm,
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[900],
+  },
+  sectionHeader: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    marginBottom: Spacing.sm,
+  },
+  addButton: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+  },
+  ingredientRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  stepRow: {
+    flexDirection: "row" as const,
+    alignItems: "flex-start" as const,
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  stepNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.primary[500],
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+    marginTop: 10,
+  },
+};

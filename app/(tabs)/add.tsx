@@ -15,7 +15,7 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
-  Link,
+  Link as LinkIcon,
   Search,
   X,
   User,
@@ -66,6 +66,15 @@ interface ApiImportResponse {
   sourceUrl: string;
   preview: ApiImportPreview;
   message: string;
+}
+
+interface ParsedRecipe {
+  title: string;
+  thumbnail: string;
+  author: string;
+  authorThumbnail?: string | null;
+  duration: string;
+  source: string;
 }
 
 const formatPlatformLabel = (platform?: string) => {
@@ -120,15 +129,6 @@ const parseRecipeFromUrl = async (url: string): Promise<ParsedRecipe | null> => 
     source: formatPlatformLabel(response.data.platform),
   };
 };
-
-interface ParsedRecipe {
-  title: string;
-  thumbnail: string;
-  author: string;
-  authorThumbnail?: string | null;
-  duration: string;
-  source: string;
-}
 
 export default function AddRecipeScreen() {
   const insets = useSafeAreaInsets();
@@ -382,7 +382,7 @@ export default function AddRecipeScreen() {
                     height: 50,
                   }}
                 >
-                  <Link size={18} color={Colors.neutral[400]} />
+                  <LinkIcon size={18} color={Colors.neutral[400]} />
                   <TextInput
                     style={{ flex: 1, marginLeft: 8, fontSize: 14, color: Colors.neutral[900] }}
                     placeholder="https://youtube.com/shorts/..."
@@ -514,7 +514,7 @@ export default function AddRecipeScreen() {
                     {parsedRecipe ? parsedRecipe.title : "레시피 제목"}
                   </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, gap: 8 }}>
-                  <View
+                    <View
                       style={{
                         width: 28,
                         height: 28,

@@ -7,6 +7,7 @@ import {
   Pressable,
   Modal,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,111 +23,18 @@ import {
   Share2,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
+import { useRecipeBookDetail, usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
+import RecipeBookSelectModal from "@/components/RecipeBookSelectModal";
 
-// 레시피북 데이터 (실제로는 bookId로 API에서 가져옴)
-const RECIPE_BOOKS_DATA: Record<string, { name: string; recipes: any[] }> = {
-  default: {
-    name: "기본 레시피북",
-    recipes: [
-      {
-        id: "r1",
-        title: "백종원 계란볶음밥",
-        author: "백종원",
-        thumbnail: "https://i.ytimg.com/vi/DkyZ9t12hpo/hq720.jpg",
-        duration: "5분",
-        likes: 15234,
-        savedAt: "2일 전",
-      },
-      {
-        id: "r2",
-        title: "크림파스타 황금레시피",
-        author: "자취생요리",
-        thumbnail: "https://i.ytimg.com/vi/oc1bnLR38fE/hq720.jpg",
-        duration: "15분",
-        likes: 8921,
-        savedAt: "3일 전",
-      },
-      {
-        id: "r3",
-        title: "마약 옥수수",
-        author: "요리왕비룡",
-        thumbnail: "https://i.ytimg.com/vi/gQDByCdjUXw/hq720.jpg",
-        duration: "10분",
-        likes: 5629,
-        savedAt: "1주 전",
-      },
-      {
-        id: "r4",
-        title: "뚝딱이형 속도 요리",
-        author: "1분요리 뚝딱이형",
-        thumbnail: "https://i.ytimg.com/vi/ZPFVC78A2jM/hq720.jpg",
-        duration: "3분",
-        likes: 22847,
-        savedAt: "1주 전",
-      },
-    ],
-  },
-  "1": {
-    name: "다이어트 레시피",
-    recipes: [
-      {
-        id: "d1",
-        title: "닭가슴살 샐러드",
-        author: "헬시쿡",
-        thumbnail: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400",
-        duration: "10분",
-        likes: 3421,
-        savedAt: "1주 전",
-      },
-      {
-        id: "d2",
-        title: "연어 포케볼",
-        author: "다이어터",
-        thumbnail: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=400",
-        duration: "15분",
-        likes: 2891,
-        savedAt: "2주 전",
-      },
-    ],
-  },
-  "2": {
-    name: "자취 필수 요리",
-    recipes: [
-      {
-        id: "s1",
-        title: "편스토랑 류수영 꿀팁",
-        author: "KBS 편스토랑",
-        thumbnail: "https://i.ytimg.com/vi/NnhIbr5lmEg/hq720.jpg",
-        duration: "8분",
-        likes: 12453,
-        savedAt: "2주 전",
-      },
-      {
-        id: "s2",
-        title: "김치볶음밥",
-        author: "집밥백선생",
-        thumbnail: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=400",
-        duration: "10분",
-        likes: 8234,
-        savedAt: "3주 전",
-      },
-    ],
-  },
-  "3": {
-    name: "손님 접대용",
-    recipes: [
-      {
-        id: "g1",
-        title: "연어 스테이크",
-        author: "셰프의 부엌",
-        thumbnail: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=400",
-        duration: "20분",
-        likes: 5621,
-        savedAt: "1개월 전",
-      },
-    ],
-  },
-  // 그룹 레시피북은 API에서 조회 (현재 미구현)
+import { API_BASE_URL } from "@/constants/oauth";
+
+// 이미지 URL 처리 헬퍼 함수
+const getImageUrl = (url?: string) => {
+  if (!url) return "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200";
+  if (url.startsWith("http")) return url;
+  if (url.startsWith("data:")) return url;
+  // 상대 경로인 경우 API URL 추가
+  return `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
 };
 
 // 레시피 카드 컴포넌트
@@ -272,15 +180,12 @@ export default function RecipeBookDetailScreen() {
   const params = useLocalSearchParams<{ bookId: string; groupId?: string; groupName?: string }>();
 
   const bookId = params.bookId || "default";
-  const isGroupRecipeBook = bookId.startsWith("g");
 
-  // 그룹 레시피북은 API에서 조회 (현재 더미 데이터 없음)
-  const bookData = RECIPE_BOOKS_DATA[bookId] || {
-    name: isGroupRecipeBook ? (params.groupName ? `${params.groupName} 레시피북` : "그룹 레시피북") : "레시피북",
-    recipes: [],
-  };
+  // API에서 레시피북 상세 조회
+  const { bookName, recipes, loading, error, removeRecipe, moveRecipe } = useRecipeBookDetail(bookId);
 
   const [showRecipeMenuModal, setShowRecipeMenuModal] = useState(false);
+  const [showBookSelectModal, setShowBookSelectModal] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<any>(null);
 
   const handleRecipePress = (recipeId: string) => {
@@ -300,10 +205,7 @@ export default function RecipeBookDetailScreen() {
     setTimeout(() => {
       switch (action) {
         case "move":
-          Alert.alert("레시피북 이동", "이동할 레시피북을 선택하세요.", [
-            { text: "취소", style: "cancel" },
-            { text: "기본 레시피북", onPress: () => Alert.alert("완료", "레시피가 이동되었습니다.") },
-          ]);
+          setShowBookSelectModal(true);
           break;
         case "delete":
           Alert.alert(
@@ -311,7 +213,16 @@ export default function RecipeBookDetailScreen() {
             `"${selectedRecipe.title}"을(를) 레시피북에서 삭제하시겠습니까?`,
             [
               { text: "취소", style: "cancel" },
-              { text: "삭제", style: "destructive", onPress: () => {} },
+              {
+                text: "삭제", style: "destructive", onPress: async () => {
+                  const success = await removeRecipe(selectedRecipe.id);
+                  if (success) {
+                    Alert.alert("완료", "레시피가 삭제되었습니다.");
+                  } else {
+                    Alert.alert("오류", "레시피 삭제에 실패했습니다.");
+                  }
+                }
+              },
             ]
           );
           break;
@@ -356,7 +267,7 @@ export default function RecipeBookDetailScreen() {
               color: Colors.neutral[900],
             }}
           >
-            {bookData.name}
+            {bookName || "레시피북"}
           </Text>
           <Text
             style={{
@@ -365,7 +276,7 @@ export default function RecipeBookDetailScreen() {
               marginTop: 2,
             }}
           >
-            {bookData.recipes.length}개의 레시피
+            {recipes.length}개의 레시피
           </Text>
         </View>
       </View>
@@ -379,7 +290,15 @@ export default function RecipeBookDetailScreen() {
           paddingBottom: 40,
         }}
       >
-        {bookData.recipes.length > 0 ? (
+        {loading ? (
+          <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
+            <ActivityIndicator size="large" color={Colors.primary[500]} />
+          </View>
+        ) : error ? (
+          <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
+            <Text style={{ color: Colors.error.main }}>데이터를 불러오는데 실패했습니다.</Text>
+          </View>
+        ) : recipes.length > 0 ? (
           <View
             style={{
               flexDirection: "row",
@@ -387,7 +306,7 @@ export default function RecipeBookDetailScreen() {
               justifyContent: "space-between",
             }}
           >
-            {bookData.recipes.map((recipe) => (
+            {recipes.map((recipe) => (
               <RecipeCard
                 key={recipe.id}
                 recipe={recipe}
@@ -659,6 +578,25 @@ export default function RecipeBookDetailScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+
+      {/* 레시피북 선택 모달 */}
+      <RecipeBookSelectModal
+        visible={showBookSelectModal}
+        onClose={() => setShowBookSelectModal(false)}
+        onSelect={async (bookId, bookName) => {
+          if (selectedRecipe) {
+            const success = await moveRecipe(selectedRecipe.id, bookId);
+            if (success) {
+              Alert.alert("완료", `"${bookName}"(으)로 이동되었습니다.`);
+            } else {
+              Alert.alert("오류", "레시피 이동에 실패했습니다.");
+            }
+          }
+        }}
+        currentBookId={bookId}
+        title="이동할 레시피북"
+      />
     </View>
   );
 }

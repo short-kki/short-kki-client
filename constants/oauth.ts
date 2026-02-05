@@ -53,9 +53,25 @@ export const GOOGLE_CONFIG = {
 // Response: { code, message, data: { accessToken, refreshToken, email, name, newMember } }
 // ============================================================================
 
-export const API_BASE_URL = __DEV__
-  ? "http://localhost:8080"
-  : "https://api.shortkki.com"; // TODO: 실제 프로덕션 URL로 변경
+import Constants from "expo-constants";
+
+export const API_BASE_URL = (() => {
+  if (!__DEV__) {
+    // TODO: 실제 프로덕션 URL로 변경
+    return "https://api.shortkki.com";
+  }
+
+  // Expo Go에서 실행 시 호스트 머신의 IP 감지
+  const debuggerHost = Constants.expoConfig?.hostUri;
+  const localhost = debuggerHost?.split(":")[0];
+
+  if (localhost) {
+    return `http://${localhost}:8080`;
+  }
+
+  // 시뮬레이터 등에서 fallback
+  return "http://localhost:8080";
+})();
 
 // ============================================================================
 // DEV MODE - 백엔드 없이 테스트용

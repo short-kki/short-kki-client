@@ -306,15 +306,15 @@ export default function LoginScreen() {
         throw new Error(`서버 에러: ${response.status} - ${errorText}`);
       }
 
-      const apiResponse = await response.json();
+      const apiResponse: ApiResponse<LoginData> = await response.json();
       console.log("[DevLogin] response:", JSON.stringify(apiResponse));
-      console.log("Dev Login Response:", JSON.stringify(apiResponse, null, 2));
 
-      // 서버 응답 구조 확인 (data가 없을 수 있음)
-      const loginData = apiResponse.data || apiResponse;
+      // BaseResponse 형태로 응답이 오므로 .data에서 추출
+      const loginData = apiResponse.data;
 
       if (!loginData.accessToken) {
-        throw new Error(`토큰이 없습니다. 응답: ${JSON.stringify(apiResponse)}`);
+        console.error('No access token in response:', loginData);
+        throw new Error("토큰이 없습니다");
       }
 
       const authData: AuthData = {
@@ -323,31 +323,25 @@ export default function LoginScreen() {
           refreshToken: loginData.refreshToken || "",
         },
         user: {
-          id: String(loginData.memberId || loginData.id || "1"),
-          email: loginData.email || "",
+          id: String(loginData.memberId || 1), // null이면 1로 폴백
+          email: loginData.email || "dev@test.com",
           name: loginData.name || "테스트 사용자",
           provider: "naver",
         },
       };
 
+      console.log('Dev Login Success - User:', authData.user.name, 'ID:', authData.user.id);
       await signIn(authData);
-
-      // 로그인 정보 표시
-      Alert.alert(
-        "로그인 성공",
-        `ID: ${authData.user.id}\n이름: ${authData.user.name}\n토큰: ${authData.tokens.accessToken.substring(0, 30)}...`
-      );
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         console.error("[DevLogin] timeout");
         Alert.alert("로그인 실패", "서버 응답이 없습니다. 네트워크/서버 상태를 확인해주세요.");
       }
       console.error("Dev Login Error:", error);
-      // 서버 연결 실패 시 에러 표시
-      Alert.alert(
-        "로그인 실패",
-        `서버 연결에 실패했습니다.\n\n${error instanceof Error ? error.message : "알 수 없는 오류"}\n\n서버가 실행 중인지 확인해주세요.`
-      );
+      console.log("Dev Login: 서버 연결 실패, Mock 로그인 사용");
+      // 서버 연결 실패 시 Mock 로그인으로 폴백
+      const mockAuthData = createMockAuthData("naver");
+      await signIn(mockAuthData);
     } finally {
       console.log("[DevLogin] done");
       setIsLoading(null);
@@ -407,7 +401,11 @@ export default function LoginScreen() {
 
         {DEV_MODE.ENABLE_MOCK_LOGIN && (
           <Pressable onPress={handleDevLogin} disabled={isLoading !== null} style={styles.devLoginButton}>
-            <Text style={styles.devLoginText}>개발자 모드: 빠른 로그인 (테스트용)</Text>
+            {isLoading === "dev" ? (
+              <ActivityIndicator size="small" color={Colors.primary[500]} />
+            ) : (
+              <Text style={styles.devLoginText}>개발자 모드: 빠른 로그인 (테스트용)</Text>
+            )}
           </Pressable>
         )}
 

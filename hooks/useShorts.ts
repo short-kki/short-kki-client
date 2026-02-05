@@ -25,12 +25,8 @@ export function useShorts() {
       setLoading(true);
       setError(null);
 
-      if (USE_MOCK) {
-        setShorts(MOCK_SHORTS);
-      } else {
-        const data = await api.get<ShortsItem[]>('/shorts');
-        setShorts(data);
-      }
+      // 항상 Mock 데이터 사용 (백엔드 미구현)
+      setShorts(MOCK_SHORTS);
     } catch (err) {
       setError(err as Error);
     } finally {
@@ -63,12 +59,8 @@ export function useCurationSections() {
       setLoading(true);
       setError(null);
 
-      if (USE_MOCK) {
-        setSections(MOCK_CURATION_SECTIONS);
-      } else {
-        const data = await api.get<CurationSection[]>('/home/curations');
-        setSections(data);
-      }
+      // 항상 Mock 데이터 사용 (백엔드 미구현)
+      setSections(MOCK_CURATION_SECTIONS);
     } catch (err) {
       setError(err as Error);
     } finally {

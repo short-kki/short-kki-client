@@ -210,8 +210,9 @@ export default function RecipeBookScreen() {
   const params = useLocalSearchParams<{ groupId?: string; groupName?: string; _t?: string }>();
 
   // hooks에서 데이터 가져오기
-  const { recipeBooks: personalBooks, loading: personalLoading, addRecipeBook, removeRecipeBook, renameRecipeBook } = usePersonalRecipeBooks();
+  const { recipeBooks: personalBooks, loading: personalLoading, createRecipeBook, removeRecipeBook, renameRecipeBook } = usePersonalRecipeBooks();
   const { recipeBooks: groupBooks, loading: groupLoading } = useGroupRecipeBooks();
+  const [isCreating, setIsCreating] = useState(false);
 
   // 그룹에서 진입한 경우 그룹 탭으로 시작
   const [activeTab, setActiveTab] = useState<"personal" | "group">(
@@ -277,58 +278,58 @@ export default function RecipeBookScreen() {
         {
           text: "삭제",
           style: "destructive",
-          onPress: () => {
-            removeRecipeBook(book.id);
+          onPress: async () => {
+            const success = await removeRecipeBook(book.id);
+            if (!success) {
+              Alert.alert("오류", "레시피북 삭제에 실패했습니다.");
+            }
           },
         },
       ]
     );
   };
 
-  const handleCreateBook = () => {
+  const handleCreateBook = async () => {
     if (!newBookName.trim()) {
       Alert.alert("알림", "레시피북 이름을 입력해주세요.");
       return;
     }
 
-    // 그룹 탭에서 그룹이 선택된 경우, 그룹당 1개 제한 체크
-    if (activeTab === "group" && filterGroupId) {
-      const existingGroupBooks = groupBooks.filter(
-        (book) => book.groupId === filterGroupId
+    // 그룹 탭에서는 레시피북 생성 불가 (기본 생성된 레시피북만 존재)
+    if (activeTab === "group") {
+      Alert.alert(
+        "알림",
+        "그룹 레시피북은 자동으로 생성됩니다.\n기존 레시피북을 이용해주세요."
       );
-      if (existingGroupBooks.length >= 1) {
-        Alert.alert(
-          "알림",
-          "그룹당 하나의 레시피북만 만들 수 있습니다.\n기존 레시피북을 이용해주세요."
-        );
-        return;
-      }
+      return;
     }
 
-    const newBook = {
-      id: Date.now().toString(),
-      name: newBookName.trim(),
-      isDefault: false,
-      recipeCount: 0,
-      thumbnails: [],
-      createdAt: "방금",
-    };
+    setIsCreating(true);
+    const success = await createRecipeBook(newBookName.trim());
+    setIsCreating(false);
 
-    addRecipeBook(newBook);
-    setNewBookName("");
-    setShowCreateModal(false);
+    if (success) {
+      setNewBookName("");
+      setShowCreateModal(false);
+    } else {
+      Alert.alert("오류", "레시피북 생성에 실패했습니다. 다시 시도해주세요.");
+    }
   };
 
-  const handleEditBook = () => {
+  const handleEditBook = async () => {
     if (!editBookName.trim() || !editingBook) {
       Alert.alert("알림", "레시피북 이름을 입력해주세요.");
       return;
     }
 
-    renameRecipeBook(editingBook.id, editBookName.trim());
-    setEditingBook(null);
-    setEditBookName("");
-    setShowEditModal(false);
+    const success = await renameRecipeBook(editingBook.id, editBookName.trim());
+    if (success) {
+      setEditingBook(null);
+      setEditBookName("");
+      setShowEditModal(false);
+    } else {
+      Alert.alert("오류", "레시피북 이름 변경에 실패했습니다.");
+    }
   };
 
   return (
@@ -362,25 +363,27 @@ export default function RecipeBookScreen() {
             레시피북
           </Text>
         </View>
-        {/* 레시피북 추가 버튼 - 눈에 띄게 개선 */}
-        <TouchableOpacity
-          onPress={() => setShowCreateModal(true)}
-          activeOpacity={0.8}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: Colors.primary[500],
-            paddingHorizontal: Spacing.md,
-            paddingVertical: Spacing.sm,
-            borderRadius: BorderRadius.full,
-            gap: 4,
-          }}
-        >
-          <Plus size={18} color="#FFF" />
-          <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 14 }}>
-            추가
-          </Text>
-        </TouchableOpacity>
+        {/* 레시피북 추가 버튼 - 개인 탭에서만 표시 */}
+        {activeTab === "personal" && (
+          <TouchableOpacity
+            onPress={() => setShowCreateModal(true)}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: Colors.primary[500],
+              paddingHorizontal: Spacing.md,
+              paddingVertical: Spacing.sm,
+              borderRadius: BorderRadius.full,
+              gap: 4,
+            }}
+          >
+            <Plus size={18} color="#FFF" />
+            <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 14 }}>
+              추가
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* 탭 */}
@@ -612,7 +615,10 @@ export default function RecipeBookScreen() {
                     {/* 그룹 헤더 - 필터링 중이 아닐 때만 표시 */}
                     {!filterGroupId && (
                       <TouchableOpacity
-                        onPress={() => router.push("/(tabs)/group")}
+                        onPress={() => router.push({
+                          pathname: "/(tabs)/group",
+                          params: { groupId, _t: Date.now().toString() },
+                        })}
                         activeOpacity={0.7}
                         style={{
                           flexDirection: "row",
@@ -659,7 +665,7 @@ export default function RecipeBookScreen() {
                           if (book.groupId) {
                             router.push({
                               pathname: "/(tabs)/group",
-                              params: { groupId: book.groupId },
+                              params: { groupId: book.groupId, _t: Date.now().toString() },
                             });
                           }
                         }}
@@ -762,9 +768,10 @@ export default function RecipeBookScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleCreateBook}
+                disabled={isCreating}
                 style={{
                   flex: 1,
-                  backgroundColor: Colors.primary[500],
+                  backgroundColor: isCreating ? Colors.neutral[300] : Colors.primary[500],
                   borderRadius: BorderRadius.lg,
                   paddingVertical: Spacing.md,
                   alignItems: "center",
@@ -777,7 +784,7 @@ export default function RecipeBookScreen() {
                     color: "#FFF",
                   }}
                 >
-                  저장
+                  {isCreating ? "저장 중..." : "저장"}
                 </Text>
               </TouchableOpacity>
             </View>

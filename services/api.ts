@@ -7,8 +7,8 @@
 import { API_BASE_URL } from '@/constants/oauth';
 import { getAuthData } from '@/utils/auth-storage';
 
-// Mock 데이터 사용 여부 (개발 모드에서 true)
-export const USE_MOCK = __DEV__;
+// Mock 데이터 사용 여부 (개발 모드에서 true, 실서버 테스트시 false로 변경)
+export const USE_MOCK = false;
 
 // API 기본 설정
 const defaultHeaders = {
@@ -49,7 +49,7 @@ async function fetchApi<T>(
     let errorMessage = `API Error: ${response.status}`;
     try {
       const errorData = await response.json();
-      console.error('API Error Response:', errorData);
+      console.error(`API Error [${endpoint}]:`, errorData);
       if (errorData.message) {
         errorMessage = errorData.message;
       } else if (errorData.code) {
@@ -57,7 +57,7 @@ async function fetchApi<T>(
       }
     } catch {
       // JSON 파싱 실패 시 기본 메시지 사용
-      console.error('API Error (no JSON):', response.status, response.statusText);
+      console.error(`API Error [${endpoint}] (no JSON):`, response.status, response.statusText);
     }
     throw new Error(errorMessage);
   }
@@ -86,6 +86,12 @@ export const api = {
   put: <T>(endpoint: string, data: unknown, requiresAuth: boolean = true) =>
     fetchApi<T>(endpoint, {
       method: 'PUT',
+      body: JSON.stringify(data),
+    }, requiresAuth),
+
+  patch: <T>(endpoint: string, data: unknown, requiresAuth: boolean = true) =>
+    fetchApi<T>(endpoint, {
+      method: 'PATCH',
       body: JSON.stringify(data),
     }, requiresAuth),
 

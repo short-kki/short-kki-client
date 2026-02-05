@@ -46,6 +46,8 @@ function RootLayoutNav() {
         <Stack.Screen name="recipe" options={{ headerShown: false }} />
         <Stack.Screen name="shopping-list" options={{ headerShown: false, presentation: "card" }} />
         <Stack.Screen name="recipe-book-detail" options={{ headerShown: false }} />
+        <Stack.Screen name="group-recipe-books" options={{ headerShown: false }} />
+        <Stack.Screen name="recipe-create-manual" options={{ headerShown: false }} />
         <Stack.Screen name="group-members" options={{ headerShown: false }} />
         <Stack.Screen name="group-edit" options={{ headerShown: false }} />
         <Stack.Screen name="group-feed-create" options={{ headerShown: false, presentation: "modal" }} />
