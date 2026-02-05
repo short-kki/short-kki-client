@@ -336,8 +336,14 @@ export function useRecipeBookDetail(bookId?: string) {
         console.log(`Mock: Moving recipe ${recipeId} from ${bookId} to ${toBookId}`);
         return true;
       } else {
+        const numericToBookId = Number(toBookId);
+        if (isNaN(numericToBookId)) {
+          console.error('Invalid target book ID:', toBookId);
+          return false;
+        }
+
         await api.patch(`/api/v1/recipebooks/${bookId}/recipes/${recipeId}`, {
-          toRecipeBookId: Number(toBookId),
+          toRecipeBookId: numericToBookId,
         });
         setRecipes((prev) => prev.filter((r) => r.id !== recipeId));
         return true;
