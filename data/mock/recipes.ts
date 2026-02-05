@@ -20,6 +20,7 @@ export interface Recipe {
   author: string;
   bookId: string;
   likes?: number; // 백엔드 bookmarkCount 매핑
+  savedAt?: string; // 저장된 날짜
 }
 
 // 개인 레시피북

@@ -28,6 +28,7 @@ interface RecipeSummaryApiResponse {
   bookmarkCount: number;
   thumbnailUrl: string | null;
   authorName: string | null;
+  createdAt?: string; // API might not return this yet, but good to have
 }
 
 interface BaseResponse<T> {
@@ -59,6 +60,7 @@ function mapRecipeFromApi(apiResponse: RecipeSummaryApiResponse, bookId: string)
     author: apiResponse.authorName || '알 수 없음',
     bookId,
     likes: apiResponse.bookmarkCount || 0,
+    savedAt: apiResponse.createdAt || '', // 날짜 정보 매핑
   };
 }
 
@@ -282,7 +284,7 @@ export function useRecipeBookDetail(bookId?: string) {
 
 
   // 레시피북에 레시피 추가
-  const addRecipe = useCallback(async (recipeId: number): Promise<boolean> => {
+  const addRecipe = useCallback(async (recipeId: string): Promise<boolean> => {
     if (!bookId) return false;
 
     try {
@@ -290,7 +292,12 @@ export function useRecipeBookDetail(bookId?: string) {
         console.log(`Mock: Adding recipe ${recipeId} to book ${bookId}`);
         return true;
       } else {
-        await api.post(`/api/v1/recipebooks/${bookId}/recipes`, { recipeId });
+        const numericId = Number(recipeId);
+        if (isNaN(numericId)) {
+          console.error('Invalid recipe ID:', recipeId);
+          return false;
+        }
+        await api.post(`/api/v1/recipebooks/${bookId}/recipes`, { recipeId: numericId });
         await fetchRecipeBookDetail(); // 목록 새로고침
         return true;
       }

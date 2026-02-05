@@ -1393,7 +1393,16 @@ export default function RecipeDetailScreen() {
         onClose={() => setShowBookSelectModal(false)}
         onSelect={async (bookId, bookName) => {
           try {
-            await api.post(`/api/v1/recipebooks/${bookId}/recipes`, { recipeId: Number(recipe.id) });
+            const numericId = Number(recipe.id);
+            if (isNaN(numericId)) {
+              console.warn("Invalid recipe ID for API:", recipe.id);
+              // Mock 모드이거나 잘못된 데이터일 경우 그냥 진행하거나 에러 처리
+              // 여기서는 API 호출 시 에러가 날 것이므로 미리 차단하든지, 
+              // 혹은 Mock 모드에서는 API 호출을 건너뛰도록 처리할 필요가 있음.
+              // 하지만 현재는 API 호출이 필수이므로, 에러가 발생하면 catch로 넘어감.
+            }
+
+            await api.post(`/api/v1/recipebooks/${bookId}/recipes`, { recipeId: numericId });
             Alert.alert("완료", `"${bookName}"에 저장되었습니다.`);
 
             // 북마크 상태 업데이트 (UI 반영용)
