@@ -43,6 +43,7 @@ interface ApiFeed {
   authorName: string;
   likes: number;
   likedByMe: boolean;
+  imageUrl: string | null; // 서버에서 제공하는 전체 CDN URL
   createdAt: string;
 }
 
@@ -71,13 +72,19 @@ function mapApiGroupToGroup(apiGroup: ApiGroup): Group {
 }
 
 function mapApiFeedToFeedItem(apiFeed: ApiFeed): FeedItem {
+  // 디버깅용 로그
+  console.log('[Feed Image Debug]', {
+    feedId: apiFeed.id,
+    imageUrl: apiFeed.imageUrl,
+  });
+
   return {
     id: apiFeed.id.toString(),
     type: 'post',
     user: apiFeed.authorName,
     userAvatar: apiFeed.authorName.substring(0, 1),
     content: apiFeed.content,
-    images: [],
+    images: apiFeed.imageUrl ? [apiFeed.imageUrl] : [],
     likes: apiFeed.likes || 0,
     comments: 0,
     time: formatRelativeTime(apiFeed.createdAt),
@@ -292,7 +299,7 @@ export function useGroupFeeds(groupId?: string) {
   }, [groupId, feeds]);
 
   // 피드 작성
-  const createFeed = useCallback(async (content: string) => {
+  const createFeed = useCallback(async (content: string, imageId?: number) => {
     if (!groupId) return;
 
     if (USE_MOCK) {
@@ -317,10 +324,27 @@ export function useGroupFeeds(groupId?: string) {
     await api.post(`/api/v1/groups/${groupId}/feeds`, {
       content,
       feedType: 'USER_CREATED',
+      ...(imageId && { imageId }),
     });
     // 피드 목록 새로고침
     fetchFeeds();
   }, [groupId, fetchFeeds]);
+
+  // 피드 삭제
+  const deleteFeed = useCallback(async (feedId: string) => {
+    if (!groupId) return;
+
+    if (USE_MOCK) {
+      // Mock 모드: 로컬 상태만 업데이트
+      setFeeds((prev) => prev.filter((feed) => feed.id !== feedId));
+      return;
+    }
+
+    // 실제 API 호출: DELETE /api/v1/groups/{groupId}/feeds/{feedId}
+    await api.delete(`/api/v1/groups/${groupId}/feeds/${feedId}`);
+    // 피드 목록에서 제거
+    setFeeds((prev) => prev.filter((feed) => feed.id !== feedId));
+  }, [groupId]);
 
   return {
     feeds,
@@ -329,6 +353,7 @@ export function useGroupFeeds(groupId?: string) {
     refetch: fetchFeeds,
     toggleLike,
     createFeed,
+    deleteFeed,
   };
 }
 
