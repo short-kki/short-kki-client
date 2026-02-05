@@ -35,6 +35,8 @@ export interface FeedRecipe {
     thumbnail: string;
   };
   time: string;
+  isLiked: boolean;
+  likes: number;
 }
 
 export type FeedItem = FeedPost | FeedRecipe;
@@ -93,6 +95,8 @@ export const MOCK_FEEDS: FeedItem[] = [
       thumbnail: "https://i.ytimg.com/vi/Zu6ApCCNhN0/oar2.jpg",
     },
     time: "2시간 전",
+    isLiked: false,
+    likes: 0,
   },
   {
     id: "f3",
@@ -120,6 +124,8 @@ export const MOCK_FEEDS: FeedItem[] = [
       thumbnail: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=400",
     },
     time: "어제",
+    isLiked: false,
+    likes: 0,
   },
   {
     id: "f5",

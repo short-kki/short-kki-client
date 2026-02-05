@@ -176,6 +176,50 @@ export function usePersonalRecipeBooks() {
 }
 
 /**
+ * 특정 그룹의 레시피북 목록 조회
+ */
+export function useGroupRecipeBooksById(groupId?: string) {
+  const [recipeBooks, setRecipeBooks] = useState<RecipeBook[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchRecipeBooks = useCallback(async () => {
+    if (!groupId) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (USE_MOCK) {
+        const filtered = MOCK_GROUP_RECIPE_BOOKS.filter(b => b.groupId === groupId);
+        setRecipeBooks(filtered);
+      } else {
+        const response = await api.get<BaseResponse<RecipeBookApiResponse[]>>(
+          `/api/v1/recipebooks/groups/${groupId}`
+        );
+        const mappedBooks = response.data.map(mapRecipeBookFromApi);
+        setRecipeBooks(mappedBooks);
+      }
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [groupId]);
+
+  useEffect(() => {
+    fetchRecipeBooks();
+  }, [fetchRecipeBooks]);
+
+  return {
+    recipeBooks,
+    loading,
+    error,
+    refetch: fetchRecipeBooks,
+  };
+}
+
+/**
  * 그룹 레시피북 목록 조회
  */
 export function useGroupRecipeBooks() {
