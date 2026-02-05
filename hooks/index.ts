@@ -19,6 +19,7 @@ export { useShorts, useCurationSections } from './useShorts';
 // 레시피 관련
 export {
   usePersonalRecipeBooks,
+  useGroupRecipeBooksById,
   useGroupRecipeBooks,
   useRecipeBookDetail,
 } from './useRecipes';
