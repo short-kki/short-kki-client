@@ -1,42 +1,51 @@
-import React, { useCallback, useRef, useState, useEffect } from "react";
+import { Colors } from "@/constants/design-system";
 import {
-  View,
-  Text,
-  FlatList,
-  Dimensions,
-  StatusBar,
-  ViewToken,
-  TouchableOpacity,
-  Pressable,
-  ActivityIndicator,
-  Alert,
-  Share,
-  Modal,
-  ScrollView,
-} from "react-native";
+  useCurationShorts,
+  useRecommendedCurations,
+  useShorts,
+  useRecipeQueue,
+  usePersonalRecipeBooks,
+  useGroupRecipeBooks,
+} from "@/hooks";
+import type { CurationRecipe, ShortsItem } from "@/data/mock";
+import { USE_MOCK, api } from "@/services/api";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Image } from "expo-image";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import { YoutubeView, useYouTubePlayer, useYouTubeEvent } from "react-native-youtube-bridge";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
+  BookOpen,
   Bookmark,
-  Share2,
   CalendarPlus,
-  VolumeX,
-  Volume2,
-  ArrowLeft,
+  Check,
+  ExternalLink,
+  FolderPlus,
   MoreVertical,
   Play,
-  Pause,
   ScrollText,
-  X,
-  Check,
-  BookOpen,
   Users,
-  FolderPlus,
+  Volume2,
+  VolumeX,
+  X
 } from "lucide-react-native";
-import { Colors, BorderRadius, Spacing } from "@/constants/design-system";
-import { extractYoutubeId } from "@/utils/youtube";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Alert,
+  Animated,
+  Dimensions,
+  Easing,
+  FlatList,
+  Linking,
+  Modal,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewToken
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { PlayerState, YoutubeView, useYouTubeEvent, useYouTubePlayer } from "react-native-youtube-bridge";
 
 // 레시피북 더미 데이터
 const RECIPE_BOOKS = {
@@ -52,90 +61,27 @@ const RECIPE_BOOKS = {
 };
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const TAB_BAR_HEIGHT = 85;
-const ITEM_HEIGHT = SCREEN_HEIGHT - TAB_BAR_HEIGHT;
-
-// YouTube 썸네일 URL 생성 함수
 const getYoutubeThumbnail = (videoId: string) =>
   `https://i.ytimg.com/vi/${videoId}/hq720.jpg`;
 
-// 쇼츠 비디오 데이터 (홈과 동일한 데이터)
-const SHORTS_DATA = [
-  {
-    id: "1",
-    videoId: "DkyZ9t12hpo",
-    videoUrl: "https://www.youtube.com/shorts/DkyZ9t12hpo",
-    title: "초간단 계란 볶음밥 🍳",
-    author: "백종원의 요리비책",
-    authorAvatar: "백",
-    tags: ["#볶음밥", "#자취요리", "#5분완성"],
-    bookmarks: 15234,
-    thumbnail: getYoutubeThumbnail("DkyZ9t12hpo"),
-  },
-  {
-    id: "2",
-    videoId: "NnhIbr5lmEg",
-    videoUrl: "https://www.youtube.com/shorts/NnhIbr5lmEg",
-    title: "편스토랑 류수영의 꿀팁 요리",
-    author: "KBS 편스토랑",
-    authorAvatar: "편",
-    tags: ["#편스토랑", "#류수영", "#1분요리"],
-    bookmarks: 8921,
-    thumbnail: getYoutubeThumbnail("NnhIbr5lmEg"),
-  },
-  {
-    id: "3",
-    videoId: "ZPFVC78A2jM",
-    videoUrl: "https://www.youtube.com/shorts/ZPFVC78A2jM",
-    title: "한국인이 좋아하는 속도의 요리",
-    author: "1분요리 뚝딱이형",
-    authorAvatar: "뚝",
-    tags: ["#한식", "#뚝딱이형", "#빠른요리"],
-    bookmarks: 22847,
-    thumbnail: getYoutubeThumbnail("ZPFVC78A2jM"),
-  },
-  {
-    id: "4",
-    videoId: "gQDByCdjUXw",
-    videoUrl: "https://www.youtube.com/shorts/gQDByCdjUXw",
-    title: "마약 옥수수 만들기",
-    author: "요리왕비룡",
-    authorAvatar: "비",
-    tags: ["#간식", "#옥수수", "#초간단"],
-    bookmarks: 5629,
-    thumbnail: getYoutubeThumbnail("gQDByCdjUXw"),
-  },
-  {
-    id: "5",
-    videoId: "oc1bnLR38fE",
-    videoUrl: "https://www.youtube.com/shorts/oc1bnLR38fE",
-    title: "크림파스타 황금레시피",
-    author: "자취생 요리",
-    authorAvatar: "자",
-    tags: ["#파스타", "#양식", "#혼밥"],
-    bookmarks: 18392,
-    thumbnail: getYoutubeThumbnail("oc1bnLR38fE"),
-  },
-];
-
 interface VideoItemProps {
-  item: typeof SHORTS_DATA[0];
+  item: ShortsItem;
   isActive: boolean;
   itemHeight: number;
   onMuteToggle: () => void;
   isMuted: boolean;
   onViewRecipe: () => void;
   onAddToMealPlan: () => void;
-  onShare: () => void;
   onBookmarkPress: () => void;
   isBookmarked: boolean;
   bookmarkCount: number;
 }
 
 // 개별 비디오 아이템 컴포넌트 (YouTube 플레이어 - react-native-youtube-bridge)
-function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onShare, onBookmarkPress, isBookmarked, bookmarkCount }: VideoItemProps) {
+function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onBookmarkPress, isBookmarked, bookmarkCount }: VideoItemProps) {
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const playerWidth = Math.max(SCREEN_WIDTH, itemHeight * (16 / 9));
 
   // react-native-youtube-bridge 플레이어 초기화
   const player = useYouTubePlayer(item.videoId, {
@@ -152,12 +98,18 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
     setIsReady(true);
   });
 
-  useYouTubeEvent(player, 'stateChange', (state: string) => {
-    if (state === 'ended') {
-      player.seekTo(0, true);
+  useYouTubeEvent(player, 'stateChange', (state) => {
+    if (state === PlayerState.ENDED) {
+      player.seekTo(0);
       player.play();
     }
-  });
+    if (state === PlayerState.PLAYING || state === PlayerState.BUFFERING) {
+      setIsPlaying(true);
+    }
+    if (state === PlayerState.PAUSED) {
+      setIsPlaying(false);
+    }
+  }, []);
 
   // 활성화 상태에 따라 재생/일시정지
   useEffect(() => {
@@ -240,25 +192,34 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
           bottom: 0,
           justifyContent: "center",
           alignItems: "center",
-          overflow: "hidden",
         }}
       >
-        <YoutubeView
-          player={player}
-          width={SCREEN_WIDTH}
-          height={SCREEN_WIDTH * (16 / 9)}
+        <View
           style={{
-            backgroundColor: "#000",
+            width: SCREEN_WIDTH,
+            height: itemHeight,
+            justifyContent: "center",
+            alignItems: "center",
+            overflow: "hidden",
           }}
-          webViewStyle={{
-            backgroundColor: "#000",
-          }}
-          webViewProps={{
-            allowsInlineMediaPlayback: true,
-            mediaPlaybackRequiresUserAction: false,
-            scrollEnabled: false,
-          }}
-        />
+        >
+          <YoutubeView
+            player={player}
+            width={playerWidth}
+            height={itemHeight}
+            style={{
+              backgroundColor: "#000",
+            }}
+            webViewStyle={{
+              backgroundColor: "#000",
+            }}
+            webViewProps={{
+              allowsInlineMediaPlayback: true,
+              mediaPlaybackRequiresUserAction: false,
+              scrollEnabled: false,
+            }}
+          />
+        </View>
       </Pressable>
 
       {/* 일시정지 상태일 때 썸네일 + 재생 아이콘으로 YouTube UI 덮기 */}
@@ -315,11 +276,11 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
         </Pressable>
       )}
 
-      {/* 좌측 하단 - 콘텐츠 정보 */}
+      {/* 좌측 하단 - 콘텐츠 정보 (탭바 바로 위) */}
       <View
         style={{
           position: "absolute",
-          bottom: 100,
+          bottom: 16,
           left: 16,
           right: 80,
           zIndex: 10,
@@ -339,7 +300,7 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
             }}
           >
             <Text style={{ color: "#FFF", fontWeight: "bold", fontSize: 16 }}>
-              {item.authorAvatar}
+              {item.authorAvatar ?? item.author?.[0] ?? "?"}
             </Text>
           </View>
           <View>
@@ -368,7 +329,7 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
 
         {/* 태그 */}
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-          {item.tags.map((tag, index) => (
+          {(item.tags ?? []).map((tag, index) => (
             <View
               key={index}
               style={{
@@ -390,7 +351,7 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
       <View
         style={{
           position: "absolute",
-          bottom: 100,
+          bottom: 16,
           right: 12,
           alignItems: "center",
           gap: 16,
@@ -464,12 +425,12 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
             <CalendarPlus size={26} color="#FFF" />
           </View>
           <Text style={{ color: "#FFF", fontSize: 11, fontWeight: "500", marginTop: 4 }}>
-            식단추가
+            식단
           </Text>
         </TouchableOpacity>
 
-        {/* 공유 */}
-        <TouchableOpacity onPress={onShare} activeOpacity={0.8} style={{ alignItems: "center" }}>
+        {/* YouTube 원본 */}
+        <TouchableOpacity onPress={() => Linking.openURL(`https://www.youtube.com/shorts/${item.videoId}`)} activeOpacity={0.8} style={{ alignItems: "center" }}>
           <View
             style={{
               width: 48,
@@ -480,10 +441,10 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
               alignItems: "center",
             }}
           >
-            <Share2 size={26} color="#FFF" />
+            <ExternalLink size={26} color="#FFF" />
           </View>
           <Text style={{ color: "#FFF", fontSize: 11, fontWeight: "500", marginTop: 4 }}>
-            공유
+            출처
           </Text>
         </TouchableOpacity>
       </View>
@@ -493,36 +454,132 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
 
 export default function ShortsScreen() {
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const router = useRouter();
-  const params = useLocalSearchParams<{ startIndex?: string }>();
+  const params = useLocalSearchParams<{ startIndex?: string | string[]; curationId?: string; curationRecipes?: string }>();
   const flatListRef = useRef<FlatList>(null);
+  const itemHeight = SCREEN_HEIGHT - tabBarHeight;
+  const { shorts } = useShorts();
+  const { sections } = useRecommendedCurations();
+  const { recipeBooks: personalBooks } = usePersonalRecipeBooks();
+  const { recipeBooks: groupBooks } = useGroupRecipeBooks();
+  const curationId = typeof params.curationId === "string" ? params.curationId : undefined;
+  const initialCurationRecipes = useMemo<CurationRecipe[] | null>(() => {
+    if (!params.curationRecipes) return null;
+    const raw = Array.isArray(params.curationRecipes) ? params.curationRecipes[0] : params.curationRecipes;
+    try {
+      return JSON.parse(raw) as CurationRecipe[];
+    } catch {
+      return null;
+    }
+  }, [params.curationRecipes]);
+  const {
+    shorts: curationShortsData,
+    fetchNextPage: fetchNextCurationPage,
+    hasNext: hasNextCurationPage,
+    loadingMore: loadingMoreCuration,
+  } = useCurationShorts(curationId, initialCurationRecipes ?? undefined);
+  const isCurationMode = !!curationId;
+
+  const curationShorts = useMemo<ShortsItem[]>(() => {
+    return sections.flatMap((section) =>
+      section.recipes.map((recipe) => ({
+        id: recipe.id,
+        videoId: recipe.id,
+        videoUrl: `https://www.youtube.com/shorts/${recipe.id}`,
+        title: recipe.title,
+        author: recipe.author,
+        authorAvatar: recipe.author?.[0],
+        creatorName: recipe.creatorName,
+        thumbnail: recipe.thumbnail || getYoutubeThumbnail(recipe.id),
+        views: undefined,
+        tags: [],
+        bookmarks: recipe.bookmarks ?? 0,
+      }))
+    );
+  }, [sections]);
+
+  const SHORTS_DATA: ShortsItem[] = useMemo(() => {
+    if (isCurationMode) return curationShortsData;
+    return [...shorts, ...curationShorts];
+  }, [curationShortsData, isCurationMode, shorts, curationShorts]);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
 
   // 북마크 관련 상태
   const [showBookmarkSheet, setShowBookmarkSheet] = useState(false);
+  const bookmarkOverlayOpacity = useRef(new Animated.Value(0)).current;
+  const bookmarkSheetTranslateY = useRef(new Animated.Value(400)).current;
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [bookmarkTab, setBookmarkTab] = useState<"personal" | "group">("personal");
   const [bookmarkedVideos, setBookmarkedVideos] = useState<Record<string, { bookId: string; count: number }>>({});
-  const [bookmarkCounts, setBookmarkCounts] = useState<Record<string, number>>(() => {
+  const [bookmarkCounts, setBookmarkCounts] = useState<Record<string, number>>({});
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastVariant, setToastVariant] = useState<"success" | "danger">("success");
+  const [toastId, setToastId] = useState(0);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTranslate = useRef(new Animated.Value(8)).current;
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) {
+        clearTimeout(toastTimer.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const initial: Record<string, number> = {};
-    SHORTS_DATA.forEach(item => { initial[item.id] = item.bookmarks; });
-    return initial;
-  });
+    SHORTS_DATA.forEach((item) => {
+      initial[item.id] = item.bookmarks ?? 0;
+    });
+    setBookmarkCounts(initial);
+  }, [SHORTS_DATA]);
+
+  const recipeBooks = useMemo(() => {
+    if (USE_MOCK) {
+      return RECIPE_BOOKS;
+    }
+    return {
+      personal: personalBooks.map((book) => ({
+        id: book.id,
+        name: book.name,
+        recipeCount: book.recipeCount,
+        isDefault: book.isDefault,
+      })),
+      group: groupBooks.map((book) => ({
+        id: book.id,
+        name: book.name,
+        recipeCount: book.recipeCount,
+        groupName: book.groupName,
+      })),
+    };
+  }, [personalBooks, groupBooks]);
 
   // 시작 인덱스가 있으면 해당 위치로 스크롤
-  useEffect(() => {
-    if (params.startIndex) {
-      const index = SHORTS_DATA.findIndex(item => item.id === params.startIndex);
-      if (index !== -1) {
-        setTimeout(() => {
-          flatListRef.current?.scrollToIndex({ index, animated: false });
-          setActiveIndex(index);
-        }, 100);
-      }
-    }
+  const startId = useMemo(() => {
+    if (!params.startIndex) return undefined;
+    return Array.isArray(params.startIndex) ? params.startIndex[0] : params.startIndex;
   }, [params.startIndex]);
+  const hasScrolledRef = useRef(false);
+
+  useEffect(() => {
+    hasScrolledRef.current = false;
+  }, [startId, curationId]);
+
+  useEffect(() => {
+    if (!startId || hasScrolledRef.current) return;
+    const index = SHORTS_DATA.findIndex(item => item.id === startId);
+    if (index !== -1) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({ index, animated: false });
+        setActiveIndex(index);
+        hasScrolledRef.current = true;
+      }, 100);
+    }
+  }, [startId, SHORTS_DATA]);
 
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 50,
@@ -537,35 +594,79 @@ export default function ShortsScreen() {
     }
   ).current;
 
+  useEffect(() => {
+    if (!isCurationMode) return;
+    if (!hasNextCurationPage || loadingMoreCuration) return;
+    if (SHORTS_DATA.length === 0) return;
+    if (activeIndex >= SHORTS_DATA.length - 3) {
+      fetchNextCurationPage();
+    }
+  }, [activeIndex, fetchNextCurationPage, hasNextCurationPage, isCurationMode, loadingMoreCuration, SHORTS_DATA.length]);
+
   const toggleMute = useCallback(() => {
     setIsMuted((prev) => !prev);
   }, []);
+
+  const showToast = useCallback((message: string, variant: "success" | "danger" = "success") => {
+    setToastId((prev) => prev + 1);
+    setToastVariant(variant);
+    setToastMessage(message);
+    toastOpacity.stopAnimation();
+    toastTranslate.stopAnimation();
+    toastOpacity.setValue(0);
+    toastTranslate.setValue(8);
+
+    Animated.parallel([
+      Animated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(toastTranslate, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    if (toastTimer.current) {
+      clearTimeout(toastTimer.current);
+    }
+    toastTimer.current = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(toastOpacity, {
+          toValue: 0,
+          duration: 260,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(toastTranslate, {
+          toValue: 8,
+          duration: 260,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setToastMessage(null);
+      });
+    }, 1400);
+  }, [toastOpacity, toastTranslate]);
 
   const handleViewRecipe = useCallback((recipeId: string) => {
     router.push(`/recipe/${recipeId}`);
   }, [router]);
 
-  const handleAddToMealPlan = useCallback((title: string) => {
-    Alert.alert(
-      "식단에 추가",
-      `"${title}" 레시피를 어떤 날짜에 추가할까요?`,
-      [
-        { text: "오늘", onPress: () => router.push("/(tabs)/meal-plan") },
-        { text: "내일", onPress: () => router.push("/(tabs)/meal-plan") },
-        { text: "취소", style: "cancel" },
-      ]
-    );
-  }, [router]);
+  const { addQueue } = useRecipeQueue();
 
-  const handleShare = useCallback(async (title: string) => {
+  const handleAddToMealPlan = useCallback(async (recipeId: string, title: string) => {
+    console.log('[Shorts] 대기열 추가 버튼 클릭 - recipeId:', recipeId, 'title:', title);
     try {
-      await Share.share({
-        message: `숏끼에서 "${title}" 레시피를 확인해보세요!`,
-      });
-    } catch (e) {
-      console.log(e);
+      await addQueue(parseInt(recipeId));
+      showToast(`"${title}" 레시피가 대기열에 추가되었습니다.`, "success");
+    } catch {
+      showToast("대기열에 추가하지 못했습니다.", "danger");
     }
-  }, []);
+  }, [addQueue, showToast]);
 
   const handleMoreOptions = useCallback(() => {
     Alert.alert(
@@ -578,32 +679,99 @@ export default function ShortsScreen() {
     );
   }, []);
 
-  // 북마크 버튼 클릭 시 Bottom Sheet 표시
-  const handleBookmarkPress = useCallback((videoId: string) => {
+  // 북마크 시트 열기 (페이드 오버레이 + 슬라이드업)
+  const openBookmarkSheet = useCallback((videoId: string) => {
     setSelectedVideoId(videoId);
     setShowBookmarkSheet(true);
-  }, []);
+    Animated.parallel([
+      Animated.timing(bookmarkOverlayOpacity, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bookmarkSheetTranslateY, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [bookmarkOverlayOpacity, bookmarkSheetTranslateY]);
+
+  // 북마크 시트 닫기
+  const closeBookmarkSheet = useCallback((onDone?: () => void) => {
+    Animated.parallel([
+      Animated.timing(bookmarkOverlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bookmarkSheetTranslateY, {
+        toValue: 400,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowBookmarkSheet(false);
+      onDone?.();
+    });
+  }, [bookmarkOverlayOpacity, bookmarkSheetTranslateY]);
 
   // 폴더 선택 시 저장
-  const handleSelectFolder = useCallback((bookId: string, bookName: string) => {
+  const handleSelectFolder = useCallback(async (bookId: string, bookName: string) => {
     if (!selectedVideoId) return;
 
     const isAlreadySaved = bookmarkedVideos[selectedVideoId]?.bookId === bookId;
+    const recipeId = Number(selectedVideoId);
+    const recipeBookId = Number(bookId);
+
+    if (!USE_MOCK) {
+      if (!Number.isFinite(recipeId)) {
+        showToast("레시피 정보를 확인할 수 없습니다.", "danger");
+        return;
+      }
+      if (!Number.isFinite(recipeBookId)) {
+        showToast("레시피북 정보를 확인할 수 없습니다.", "danger");
+        return;
+      }
+    }
 
     if (isAlreadySaved) {
       // 이미 저장된 폴더면 해제
+      if (!USE_MOCK) {
+        try {
+          await api.delete(`/api/v1/recipebooks/${recipeBookId}/recipes/${recipeId}`);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "삭제하지 못했습니다.";
+          showToast(message, "danger");
+          return;
+        }
+      }
+
       setBookmarkedVideos(prev => {
         const { [selectedVideoId]: _, ...rest } = prev;
         return rest;
       });
       setBookmarkCounts(prev => ({
         ...prev,
-        [selectedVideoId]: (prev[selectedVideoId] || 0) - 1,
+        [selectedVideoId]: Math.max(0, (prev[selectedVideoId] || 0) - 1),
       }));
-      Alert.alert("북마크 해제", `"${bookName}"에서 삭제되었습니다.`);
+      showToast(`"${bookName}"에서 삭제되었습니다.`, "danger");
     } else {
       // 새로 저장
       const wasBookmarked = !!bookmarkedVideos[selectedVideoId];
+      if (!USE_MOCK) {
+        try {
+          await api.post(`/api/v1/recipebooks/${recipeBookId}/recipes`, {
+            recipeId,
+          });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "저장하지 못했습니다.";
+          showToast(message, "danger");
+          return;
+        }
+      }
+
       setBookmarkedVideos(prev => ({
         ...prev,
         [selectedVideoId]: { bookId, count: prev[selectedVideoId]?.count || 0 },
@@ -614,40 +782,39 @@ export default function ShortsScreen() {
           [selectedVideoId]: (prev[selectedVideoId] || 0) + 1,
         }));
       }
-      Alert.alert("저장 완료", `"${bookName}"에 저장되었습니다.`);
+      showToast(`"${bookName}"에 저장되었습니다.`, "success");
     }
 
-    setShowBookmarkSheet(false);
-  }, [selectedVideoId, bookmarkedVideos]);
+    closeBookmarkSheet();
+  }, [selectedVideoId, bookmarkedVideos, closeBookmarkSheet, showToast]);
 
   const renderItem = useCallback(
-    ({ item, index }: { item: typeof SHORTS_DATA[0]; index: number }) => (
+    ({ item, index }: { item: ShortsItem; index: number }) => (
       <VideoItem
         item={item}
         isActive={index === activeIndex}
-        itemHeight={ITEM_HEIGHT}
+        itemHeight={itemHeight}
         onMuteToggle={toggleMute}
         isMuted={isMuted}
         onViewRecipe={() => handleViewRecipe(item.id)}
-        onAddToMealPlan={() => handleAddToMealPlan(item.title)}
-        onShare={() => handleShare(item.title)}
-        onBookmarkPress={() => handleBookmarkPress(item.id)}
+        onAddToMealPlan={() => handleAddToMealPlan(item.id, item.title)}
+        onBookmarkPress={() => openBookmarkSheet(item.id)}
         isBookmarked={!!bookmarkedVideos[item.id]}
-        bookmarkCount={bookmarkCounts[item.id] || item.bookmarks}
+        bookmarkCount={bookmarkCounts[item.id] ?? item.bookmarks ?? 0}
       />
     ),
-    [activeIndex, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, handleShare, handleBookmarkPress, bookmarkedVideos, bookmarkCounts]
+    [activeIndex, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, bookmarkedVideos, bookmarkCounts]
   );
 
-  const keyExtractor = useCallback((item: typeof SHORTS_DATA[0]) => item.id, []);
+  const keyExtractor = useCallback((item: ShortsItem) => item.id, []);
 
   const getItemLayout = useCallback(
     (_: any, index: number) => ({
-      length: ITEM_HEIGHT,
-      offset: ITEM_HEIGHT * index,
+      length: itemHeight,
+      offset: itemHeight * index,
       index,
     }),
-    []
+    [itemHeight]
   );
 
   return (
@@ -702,44 +869,69 @@ export default function ShortsScreen() {
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         pagingEnabled
+        disableIntervalMomentum
         decelerationRate="fast"
         showsVerticalScrollIndicator={false}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         getItemLayout={getItemLayout}
-        initialNumToRender={1}
-        maxToRenderPerBatch={2}
-        windowSize={3}
-        removeClippedSubviews={true}
-        snapToInterval={ITEM_HEIGHT}
+        initialNumToRender={2}
+        maxToRenderPerBatch={3}
+        windowSize={5}
+        updateCellsBatchingPeriod={50}
+        removeClippedSubviews={false}
+        snapToInterval={itemHeight}
         snapToAlignment="start"
+        onEndReached={() => {
+          if (isCurationMode && hasNextCurationPage && !loadingMoreCuration) {
+            fetchNextCurationPage();
+          }
+        }}
+        onEndReachedThreshold={0.8}
+        ListFooterComponent={
+          isCurationMode && loadingMoreCuration ? (
+            <View style={{ paddingVertical: 24 }}>
+              <Text style={{ color: "#FFF", textAlign: "center" }}>로딩 중...</Text>
+            </View>
+          ) : null
+        }
       />
 
       {/* 북마크 폴더 선택 Bottom Sheet */}
       <Modal
         visible={showBookmarkSheet}
         transparent
-        animationType="slide"
-        onRequestClose={() => setShowBookmarkSheet(false)}
+        statusBarTranslucent
+        animationType="none"
+        onRequestClose={() => closeBookmarkSheet()}
       >
-        <Pressable
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
-          onPress={() => setShowBookmarkSheet(false)}
-        />
-        <View
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            backgroundColor: Colors.neutral[0],
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            paddingTop: 8,
-            paddingBottom: insets.bottom + 20,
-            maxHeight: SCREEN_HEIGHT * 0.6,
-          }}
-        >
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          {/* 오버레이 - 페이드 */}
+          <Animated.View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              opacity: bookmarkOverlayOpacity,
+            }}
+          >
+            <Pressable style={{ flex: 1 }} onPress={() => closeBookmarkSheet()} />
+          </Animated.View>
+
+          {/* 시트 - 슬라이드업 */}
+          <Animated.View
+            style={{
+              transform: [{ translateY: bookmarkSheetTranslateY }],
+              backgroundColor: Colors.neutral[0],
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              paddingTop: 8,
+              paddingBottom: insets.bottom + 20,
+            }}
+          >
           {/* 핸들 바 */}
           <View style={{ alignItems: "center", paddingVertical: 8 }}>
             <View
@@ -767,7 +959,7 @@ export default function ShortsScreen() {
             <Text style={{ fontSize: 18, fontWeight: "700", color: Colors.neutral[900] }}>
               레시피북에 저장
             </Text>
-            <TouchableOpacity onPress={() => setShowBookmarkSheet(false)}>
+            <TouchableOpacity onPress={() => closeBookmarkSheet()}>
               <X size={24} color={Colors.neutral[500]} />
             </TouchableOpacity>
           </View>
@@ -830,8 +1022,8 @@ export default function ShortsScreen() {
           </View>
 
           {/* 폴더 목록 */}
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20 }}>
-            {(bookmarkTab === "personal" ? RECIPE_BOOKS.personal : RECIPE_BOOKS.group).map((book) => {
+          <ScrollView style={{ maxHeight: 150 }} contentContainerStyle={{ paddingHorizontal: 20 }}>
+            {(bookmarkTab === "personal" ? recipeBooks.personal : recipeBooks.group).map((book) => {
               const isSelected = selectedVideoId && bookmarkedVideos[selectedVideoId]?.bookId === book.id;
               return (
                 <TouchableOpacity
@@ -898,8 +1090,9 @@ export default function ShortsScreen() {
             {/* 새 레시피북 만들기 */}
             <TouchableOpacity
               onPress={() => {
-                setShowBookmarkSheet(false);
-                router.push("/(tabs)/recipe-book");
+                closeBookmarkSheet(() => {
+                  router.push("/(tabs)/recipe-book");
+                });
               }}
               activeOpacity={0.7}
               style={{
@@ -929,8 +1122,58 @@ export default function ShortsScreen() {
               </Text>
             </TouchableOpacity>
           </ScrollView>
+          </Animated.View>
         </View>
       </Modal>
+
+      {toastMessage && (
+        <Animated.View
+          key={toastId}
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: 20,
+            right: 20,
+            bottom: insets.bottom + 20,
+            alignItems: "center",
+            transform: [{ translateY: toastTranslate }],
+            opacity: toastOpacity,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              backgroundColor: Colors.neutral[0],
+              borderRadius: 16,
+              overflow: "hidden",
+              paddingVertical: 12,
+              paddingHorizontal: 14,
+            }}
+          >
+            <View
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                backgroundColor: toastVariant === "success" ? Colors.success.light : Colors.error.light,
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              {toastVariant === "success" ? (
+                <Check size={16} color={Colors.success.main} strokeWidth={3} />
+              ) : (
+                <X size={16} color={Colors.error.main} strokeWidth={3} />
+              )}
+            </View>
+            <Text style={{ color: Colors.neutral[900], fontSize: 13, fontWeight: "600" }}>
+              {toastMessage}
+            </Text>
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 }

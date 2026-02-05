@@ -287,20 +287,27 @@ export default function LoginScreen() {
     if (!DEV_MODE.ENABLE_MOCK_LOGIN) return;
     setIsLoading("dev");
     try {
-      // 개발자용 테스트 로그인 API 호출 시도
-      const response = await fetch(`${API_BASE_URL}/api/dev/tokens?memberId=1`, {
+      console.log("[DevLogin] start");
+      const requestUrl = `${API_BASE_URL}/api/dev/tokens?memberId=1`;
+      console.log("[DevLogin] request:", requestUrl);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      // 개발자용 테스트 로그인 API 호출
+      const response = await fetch(requestUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Dev Token API Error:', response.status, errorText);
-        throw new Error(`서버 에러: ${response.status}`);
+        console.error("[DevLogin] server error:", response.status, errorText);
+        throw new Error(`서버 에러: ${response.status} - ${errorText}`);
       }
 
       const apiResponse: ApiResponse<LoginData> = await response.json();
-      console.log('Dev Token Response:', apiResponse);
+      console.log("[DevLogin] response:", JSON.stringify(apiResponse));
 
       // BaseResponse 형태로 응답이 오므로 .data에서 추출
       const loginData = apiResponse.data;
@@ -326,12 +333,17 @@ export default function LoginScreen() {
       console.log('Dev Login Success - User:', authData.user.name, 'ID:', authData.user.id);
       await signIn(authData);
     } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        console.error("[DevLogin] timeout");
+        Alert.alert("로그인 실패", "서버 응답이 없습니다. 네트워크/서버 상태를 확인해주세요.");
+      }
       console.error("Dev Login Error:", error);
       console.log("Dev Login: 서버 연결 실패, Mock 로그인 사용");
       // 서버 연결 실패 시 Mock 로그인으로 폴백
       const mockAuthData = createMockAuthData("naver");
       await signIn(mockAuthData);
     } finally {
+      console.log("[DevLogin] done");
       setIsLoading(null);
     }
   };

@@ -14,7 +14,7 @@ export {
 } from './useGroups';
 
 // 쇼츠/홈 관련
-export { useShorts, useCurationSections } from './useShorts';
+export { useShorts, useCurationSections, useRecommendedCurations, useCurationShorts } from './useShorts';
 
 // 레시피 관련
 export {
@@ -23,6 +23,12 @@ export {
   useGroupRecipeBooks,
   useRecipeBookDetail,
 } from './useRecipes';
+
+// 캘린더 관련
+export { useRecipeCalendar, useRecipeQueue } from './useRecipeCalendar';
+
+// 검색 관련
+export { useRecipeSearch } from './useSearch';
 
 // 기존 hooks
 export { useColorScheme } from './use-color-scheme';

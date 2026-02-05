@@ -1,0 +1,274 @@
+/**
+ * 레시피 캘린더 Hook
+ *
+ * 월 단위로 캘린더 레시피 데이터를 조회합니다.
+ * USE_MOCK을 false로 변경하면 자동으로 API 호출로 전환됩니다.
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import { USE_MOCK, api } from '@/services/api';
+import {
+  MOCK_CALENDAR_PERSONALS,
+  MOCK_CALENDAR_GROUPS,
+  MOCK_RECIPE_QUEUES,
+  type CalendarMeal,
+  type RecipeQueue,
+} from '@/data/mock';
+
+// API 응답 타입
+interface ApiResponse<T> {
+  code: string;
+  message: string;
+  data: T;
+}
+
+interface CalendarApiResponse {
+  personals: CalendarMeal[];
+  groups: CalendarMeal[];
+}
+
+// 날짜별로 그룹핑하는 헬퍼
+function groupByDate(meals: CalendarMeal[]): Record<string, CalendarMeal[]> {
+  const result: Record<string, CalendarMeal[]> = {};
+  for (const meal of meals) {
+    if (!result[meal.scheduledDate]) {
+      result[meal.scheduledDate] = [];
+    }
+    result[meal.scheduledDate].push(meal);
+  }
+  // 각 날짜 내에서 sortOrder 기준 정렬
+  for (const date of Object.keys(result)) {
+    result[date].sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+  return result;
+}
+
+// groupId별 → 날짜별로 그룹핑하는 헬퍼
+function groupByGroupAndDate(meals: CalendarMeal[]): Record<string, Record<string, CalendarMeal[]>> {
+  const result: Record<string, Record<string, CalendarMeal[]>> = {};
+  for (const meal of meals) {
+    const gId = String(meal.groupId);
+    if (!result[gId]) {
+      result[gId] = {};
+    }
+    if (!result[gId][meal.scheduledDate]) {
+      result[gId][meal.scheduledDate] = [];
+    }
+    result[gId][meal.scheduledDate].push(meal);
+  }
+  // 각 날짜 내에서 sortOrder 기준 정렬
+  for (const gId of Object.keys(result)) {
+    for (const date of Object.keys(result[gId])) {
+      result[gId][date].sort((a, b) => a.sortOrder - b.sortOrder);
+    }
+  }
+  return result;
+}
+
+/**
+ * 레시피 캘린더 조회
+ * @param year 조회 연도
+ * @param month 조회 월 (0-indexed: 0=1월, 11=12월)
+ */
+export function useRecipeCalendar(year: number, month: number) {
+  const [personalMeals, setPersonalMeals] = useState<Record<string, CalendarMeal[]>>({});
+  const [groupMealsByGroup, setGroupMealsByGroup] = useState<Record<string, Record<string, CalendarMeal[]>>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchCalendar = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (USE_MOCK) {
+        // Mock 데이터: 월에 해당하는 데이터만 필터링
+        const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+        const filteredPersonals = MOCK_CALENDAR_PERSONALS.filter(
+          (m) => m.scheduledDate >= startDate && m.scheduledDate <= endDate
+        );
+        const filteredGroups = MOCK_CALENDAR_GROUPS.filter(
+          (m) => m.scheduledDate >= startDate && m.scheduledDate <= endDate
+        );
+
+        setPersonalMeals(groupByDate(filteredPersonals));
+        setGroupMealsByGroup(groupByGroupAndDate(filteredGroups));
+      } else {
+        // 실제 API 호출: GET /api/v1/calendar/recipes?startDate=...&endDate=...
+        const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+        const response = await api.get<ApiResponse<CalendarApiResponse>>(
+          `/api/v1/calendar/recipes?startDate=${startDate}&endDate=${endDate}`
+        );
+
+        setPersonalMeals(groupByDate(response.data.personals));
+        setGroupMealsByGroup(groupByGroupAndDate(response.data.groups));
+      }
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [year, month]);
+
+  useEffect(() => {
+    fetchCalendar();
+  }, [fetchCalendar]);
+
+  const deleteCalendarMeal = useCallback(async (mealId: number) => {
+    if (USE_MOCK) return;
+
+    await api.delete(`/api/v1/calendar/recipes/${mealId}`);
+  }, []);
+
+  return {
+    personalMeals,
+    groupMealsByGroup,
+    loading,
+    error,
+    refetch: fetchCalendar,
+    deleteCalendarMeal,
+  };
+}
+
+// ============================================================================
+// 대기열 API 응답 타입
+// ============================================================================
+
+interface QueueApiResponse {
+  recipeQueues: RecipeQueue[];
+}
+
+/**
+ * 레시피 대기열 조회
+ * GET /api/v1/calendar/queue
+ */
+export function useRecipeQueue() {
+  const [queues, setQueues] = useState<RecipeQueue[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchQueue = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (USE_MOCK) {
+        setQueues(MOCK_RECIPE_QUEUES);
+      } else {
+        const response = await api.get<ApiResponse<QueueApiResponse>>(
+          '/api/v1/calendar/queue'
+        );
+        setQueues(response.data.recipeQueues);
+      }
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchQueue();
+  }, [fetchQueue]);
+
+  // 대기열 추가: POST /api/v1/calendar/queue
+  const addQueue = useCallback(async (recipeId: number): Promise<RecipeQueue | null> => {
+    console.log('[useRecipeQueue] 대기열 추가 요청 - recipeId:', recipeId);
+    if (USE_MOCK) {
+      const newItem: RecipeQueue = {
+        id: Date.now(),
+        recipeId,
+        recipeTitle: `레시피 ${recipeId}`,
+        mainImgUrl: null,
+        createdAt: new Date().toISOString(),
+      };
+      setQueues(prev => [newItem, ...prev]);
+      return newItem;
+    }
+
+    const response = await api.post<ApiResponse<RecipeQueue>>(
+      '/api/v1/calendar/queue',
+      { recipeId }
+    );
+    const created = response.data;
+    setQueues(prev => [created, ...prev]);
+    return created;
+  }, []);
+
+  // 대기열 삭제: DELETE /api/v1/calendar/queue/{id}
+  const deleteQueue = useCallback(async (queueId: number) => {
+    // 낙관적 업데이트
+    setQueues(prev => prev.filter(q => q.id !== queueId));
+
+    if (USE_MOCK) return;
+
+    try {
+      await api.delete(`/api/v1/calendar/queue/${queueId}`);
+    } catch (err) {
+      // 실패 시 목록 새로고침
+      console.error('대기열 삭제 실패:', err);
+      fetchQueue();
+    }
+  }, [fetchQueue]);
+
+  // 대기열에서 캘린더로 추가: POST /api/v1/calendar/recipes
+  const addToCalendar = useCallback(async (
+    queueId: number,
+    scheduledDate: string,
+    groupId?: number | null
+  ): Promise<CalendarMeal | null> => {
+    console.log('[useRecipeQueue] 캘린더 추가 요청 - queueId:', queueId, 'date:', scheduledDate);
+
+    // 낙관적 업데이트: 대기열에서 제거
+    const queueItem = queues.find(q => q.id === queueId);
+    setQueues(prev => prev.filter(q => q.id !== queueId));
+
+    if (USE_MOCK) {
+      // Mock: 캘린더 아이템 반환
+      return {
+        id: Date.now(),
+        recipeId: queueItem?.recipeId ?? 0,
+        recipeTitle: queueItem?.recipeTitle ?? '',
+        mainImgUrl: queueItem?.mainImgUrl ?? null,
+        scheduledDate,
+        sortOrder: 0,
+        groupId: groupId ?? null,
+        groupName: null,
+      };
+    }
+
+    try {
+      const response = await api.post<ApiResponse<CalendarMeal>>(
+        '/api/v1/calendar/recipes',
+        {
+          queueId,
+          scheduledDate,
+          ...(groupId ? { groupId } : {}),
+        }
+      );
+      return response.data;
+    } catch (err) {
+      console.error('캘린더 추가 실패:', err);
+      // 실패 시 대기열 복구
+      fetchQueue();
+      throw err;
+    }
+  }, [queues, fetchQueue]);
+
+  return {
+    queues,
+    setQueues,
+    loading,
+    error,
+    refetch: fetchQueue,
+    addQueue,
+    deleteQueue,
+    addToCalendar,
+  };
+}
