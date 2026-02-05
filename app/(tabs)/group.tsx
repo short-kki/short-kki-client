@@ -59,7 +59,7 @@ export default function GroupScreen() {
   // Hooks로 데이터 관리
   const { groups, createGroup, deleteGroup } = useGroups();
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
-  const { feeds, toggleLike, refetch: refetchFeeds } = useGroupFeeds(selectedGroup?.id);
+  const { feeds, toggleLike, deleteFeed, refetch: refetchFeeds } = useGroupFeeds(selectedGroup?.id);
 
   // 화면에 포커스될 때 피드 새로고침
   useFocusEffect(
@@ -261,9 +261,18 @@ export default function GroupScreen() {
             {
               text: "삭제",
               style: "destructive",
-              onPress: () => {
-                // 실제로는 서버에서 삭제
-                Alert.alert("삭제 완료", "게시물이 삭제되었습니다.");
+              onPress: async () => {
+                if (!selectedFeedId) return;
+                try {
+                  await deleteFeed(selectedFeedId);
+                  Alert.alert("삭제 완료", "게시물이 삭제되었습니다.");
+                } catch (error) {
+                  console.error("피드 삭제 실패:", error);
+                  Alert.alert(
+                    "오류",
+                    error instanceof Error ? error.message : "게시물 삭제에 실패했습니다."
+                  );
+                }
               },
             },
           ]
@@ -635,6 +644,140 @@ export default function GroupScreen() {
             <PenSquare size={24} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
+
+        {/* 피드 메뉴 바텀시트 */}
+        <Modal visible={showFeedMenuModal} transparent animationType="slide">
+          <Pressable
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              justifyContent: "flex-end",
+            }}
+            onPress={() => setShowFeedMenuModal(false)}
+          >
+            <Pressable
+              style={{
+                backgroundColor: Colors.neutral[0],
+                borderTopLeftRadius: BorderRadius.xl,
+                borderTopRightRadius: BorderRadius.xl,
+                paddingTop: Spacing.md,
+                paddingBottom: insets.bottom + Spacing.lg,
+              }}
+              onPress={(e) => e.stopPropagation()}
+            >
+              {/* 핸들바 */}
+              <View
+                style={{
+                  width: 36,
+                  height: 4,
+                  backgroundColor: Colors.neutral[300],
+                  borderRadius: 2,
+                  alignSelf: "center",
+                  marginBottom: Spacing.lg,
+                }}
+              />
+
+              {/* 메뉴 옵션들 */}
+              <View style={{ paddingTop: Spacing.sm }}>
+                {/* 수정 */}
+                <TouchableOpacity
+                  onPress={() => handleFeedMenuAction("edit")}
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: Spacing.md,
+                    paddingHorizontal: Spacing.xl,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: Colors.neutral[100],
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Edit3 size={20} color={Colors.neutral[700]} />
+                  </View>
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontSize: Typography.fontSize.base,
+                      fontWeight: "500",
+                      color: Colors.neutral[900],
+                      marginLeft: Spacing.md,
+                    }}
+                  >
+                    수정
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 삭제 */}
+                <TouchableOpacity
+                  onPress={() => handleFeedMenuAction("delete")}
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: Spacing.md,
+                    paddingHorizontal: Spacing.xl,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: Colors.error.light,
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Trash2 size={20} color={Colors.error.main} />
+                  </View>
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontSize: Typography.fontSize.base,
+                      fontWeight: "500",
+                      color: Colors.error.main,
+                      marginLeft: Spacing.md,
+                    }}
+                  >
+                    삭제
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 취소 버튼 */}
+              <View style={{ paddingHorizontal: Spacing.xl, paddingTop: Spacing.md }}>
+                <TouchableOpacity
+                  onPress={() => setShowFeedMenuModal(false)}
+                  activeOpacity={0.8}
+                  style={{
+                    backgroundColor: Colors.neutral[100],
+                    borderRadius: BorderRadius.lg,
+                    paddingVertical: Spacing.md,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: Typography.fontSize.base,
+                      fontWeight: "600",
+                      color: Colors.neutral[700],
+                    }}
+                  >
+                    취소
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </View>
     );
   }

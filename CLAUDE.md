@@ -36,10 +36,10 @@ Note: The `development` iOS profile builds for simulator only (`"simulator": tru
 ## Architecture
 
 ### Tech Stack
-- **Framework**: React Native with Expo SDK 54, React Compiler enabled
-- **Language**: TypeScript
+- **Framework**: React Native 0.81 with Expo SDK 54, New Architecture enabled, React Compiler enabled
+- **Language**: TypeScript with strict mode
 - **Styling**: NativeWind v4 (Tailwind CSS for React Native)
-- **Navigation**: Expo Router (file-based routing)
+- **Navigation**: Expo Router (file-based routing with typed routes)
 - **Video**: react-native-youtube-bridge for YouTube Shorts playback
 - **Auth**: expo-auth-session for OAuth (Naver, Google), expo-secure-store for token storage
 - **Icons**: lucide-react-native
@@ -136,3 +136,10 @@ Import from `@/constants/design-system`:
 - Use design tokens from `constants/design-system.ts` for consistency
 - Use lucide-react-native for all icons
 - Use `useSafeAreaInsets()` for safe area handling
+
+## Deep Linking
+
+The app supports deep linking via the `shortkki://` URL scheme:
+- OAuth callbacks: `shortkki://oauth/{provider}` (handled by `app/oauth/[...callback].tsx`)
+- Group invites: `shortkki://group/invite/{inviteCode}` (handled by `app/group/invite/[inviteCode].tsx`)
+- Additional schemes registered in `app.json` for Google OAuth reverse client IDs
