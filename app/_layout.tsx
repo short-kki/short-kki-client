@@ -39,6 +39,7 @@ function RootLayoutNav() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="search" options={{ headerShown: false, presentation: "card" }} />
+        <Stack.Screen name="search-results" options={{ headerShown: false, presentation: "card" }} />
         <Stack.Screen name="notifications" options={{ headerShown: false, presentation: "card" }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="profile-edit" options={{ headerShown: false }} />

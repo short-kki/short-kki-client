@@ -107,7 +107,7 @@ function createMockAuthData(provider: "naver" | "google"): AuthData {
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { signIn } = useAuth();
-  const [isLoading, setIsLoading] = useState<"naver" | "google" | null>(null);
+  const [isLoading, setIsLoading] = useState<"naver" | "google" | "dev" | null>(null);
   const [savedCodeVerifier, setSavedCodeVerifier] = useState<string | null>(null);
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -285,20 +285,29 @@ export default function LoginScreen() {
 
   const handleDevLogin = async () => {
     if (!DEV_MODE.ENABLE_MOCK_LOGIN) return;
-    setIsLoading("naver");
+    setIsLoading("dev");
     try {
+      console.log("[DevLogin] start");
+      const requestUrl = `${API_BASE_URL}/api/dev/tokens?memberId=1`;
+      console.log("[DevLogin] request:", requestUrl);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
       // 개발자용 테스트 로그인 API 호출
-      const response = await fetch(`${API_BASE_URL}/api/dev/tokens?memberId=1`, {
+      const response = await fetch(requestUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error("[DevLogin] server error:", response.status, errorText);
         throw new Error(`서버 에러: ${response.status} - ${errorText}`);
       }
 
       const apiResponse = await response.json();
+      console.log("[DevLogin] response:", JSON.stringify(apiResponse));
       console.log("Dev Login Response:", JSON.stringify(apiResponse, null, 2));
 
       // 서버 응답 구조 확인 (data가 없을 수 있음)
@@ -329,6 +338,10 @@ export default function LoginScreen() {
         `ID: ${authData.user.id}\n이름: ${authData.user.name}\n토큰: ${authData.tokens.accessToken.substring(0, 30)}...`
       );
     } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        console.error("[DevLogin] timeout");
+        Alert.alert("로그인 실패", "서버 응답이 없습니다. 네트워크/서버 상태를 확인해주세요.");
+      }
       console.error("Dev Login Error:", error);
       // 서버 연결 실패 시 에러 표시
       Alert.alert(
@@ -336,6 +349,7 @@ export default function LoginScreen() {
         `서버 연결에 실패했습니다.\n\n${error instanceof Error ? error.message : "알 수 없는 오류"}\n\n서버가 실행 중인지 확인해주세요.`
       );
     } finally {
+      console.log("[DevLogin] done");
       setIsLoading(null);
     }
   };

@@ -27,37 +27,105 @@ import {
   Play,
 } from "lucide-react-native";
 import { Colors, Spacing } from "@/constants/design-system";
+import { api, USE_MOCK } from "@/services/api";
+import { Toast, useToast } from "@/components/ui";
+
+// API 응답 타입
+interface ApiResponse<T> {
+  code: string;
+  message: string;
+  data: T;
+}
+
+interface ApiSourcePreview {
+  sourceContentId: number;
+  platform: string;
+  contentType: string;
+  canonicalUrl: string;
+  title: string;
+  thumbnailUrl: string;
+  creatorName: string;
+  creatorThumbnailUrl: string | null;
+}
+
+interface ApiImportPreview {
+  sourceContentId: number;
+  platform: string;
+  contentType: string;
+  canonicalUrl: string;
+  title: string;
+  thumbnailUrl: string;
+  creatorName: string;
+  creatorThumbnailUrl: string | null;
+}
+
+interface ApiImportResponse {
+  importHistoryId: number;
+  recipeId: number | null;
+  title: string | null;
+  sourceUrl: string;
+  preview: ApiImportPreview;
+  message: string;
+}
+
+const formatPlatformLabel = (platform?: string) => {
+  if (!platform) return "웹";
+  if (platform.toUpperCase() === "YOUTUBE") return "YouTube";
+  return platform;
+};
 
 const parseRecipeFromUrl = async (url: string): Promise<ParsedRecipe | null> => {
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+  if (USE_MOCK) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
 
-  if (url.includes("youtube.com") || url.includes("youtu.be")) {
-    return {
-      title: "초간단 계란 볶음밥",
-      thumbnail: "https://i.ytimg.com/vi/Zu6ApCCNhN0/oar2.jpg",
-      author: "백종원",
-      duration: "5분",
-      source: "YouTube",
-    };
+    if (url.includes("youtube.com") || url.includes("youtu.be")) {
+      return {
+        title: "초간단 계란 볶음밥",
+        thumbnail: "https://i.ytimg.com/vi/Zu6ApCCNhN0/oar2.jpg",
+        author: "백종원",
+        authorThumbnail: null,
+        duration: "5분",
+        source: "YouTube",
+      };
+    }
+
+    if (url.includes("http")) {
+      return {
+        title: "맛있는 파스타 레시피",
+        thumbnail: "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=400",
+        author: "쉐프킴",
+        authorThumbnail: null,
+        duration: "15분",
+        source: "웹사이트",
+      };
+    }
+
+    return null;
   }
 
-  if (url.includes("http")) {
-    return {
-      title: "맛있는 파스타 레시피",
-      thumbnail: "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=400",
-      author: "쉐프킴",
-      duration: "15분",
-      source: "웹사이트",
-    };
-  }
+  const encodedUrl = encodeURIComponent(url.trim());
+  const response = await api.post<ApiResponse<ApiSourcePreview>>(
+    `/api/v1/source/preview?url=${encodedUrl}`,
+    {}
+  );
 
-  return null;
+  if (!response?.data) return null;
+
+  return {
+    title: response.data.title,
+    thumbnail: response.data.thumbnailUrl,
+    author: response.data.creatorName,
+    authorThumbnail: response.data.creatorThumbnailUrl ?? null,
+    duration: response.data.contentType,
+    source: formatPlatformLabel(response.data.platform),
+  };
 };
 
 interface ParsedRecipe {
   title: string;
   thumbnail: string;
   author: string;
+  authorThumbnail?: string | null;
   duration: string;
   source: string;
 }
@@ -72,6 +140,7 @@ export default function AddRecipeScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [parsedRecipe, setParsedRecipe] = useState<ParsedRecipe | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const { toastMessage, toastOpacity, toastTranslate, showToast } = useToast();
 
   const handleSearch = async () => {
     if (!url.trim()) {
@@ -87,8 +156,9 @@ export default function AddRecipeScreen() {
       } else {
         Alert.alert("오류", "레시피 정보를 가져올 수 없습니다.\nURL을 확인해주세요.");
       }
-    } catch {
-      Alert.alert("오류", "레시피 정보를 가져오는 중 오류가 발생했습니다.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "레시피 정보를 가져오는 중 오류가 발생했습니다.";
+      Alert.alert("오류", message);
     } finally {
       setIsLoading(false);
     }
@@ -98,21 +168,24 @@ export default function AddRecipeScreen() {
     if (!parsedRecipe) return;
     setIsSaving(true);
     try {
-      Alert.alert(
-        "레시피 생성 중",
-        "레시피가 생성되면 알림으로 알려드릴게요!\n잠시 후 '내 레시피북'에서 확인하실 수 있습니다.",
-        [{
-          text: "확인",
-          onPress: () => {
-            setUrl("");
-            setParsedRecipe(null);
-            setMode("select");
-            router.push("/(tabs)/recipe-book");
-          },
-        }]
-      );
-    } catch {
-      Alert.alert("오류", "레시피 저장 중 오류가 발생했습니다.");
+      const sourceUrl = url.trim();
+      if (!sourceUrl) {
+        Alert.alert("알림", "URL을 입력해주세요.");
+        return;
+      }
+
+      await api.post<ApiResponse<ApiImportResponse>>("/api/v1/recipe/import", {
+        sourceUrl,
+      });
+
+      showToast("레시피 생성 중 입니다. 잠시만 기다려주세요");
+      setUrl("");
+      setParsedRecipe(null);
+      setMode("select");
+      router.replace("/(tabs)");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "레시피 저장 중 오류가 발생했습니다.";
+      Alert.alert("오류", message);
     } finally {
       setIsSaving(false);
     }
@@ -441,7 +514,7 @@ export default function AddRecipeScreen() {
                     {parsedRecipe ? parsedRecipe.title : "레시피 제목"}
                   </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, gap: 8 }}>
-                    <View
+                  <View
                       style={{
                         width: 28,
                         height: 28,
@@ -449,9 +522,18 @@ export default function AddRecipeScreen() {
                         backgroundColor: Colors.neutral[100],
                         justifyContent: "center",
                         alignItems: "center",
+                        overflow: "hidden",
                       }}
                     >
-                      <User size={14} color={Colors.neutral[500]} />
+                      {parsedRecipe?.authorThumbnail ? (
+                        <Image
+                          source={{ uri: parsedRecipe.authorThumbnail }}
+                          style={{ width: "100%", height: "100%" }}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <User size={14} color={Colors.neutral[500]} />
+                      )}
                     </View>
                     <Text style={{ fontSize: 13, color: Colors.neutral[600] }}>
                       {parsedRecipe ? parsedRecipe.author : "작성자"}
@@ -478,10 +560,13 @@ export default function AddRecipeScreen() {
                   borderRadius: 16,
                 }}
               >
-                {!parsedRecipe || isSaving ? (
-                  <Text style={{ fontSize: 16, fontWeight: "700", color: "#FFFFFF" }}>
-                    레시피 생성하기
-                  </Text>
+                {isSaving ? (
+                  <>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text style={{ fontSize: 16, fontWeight: "700", color: "#FFFFFF", marginLeft: 8 }}>
+                      생성 요청 중
+                    </Text>
+                  </>
                 ) : (
                   <>
                     <Sparkles size={20} color="#FFFFFF" />
@@ -495,6 +580,12 @@ export default function AddRecipeScreen() {
           </View>
         )}
       </View>
+
+      <Toast
+        message={toastMessage}
+        opacity={toastOpacity}
+        translate={toastTranslate}
+      />
     </KeyboardAvoidingView>
   );
 }

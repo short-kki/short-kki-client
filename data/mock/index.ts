@@ -25,6 +25,22 @@ export {
   type CurationRecipe,
 } from './shorts';
 
+// 검색 관련
+export {
+  MOCK_SEARCH_RECIPES,
+  type SearchRecipeItem,
+  type SearchPageInfo,
+} from './search';
+
+// 캘린더 관련
+export {
+  MOCK_CALENDAR_PERSONALS,
+  MOCK_CALENDAR_GROUPS,
+  MOCK_RECIPE_QUEUES,
+  type CalendarMeal,
+  type RecipeQueue,
+} from './calendar';
+
 // 레시피 관련
 export {
   MOCK_PERSONAL_RECIPE_BOOKS,

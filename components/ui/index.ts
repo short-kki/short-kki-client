@@ -26,3 +26,6 @@ export type { HeaderProps, HeaderVariant } from './Header';
 // Tag
 export { Tag, TagGroup, CategoryTag } from './Tag';
 export type { TagProps, TagGroupProps, CategoryTagProps, TagVariant, TagColor, TagSize } from './Tag';
+
+// Toast
+export { Toast, useToast } from './Toast';

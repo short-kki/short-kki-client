@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   useWindowDimensions,
   SectionList,
+  RefreshControl,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,7 +22,8 @@ import {
   Bookmark,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows, SemanticColors } from "@/constants/design-system";
-import { useShorts, useCurationSections } from "@/hooks";
+import { useRecommendedCurations } from "@/hooks";
+import type { CurationSection } from "@/data/mock";
 import Svg, { Path, Defs, LinearGradient, Stop, Rect } from "react-native-svg";
 
 // YouTube 썸네일 URL 생성 함수
@@ -103,7 +105,8 @@ const TopRankCard = React.memo(function TopRankCard({
   const { width: screenWidth } = useWindowDimensions();
   const CARD_WIDTH = Math.min(220, Math.max(170, Math.round(screenWidth * 0.55)));
   const CARD_HEIGHT = Math.round(CARD_WIDTH * 1.42);
-  const [rankTitleLines, setRankTitleLines] = React.useState(1);
+  const titleLineHeight = 20;
+  const rankLineHeight = 40;
   const gradientId = `topCardOverlay-${item.id}`;
   return (
     <TouchableOpacity
@@ -151,7 +154,7 @@ const TopRankCard = React.memo(function TopRankCard({
             left: 12,
             bottom: 10,
             flexDirection: "row",
-            alignItems: rankTitleLines === 1 ? "center" : "flex-end",
+            alignItems: "flex-end",
           }}
         >
           <Text
@@ -159,34 +162,40 @@ const TopRankCard = React.memo(function TopRankCard({
               fontSize: 40,
               fontWeight: "900",
               color: "#FFFFFF",
+              lineHeight: rankLineHeight,
               textShadowColor: "rgba(0,0,0,0.7)",
               textShadowOffset: { width: 0, height: 2 },
               textShadowRadius: 3,
             }}
+            includeFontPadding={false}
           >
             {rank}
           </Text>
-          <Text
+          <View
             style={{
-              color: "#FFFFFF",
-              fontSize: 16,
-              fontWeight: "700",
               marginLeft: 10,
-              marginBottom: rankTitleLines === 1 ? 0 : 6,
               maxWidth: Math.max(80, Math.round(CARD_WIDTH * 0.6)),
-              textShadowColor: "rgba(0,0,0,0.7)",
-              textShadowOffset: { width: 0, height: 1 },
-              textShadowRadius: 2,
-            }}
-            numberOfLines={2}
-            ellipsizeMode="tail"
-            onTextLayout={(e) => {
-              const lines = e.nativeEvent.lines?.length ?? 1;
-              if (lines !== rankTitleLines) setRankTitleLines(lines);
+              height: rankLineHeight,
+              justifyContent: "center",
             }}
           >
-            {item.title}
-          </Text>
+            <Text
+              style={{
+                color: "#FFFFFF",
+                fontSize: 16,
+                fontWeight: "700",
+                lineHeight: titleLineHeight,
+                textShadowColor: "rgba(0,0,0,0.7)",
+                textShadowOffset: { width: 0, height: 1 },
+                textShadowRadius: 2,
+              }}
+              includeFontPadding={false}
+              numberOfLines={2}
+              ellipsizeMode="tail"
+            >
+              {item.title}
+            </Text>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -394,6 +403,7 @@ export default function HomeScreen() {
   const scrollY = useRef(new Animated.Value(0)).current;
   const { width: screenWidth } = useWindowDimensions();
   const [selectedFilter, setSelectedFilter] = useState("전체");
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const FILTER_BAR_HEIGHT = 44;
   const HEADER_BAR_HEIGHT = 48;
   const [headerHeight, setHeaderHeight] = useState(
@@ -403,21 +413,47 @@ export default function HomeScreen() {
   const logoSize = Math.min(52, Math.max(40, Math.round(screenWidth * 0.12)));
 
   // hooks에서 데이터 가져오기
-  const { shorts, loading: shortsLoading } = useShorts();
-  const { sections, loading: sectionsLoading } = useCurationSections();
+  const {
+    topRecipes,
+    topCuration,
+    sections,
+    loading,
+    loadingMore,
+    hasNext,
+    fetchNextPage,
+    refetch,
+  } = useRecommendedCurations();
 
-  const handleRecipePress = (recipeId: string) => {
+  const handleRecipePress = (recipeId: string, section: CurationSection) => {
     router.push({
       pathname: "/(tabs)/shorts",
-      params: { startIndex: recipeId },
+      params: {
+        startIndex: recipeId,
+        curationId: section.id,
+        curationRecipes: JSON.stringify(section.recipes ?? []),
+      },
     });
   };
 
   const handleShortsPress = (shortsId: string) => {
-    // 쇼츠 전체 화면으로 이동 (시작 인덱스 전달)
     router.push({
       pathname: "/(tabs)/shorts",
       params: { startIndex: shortsId },
+    });
+  };
+
+  const handleTopCurationPress = (shortsId: string) => {
+    if (!topCuration) {
+      handleShortsPress(shortsId);
+      return;
+    }
+    router.push({
+      pathname: "/(tabs)/shorts",
+      params: {
+        startIndex: shortsId,
+        curationId: topCuration.id,
+        curationRecipes: JSON.stringify(topCuration.recipes ?? []),
+      },
     });
   };
 
@@ -455,7 +491,7 @@ export default function HomeScreen() {
   }));
   const topShorts = useMemo(
     () =>
-      shorts.slice(0, 5).map((item, index) => ({
+      topRecipes.slice(0, 5).map((item, index) => ({
         key: item.id,
         rank: index + 1,
         item: {
@@ -469,7 +505,7 @@ export default function HomeScreen() {
           bookmarks: item.bookmarks,
         },
       })),
-    [shorts]
+    [topRecipes]
   );
 
   return (
@@ -478,8 +514,24 @@ export default function HomeScreen() {
 
       <AnimatedSectionList
         showsVerticalScrollIndicator={false}
-        bounces={false}
-        overScrollMode="never"
+        bounces
+        overScrollMode="always"
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={async () => {
+              setIsRefreshing(true);
+              try {
+                await refetch();
+              } finally {
+                setIsRefreshing(false);
+              }
+            }}
+            tintColor={Colors.primary[500]}
+            colors={[Colors.primary[500]]}
+            progressViewOffset={headerHeight + Spacing.sm}
+          />
+        }
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: true }
@@ -494,7 +546,7 @@ export default function HomeScreen() {
         renderItem={({ item: section }) => (
           <View style={{ marginBottom: Spacing.base }}>
             <SectionHeader
-              title={section.title}
+              title={section.title.trim().startsWith("#") ? section.title : `# ${section.title}`}
               description={section.description}
               onSeeAll={() => handleSeeAllSection(section.id)}
             />
@@ -508,7 +560,7 @@ export default function HomeScreen() {
                 <RecipeCard
                   key={recipe.id}
                   item={recipe}
-                  onPress={() => handleRecipePress(recipe.id)}
+                  onPress={() => handleRecipePress(recipe.id, section)}
                   size="medium"
                 />
               ))}
@@ -518,7 +570,7 @@ export default function HomeScreen() {
         ListHeaderComponent={
           <View>
             {/* 로딩 상태 */}
-            {(shortsLoading || sectionsLoading) && (
+            {loading && !isRefreshing && (
               <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
                 <ActivityIndicator size="large" color={Colors.primary[500]} />
                 <Text style={{ marginTop: Spacing.md, color: Colors.neutral[500] }}>
@@ -528,7 +580,7 @@ export default function HomeScreen() {
             )}
 
             {/* 데이터가 없을 때 */}
-            {!shortsLoading && !sectionsLoading && shorts.length === 0 && sections.length === 0 && (
+            {!loading && !isRefreshing && topRecipes.length === 0 && sections.length === 0 && (
               <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
                 <Text style={{ fontSize: Typography.fontSize.lg, fontWeight: "600", color: Colors.neutral[500] }}>
                   콘텐츠가 없습니다
@@ -540,7 +592,7 @@ export default function HomeScreen() {
             )}
 
             {/* TOP 레시피 랭킹 */}
-            {shorts.length > 0 && (
+            {topRecipes.length > 0 && (
               <View style={{ paddingTop: Spacing.base, paddingBottom: Spacing.lg }}>
                 <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.base }}>
                   <Text style={{ fontSize: 24, fontWeight: "800", color: Colors.neutral[900], letterSpacing: -0.4 }}>
@@ -561,13 +613,24 @@ export default function HomeScreen() {
                       key={key}
                       item={item}
                       rank={rank}
-                      onPress={() => handleShortsPress(item.id)}
+                      onPress={() => handleTopCurationPress(item.id)}
                     />
                   ))}
                 </ScrollView>
               </View>
             )}
           </View>
+        }
+        onEndReached={() => {
+          if (hasNext && !loadingMore) fetchNextPage();
+        }}
+        onEndReachedThreshold={0.6}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={{ paddingVertical: Spacing.lg }}>
+              <ActivityIndicator size="small" color={Colors.primary[500]} />
+            </View>
+          ) : null
         }
         removeClippedSubviews
         initialNumToRender={3}

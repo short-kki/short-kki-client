@@ -13,10 +13,12 @@ import {
   useWindowDimensions,
   Animated as RNAnimated,
   Easing,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   useSharedValue,
@@ -39,15 +41,17 @@ import {
   ChevronUp,
   List,
   Minus,
-  Users,
   User,
+  Users,
 } from "lucide-react-native";
 import { Colors, Spacing, BorderRadius } from "@/constants/design-system";
+import { useRecipeCalendar, useRecipeQueue } from "@/hooks";
+import type { CalendarMeal } from "@/data/mock";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
-let _idCounter = 0;
-const uniqueId = (prefix: string) => `${prefix}-${++_idCounter}-${Date.now()}`;
+// 임시 ID는 음수로 시작해서 서버 ID(양수)와 충돌 방지
+let _tempIdCounter = -1;
 
 if (
   Platform.OS === "android" &&
@@ -114,106 +118,7 @@ const formatDateId = (date: Date): string => {
   return `${y}-${m}-${d}`;
 };
 
-// ============================================================================
-// 더미 데이터
-// ============================================================================
-
-const generateDummyMeals = (): Record<string, Meal[]> => {
-  const today = new Date();
-  const startOfWeek = getStartOfWeek(today);
-  const meals: Record<string, Meal[]> = {};
-
-  const mealData: Meal[][] = [
-    [
-      { id: "m1", title: "귀찮은 주말아침! 영양가득한 5분 완성 머그컵밥", thumbnail: "https://images.unsplash.com/photo-1525351484163-7529414344d8?w=400", duration: "5분" },
-      { id: "m2", title: "Instant Pot Chicken Pot Pie Casserole", thumbnail: "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=400", duration: "25분" },
-    ],
-    [
-      { id: "m3", title: "바삭바삭 통닭구이", thumbnail: "https://images.unsplash.com/photo-1598103442097-8b74394b95c6?w=400", duration: "40분" },
-    ],
-    [
-      { id: "m4", title: "연어 아보카도 포케볼", thumbnail: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400", duration: "15분" },
-    ],
-    [],
-    [
-      { id: "m5", title: "크림 파스타", thumbnail: "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=400", duration: "20분" },
-    ],
-    [
-      { id: "m6", title: "간단 김치볶음밥", thumbnail: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=400", duration: "10분" },
-      { id: "m7", title: "된장찌개", thumbnail: "https://images.unsplash.com/photo-1547592180-85f173990554?w=400", duration: "30분" },
-    ],
-    [],
-  ];
-
-  mealData.forEach((dayMeals, i) => {
-    const date = new Date(startOfWeek);
-    date.setDate(startOfWeek.getDate() + i);
-    meals[formatDateId(date)] = dayMeals;
-  });
-
-  return meals;
-};
-
-const INITIAL_SAVED_RECIPES = [
-  { id: "s1", title: "매콤 닭갈비", thumbnail: "https://images.unsplash.com/photo-1632778149955-e80f8ceca2e8?w=200" },
-  { id: "s2", title: "토마토 리조또", thumbnail: "https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=200" },
-  { id: "s3", title: "새우 볶음면", thumbnail: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200" },
-];
-
-interface Meal {
-  id: string;
-  title: string;
-  thumbnail: string;
-  duration: string;
-}
-
-interface GroupMealData {
-  groupName: string;
-  meals: Record<string, Meal[]>;
-}
-
-const EMPTY_MEALS: Meal[] = [];
-
-const generateGroupMeals = (): GroupMealData[] => {
-  const today = new Date();
-  const startOfWeek = getStartOfWeek(today);
-  const d = (offset: number) => {
-    const date = new Date(startOfWeek);
-    date.setDate(startOfWeek.getDate() + offset);
-    return formatDateId(date);
-  };
-
-  return [
-    {
-      groupName: "우리집 밥상",
-      meals: {
-        [d(0)]: [
-          { id: "g1", title: "엄마표 김치찌개", thumbnail: "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?w=400", duration: "30분" },
-        ],
-        [d(2)]: [
-          { id: "g2", title: "소불고기", thumbnail: "https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400", duration: "35분" },
-        ],
-        [d(4)]: [
-          { id: "g3", title: "잡채", thumbnail: "https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?w=400", duration: "40분" },
-        ],
-      },
-    },
-    {
-      groupName: "자취생 밥친구",
-      meals: {
-        [d(0)]: [
-          { id: "g4", title: "참치마요 덮밥", thumbnail: "https://images.unsplash.com/photo-1585032226651-759b368d7246?w=400", duration: "10분" },
-        ],
-        [d(1)]: [
-          { id: "g5", title: "계란볶음밥", thumbnail: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=400", duration: "8분" },
-        ],
-        [d(3)]: [
-          { id: "g6", title: "라면 + 치즈", thumbnail: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400", duration: "5분" },
-        ],
-      },
-    },
-  ];
-};
+const EMPTY_MEALS: CalendarMeal[] = [];
 
 // ============================================================================
 // 드랍 플레이스홀더
@@ -256,15 +161,15 @@ const DropPlaceholder = React.memo(function DropPlaceholder() {
 // ============================================================================
 
 interface DraggableQueueItemProps {
-  recipe: { id: string; title: string; thumbnail: string };
+  recipe: { id: string; recipeId: string; title: string; thumbnail: string };
   isDragged: boolean;
   ghostX: Animated.SharedValue<number>;
   ghostY: Animated.SharedValue<number>;
-  onDragStart: (recipe: { id: string; title: string; thumbnail: string }, x: number, y: number) => void;
+  onDragStart: (recipe: { id: string; recipeId: string; title: string; thumbnail: string }, x: number, y: number) => void;
   onDragMove: (y: number) => void;
   onDragEnd: (y: number) => void;
   onDelete: (id: string) => void;
-  onPress: (id: string) => void;
+  onPress: (recipeId: string) => void;
 }
 
 const DraggableQueueItem = React.memo(function DraggableQueueItem({
@@ -299,7 +204,7 @@ const DraggableQueueItem = React.memo(function DraggableQueueItem({
     <GestureDetector gesture={pan}>
       <Animated.View style={{ width: 84, alignItems: "center", opacity: isDragged ? 0.3 : 1 }}>
         <View style={{ position: "relative" }}>
-          <Pressable onPress={() => onPress(recipe.id)}>
+          <Pressable onPress={() => onPress(recipe.recipeId)}>
             <Image
               source={{ uri: recipe.thumbnail }}
               style={{ width: 76, height: 76, borderRadius: 16 }}
@@ -361,17 +266,59 @@ export default function MealPlanScreen() {
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getStartOfWeek(today));
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
   const [viewMonth, setViewMonth] = useState({ year: today.getFullYear(), month: today.getMonth() });
-  const [meals, setMeals] = useState(generateDummyMeals);
-  const [savedRecipes, setSavedRecipes] = useState(INITIAL_SAVED_RECIPES);
+  const [localMeals, setLocalMeals] = useState<Record<string, CalendarMeal[]>>({});
+  const [localGroupMeals, setLocalGroupMeals] = useState<Record<string, Record<string, CalendarMeal[]>>>({});
   const [showQueue, setShowQueue] = useState(false);
-  const [groupMeals, setGroupMeals] = useState(generateGroupMeals);
   const [showPersonalMeals, setShowPersonalMeals] = useState(true);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [menuTarget, setMenuTarget] = useState<
     | { mealId: string; source: "personal" }
-    | { mealId: string; source: "group"; groupName: string }
+    | { mealId: string; source: "group"; groupId: string }
     | null
   >(null);
+
+  // 활성 월 계산: 주간 뷰는 목요일 기준, 월간 뷰는 viewMonth
+  const activeMonth = useMemo(() => {
+    if (viewMode === "month") {
+      return { year: viewMonth.year, month: viewMonth.month };
+    }
+    // 주간 뷰: 목요일(+3일) 기준
+    const refDate = new Date(currentWeekStart);
+    refDate.setDate(refDate.getDate() + 3);
+    return { year: refDate.getFullYear(), month: refDate.getMonth() };
+  }, [viewMode, viewMonth, currentWeekStart]);
+
+  // 캘린더 API 훅
+  const { personalMeals: apiMeals, groupMealsByGroup: apiGroupMeals, loading: calendarLoading, error: calendarError, refetch: refetchCalendar, deleteCalendarMeal } = useRecipeCalendar(activeMonth.year, activeMonth.month);
+
+  // 대기열 API 훅
+  const { queues: savedRecipes, loading: queueLoading, addQueue, deleteQueue, addToCalendar, refetch: refetchQueue } = useRecipeQueue();
+  const queueInitializedRef = useRef(false);
+
+  // 탭 포커스 시 대기열 새로고침
+  useFocusEffect(
+    useCallback(() => {
+      refetchQueue();
+    }, [refetchQueue])
+  );
+
+  // 대기열 초기 로드 완료 시 항목이 있으면 열기
+  useEffect(() => {
+    if (!queueLoading && !queueInitializedRef.current) {
+      queueInitializedRef.current = true;
+      if (savedRecipes.length > 0) {
+        setShowQueue(true);
+      }
+    }
+  }, [queueLoading, savedRecipes.length]);
+
+  // API 데이터가 변경되면 localMeals 동기화
+  useEffect(() => {
+    setLocalMeals(apiMeals);
+  }, [apiMeals]);
+  useEffect(() => {
+    setLocalGroupMeals(apiGroupMeals);
+  }, [apiGroupMeals]);
   const [menuModalVisible, setMenuModalVisible] = useState(false);
   const menuOverlayOpacity = useRef(new RNAnimated.Value(0)).current;
   const menuSheetTranslateY = useRef(new RNAnimated.Value(300)).current;
@@ -412,16 +359,14 @@ export default function MealPlanScreen() {
   }, [menuOverlayOpacity, menuSheetTranslateY]);
 
   // ========== 드래그 앤 드랍 ==========
-  const [draggedRecipe, setDraggedRecipe] = useState<{ id: string; title: string; thumbnail: string } | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ type: "personal" } | { type: "group"; groupName: string } | null>(null);
+  const [draggedRecipe, setDraggedRecipe] = useState<{ id: string; recipeId: string; title: string; thumbnail: string } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ type: "personal" } | null>(null);
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const ghostX = useSharedValue(0);
   const ghostY = useSharedValue(0);
   const dragScale = useSharedValue(0);
   const personalSectionRef = useRef<View>(null);
-  const groupSectionRefs = useRef<Record<string, View | null>>({});
   const personalLayout = useRef({ pageY: 0, height: 0, pageX: 0, width: 0 });
-  const groupLayouts = useRef<Record<string, { pageY: number; height: number; pageX: number; width: number }>>({});
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollOffsetY = useRef(0);
   const autoScrollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -437,20 +382,32 @@ export default function MealPlanScreen() {
     return rows;
   }, [monthCalendar]);
 
-  const selectedMeals = meals[selectedDate] ?? EMPTY_MEALS;
+  const selectedMeals = localMeals[selectedDate] ?? EMPTY_MEALS;
+
+  // 그룹별 섹션 정보: groupId → { groupName, meals by date }
+  const groupSections = useMemo(() => {
+    const sections: { groupId: string; groupName: string; meals: Record<string, CalendarMeal[]> }[] = [];
+    for (const [groupId, dateMap] of Object.entries(localGroupMeals)) {
+      // 첫 번째 meal에서 groupName 추출
+      const firstMeal = Object.values(dateMap).flat()[0];
+      const groupName = firstMeal?.groupName || `그룹 ${groupId}`;
+      sections.push({ groupId, groupName, meals: dateMap });
+    }
+    return sections;
+  }, [localGroupMeals]);
 
   const datesWithMeals = useMemo(() => {
     const set = new Set<string>();
-    for (const dateId of Object.keys(meals)) {
-      if (meals[dateId].length > 0) set.add(dateId);
+    for (const dateId of Object.keys(localMeals)) {
+      if (localMeals[dateId].length > 0) set.add(dateId);
     }
-    for (const group of groupMeals) {
+    for (const group of groupSections) {
       for (const dateId of Object.keys(group.meals)) {
         if (group.meals[dateId].length > 0) set.add(dateId);
       }
     }
     return set;
-  }, [meals, groupMeals]);
+  }, [localMeals, groupSections]);
 
   // 주차 라벨 (목요일 기준으로 월/주차 결정)
   const weekLabel = useMemo(() => {
@@ -467,14 +424,9 @@ export default function MealPlanScreen() {
     personalSectionRef.current?.measureInWindow((x, y, w, h) => {
       personalLayout.current = { pageX: x + w / 2, pageY: y, width: w, height: h };
     });
-    Object.entries(groupSectionRefs.current).forEach(([name, ref]) => {
-      ref?.measureInWindow((x, y, w, h) => {
-        groupLayouts.current[name] = { pageX: x + w / 2, pageY: y, width: w, height: h };
-      });
-    });
   }, []);
 
-  const handleDragStart = useCallback((recipe: { id: string; title: string; thumbnail: string }, x: number, y: number) => {
+  const handleDragStart = useCallback((recipe: { id: string; recipeId: string; title: string; thumbnail: string }, x: number, y: number) => {
     setDraggedRecipe(recipe);
     setScrollEnabled(false);
     ghostX.value = x;
@@ -530,43 +482,59 @@ export default function MealPlanScreen() {
       setDropTarget(prev => prev?.type === "personal" ? prev : { type: "personal" });
       return;
     }
-    for (const [name, gL] of Object.entries(groupLayouts.current)) {
-      if (gL.height > 0 && y >= gL.pageY && y <= gL.pageY + gL.height) {
-        setDropTarget(prev =>
-          prev?.type === "group" && prev.groupName === name ? prev : { type: "group", groupName: name }
-        );
-        return;
-      }
-    }
     setDropTarget(prev => prev === null ? prev : null);
   }, [startAutoScroll, stopAutoScroll, insets.top, insets.bottom, windowHeight]);
 
   const dropTargetRef = useRef(dropTarget);
   dropTargetRef.current = dropTarget;
 
-  const completeDrop = useCallback(() => {
+  const completeDrop = useCallback(async () => {
     const recipe = draggedRecipeRef.current;
     const target = dropTargetRef.current;
     if (!recipe || !target) return;
     draggedRecipeRef.current = null;
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setSavedRecipes(prev => prev.filter(r => r.id !== recipe.id));
-    const newMeal = { id: uniqueId(recipe.id), title: recipe.title, thumbnail: recipe.thumbnail, duration: "-" };
-    if (target.type === "personal") {
-      setMeals(prev => ({
-        ...prev,
-        [selectedDate]: [newMeal, ...(prev[selectedDate] || [])],
-      }));
-    } else {
-      setGroupMeals(prev => prev.map(g =>
-        g.groupName === target.groupName
-          ? { ...g, meals: { ...g.meals, [selectedDate]: [newMeal, ...(g.meals[selectedDate] || [])] } }
-          : g
-      ));
-    }
+
+    // 낙관적 UI 업데이트 (임시 ID는 음수로 서버 ID와 충돌 방지)
+    const tempId = _tempIdCounter--;
+    const tempMeal: CalendarMeal = {
+      id: tempId,
+      recipeId: parseInt(recipe.recipeId),
+      recipeTitle: recipe.title,
+      mainImgUrl: recipe.thumbnail || null,
+      scheduledDate: selectedDate,
+      sortOrder: 0,
+      groupId: null,
+      groupName: null,
+    };
+    setLocalMeals(prev => ({
+      ...prev,
+      [selectedDate]: [tempMeal, ...(prev[selectedDate] || [])],
+    }));
     setDraggedRecipe(null);
     setDropTarget(null);
-  }, [selectedDate]);
+
+    // API 호출: 대기열에서 캘린더로 추가
+    try {
+      const createdMeal = await addToCalendar(parseInt(recipe.id), selectedDate, null);
+      if (createdMeal) {
+        // API 응답으로 로컬 상태 업데이트 (임시 ID를 실제 ID로 교체)
+        setLocalMeals(prev => ({
+          ...prev,
+          [selectedDate]: prev[selectedDate].map(m =>
+            m.id === tempId ? createdMeal : m
+          ),
+        }));
+      }
+    } catch (err) {
+      console.error('캘린더 추가 실패:', err);
+      // 실패 시 낙관적 업데이트 롤백
+      setLocalMeals(prev => ({
+        ...prev,
+        [selectedDate]: prev[selectedDate].filter(m => m.id !== tempId),
+      }));
+    }
+  }, [selectedDate, addToCalendar]);
 
   const cancelDrop = useCallback(() => {
     stopAutoScroll();
@@ -585,19 +553,9 @@ export default function MealPlanScreen() {
     const pL = personalLayout.current;
     const overPersonal = pL.height > 0 && y >= pL.pageY && y <= pL.pageY + pL.height;
 
-    let overGroupLayout: { pageY: number; height: number; pageX: number; width: number } | null = null;
-    for (const [, gL] of Object.entries(groupLayouts.current)) {
-      if (gL.height > 0 && y >= gL.pageY && y <= gL.pageY + gL.height) {
-        overGroupLayout = gL;
-        break;
-      }
-    }
-    const over = overPersonal || overGroupLayout !== null;
-
-    if (over) {
-      const layout = overPersonal ? pL : overGroupLayout!;
-      const targetY = layout.pageY + 52;
-      const targetX = layout.pageX;
+    if (overPersonal) {
+      const targetY = pL.pageY + 52;
+      const targetX = pL.pageX;
       ghostX.value = withSpring(targetX, { damping: 20, stiffness: 200 });
       ghostY.value = withSpring(targetY, { damping: 20, stiffness: 200 });
       dragScale.value = withDelay(100, withTiming(0, { duration: 200 }, (finished) => {
@@ -678,8 +636,8 @@ export default function MealPlanScreen() {
 
   const handleQueueDelete = useCallback((id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setSavedRecipes(prev => prev.filter(r => r.id !== id));
-  }, []);
+    deleteQueue(parseInt(id));
+  }, [deleteQueue]);
 
   const handleScroll = useCallback((e: { nativeEvent: { contentOffset: { y: number } } }) => {
     scrollOffsetY.current = e.nativeEvent.contentOffset.y;
@@ -1000,8 +958,7 @@ export default function MealPlanScreen() {
           {showQueue && (
             <View style={{
               marginHorizontal: Spacing.md,
-              overflow: "hidden",
-              paddingBottom: Spacing.md,
+              height: 112, // 이미지(76) + marginTop(4) + 텍스트(~16) + 여백(16)
             }}>
             <ScrollView
               horizontal
@@ -1010,33 +967,37 @@ export default function MealPlanScreen() {
               contentContainerStyle={{
                 paddingHorizontal: Spacing.xs,
                 gap: 8,
+                alignItems: "flex-start",
               }}
             >
               {/* + 버튼 (맨 앞) */}
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => router.push("/(tabs)/recipe-book")}
-                style={{
-                  width: 76,
-                  height: 76,
-                  borderRadius: 16,
-                  borderWidth: 2,
-                  borderStyle: "dashed",
-                  borderColor: Colors.neutral[300],
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <Plus size={22} color={Colors.neutral[400]} />
-              </TouchableOpacity>
+              <View style={{ width: 84, alignItems: "center" }}>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => router.push("/(tabs)/recipe-book")}
+                  style={{
+                    width: 76,
+                    height: 76,
+                    borderRadius: 16,
+                    borderWidth: 2,
+                    borderStyle: "dashed",
+                    borderColor: Colors.neutral[300],
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Plus size={22} color={Colors.neutral[400]} />
+                </TouchableOpacity>
+              </View>
 
               {/* 레시피 목록 (드래그 가능) */}
               {savedRecipes.map((recipe) => {
-                const isDragged = draggedRecipe?.id === recipe.id;
+                const mapped = { id: String(recipe.id), recipeId: String(recipe.recipeId), title: recipe.recipeTitle, thumbnail: recipe.mainImgUrl || "" };
+                const isDragged = draggedRecipe?.id === mapped.id;
                 return (
                   <DraggableQueueItem
                     key={recipe.id}
-                    recipe={recipe}
+                    recipe={mapped}
                     isDragged={isDragged}
                     ghostX={ghostX}
                     ghostY={ghostY}
@@ -1091,13 +1052,35 @@ export default function MealPlanScreen() {
             <DropPlaceholder />
           )}
 
-          {showPersonalMeals && (
+          {/* 로딩 상태 */}
+          {calendarLoading && (
+            <View style={{ paddingVertical: Spacing.xl, alignItems: "center", marginBottom: Spacing.md }}>
+              <ActivityIndicator size="small" color={Colors.neutral[400]} />
+              <Text style={{ fontSize: 13, color: Colors.neutral[400], marginTop: Spacing.xs }}>
+                식단을 불러오는 중...
+              </Text>
+            </View>
+          )}
+
+          {/* 에러 상태 */}
+          {calendarError && !calendarLoading && (
+            <View style={{ paddingVertical: Spacing.xl, alignItems: "center", marginBottom: Spacing.md }}>
+              <Text style={{ fontSize: 13, color: Colors.error.main, marginBottom: Spacing.xs }}>
+                식단을 불러오지 못했어요
+              </Text>
+              <Pressable onPress={refetchCalendar}>
+                <Text style={{ fontSize: 13, color: Colors.primary[500], fontWeight: "600" }}>다시 시도</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {showPersonalMeals && !calendarLoading && !calendarError && (
             selectedMeals.length > 0 ? (
               <View style={{ gap: Spacing.md, marginBottom: Spacing.md }}>
                 {selectedMeals.map((meal) => (
                   <Pressable
                     key={meal.id}
-                    onPress={() => router.push(`/recipe/${meal.id}`)}
+                    onPress={() => router.push(`/recipe/${meal.recipeId}`)}
                     style={{
                       flexDirection: "row",
                       backgroundColor: "#FFFFFF",
@@ -1110,25 +1093,38 @@ export default function MealPlanScreen() {
                       elevation: 1,
                     }}
                   >
-                    <Image
-                      source={{ uri: meal.thumbnail }}
-                      style={{ width: 72, height: 72, borderRadius: 12 }}
-                      contentFit="cover"
-                    />
+                    {meal.mainImgUrl && meal.mainImgUrl.trim() ? (
+                      <Image
+                        source={{ uri: meal.mainImgUrl }}
+                        style={{ width: 72, height: 72, borderRadius: 12 }}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <View style={{
+                        width: 72,
+                        height: 72,
+                        borderRadius: 12,
+                        backgroundColor: Colors.neutral[200],
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}>
+                        <ChefHat size={24} color={Colors.neutral[400]} />
+                      </View>
+                    )}
                     <View style={{ flex: 1, marginLeft: Spacing.md, justifyContent: "center" }}>
                       <Text
                         style={{ fontSize: 15, fontWeight: "600", color: Colors.neutral[900], lineHeight: 20, marginBottom: 6 }}
                         numberOfLines={2}
                       >
-                        {meal.title}
+                        {meal.recipeTitle}
                       </Text>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                         <Clock size={13} color={Colors.neutral[400]} />
-                        <Text style={{ fontSize: 13, color: Colors.neutral[500] }}>{meal.duration}</Text>
+                        <Text style={{ fontSize: 13, color: Colors.neutral[500] }}>-</Text>
                       </View>
                     </View>
                     <Pressable
-                      onPress={() => openMealMenu({ mealId: meal.id, source: "personal" })}
+                      onPress={() => openMealMenu({ mealId: String(meal.id), source: "personal" })}
                       hitSlop={8}
                       style={{ width: 32, height: 32, justifyContent: "center", alignItems: "center", alignSelf: "center" }}
                     >
@@ -1149,15 +1145,16 @@ export default function MealPlanScreen() {
 
           </View>
 
-          {/* ── 그룹 식단 (드랍 존) ── */}
-          {groupMeals.map((group) => {
+          {/* ── 그룹 식단 ── */}
+          {!calendarLoading && !calendarError && groupSections.map((group) => {
             const groupDayMeals = group.meals[selectedDate] || [];
+            const isCollapsed = collapsedGroups[group.groupId];
             return (
-              <View key={group.groupName} ref={(ref) => { groupSectionRefs.current[group.groupName] = ref; }}>
+              <View key={group.groupId}>
                 <Pressable
                   onPress={() => {
                     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                    setCollapsedGroups(prev => ({ ...prev, [group.groupName]: !prev[group.groupName] }));
+                    setCollapsedGroups(prev => ({ ...prev, [group.groupId]: !prev[group.groupId] }));
                   }}
                   style={{
                     flexDirection: "row",
@@ -1172,25 +1169,20 @@ export default function MealPlanScreen() {
                     <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.neutral[800] }}>{group.groupName}</Text>
                     <Text style={{ fontSize: 13, color: Colors.neutral[400] }}>{groupDayMeals.length}</Text>
                   </View>
-                  {!collapsedGroups[group.groupName] ? (
+                  {!isCollapsed ? (
                     <ChevronUp size={16} color={Colors.neutral[400]} />
                   ) : (
                     <ChevronDown size={16} color={Colors.neutral[400]} />
                   )}
                 </Pressable>
 
-                {/* 그룹 드랍 플레이스홀더 */}
-                {dropTarget?.type === "group" && dropTarget.groupName === group.groupName && (
-                  <DropPlaceholder />
-                )}
-
-                {!collapsedGroups[group.groupName] && (
+                {!isCollapsed && (
                   groupDayMeals.length > 0 ? (
                     <View style={{ gap: Spacing.md, marginBottom: Spacing.md }}>
                       {groupDayMeals.map((meal) => (
                         <Pressable
                           key={meal.id}
-                          onPress={() => router.push(`/recipe/${meal.id}`)}
+                          onPress={() => router.push(`/recipe/${meal.recipeId}`)}
                           style={{
                             flexDirection: "row",
                             backgroundColor: "#FFFFFF",
@@ -1203,25 +1195,38 @@ export default function MealPlanScreen() {
                             elevation: 1,
                           }}
                         >
-                          <Image
-                            source={{ uri: meal.thumbnail }}
-                            style={{ width: 72, height: 72, borderRadius: 12 }}
-                            contentFit="cover"
-                          />
+                          {meal.mainImgUrl && meal.mainImgUrl.trim() ? (
+                            <Image
+                              source={{ uri: meal.mainImgUrl }}
+                              style={{ width: 72, height: 72, borderRadius: 12 }}
+                              contentFit="cover"
+                            />
+                          ) : (
+                            <View style={{
+                              width: 72,
+                              height: 72,
+                              borderRadius: 12,
+                              backgroundColor: Colors.neutral[200],
+                              justifyContent: "center",
+                              alignItems: "center",
+                            }}>
+                              <ChefHat size={24} color={Colors.neutral[400]} />
+                            </View>
+                          )}
                           <View style={{ flex: 1, marginLeft: Spacing.md, justifyContent: "center" }}>
                             <Text
                               style={{ fontSize: 15, fontWeight: "600", color: Colors.neutral[900], lineHeight: 20, marginBottom: 6 }}
                               numberOfLines={2}
                             >
-                              {meal.title}
+                              {meal.recipeTitle}
                             </Text>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                               <Clock size={13} color={Colors.neutral[400]} />
-                              <Text style={{ fontSize: 13, color: Colors.neutral[500] }}>{meal.duration}</Text>
+                              <Text style={{ fontSize: 13, color: Colors.neutral[500] }}>-</Text>
                             </View>
                           </View>
                           <Pressable
-                            onPress={() => openMealMenu({ mealId: meal.id, source: "group", groupName: group.groupName })}
+                            onPress={() => openMealMenu({ mealId: String(meal.id), source: "group", groupId: group.groupId })}
                             hitSlop={8}
                             style={{ width: 32, height: 32, justifyContent: "center", alignItems: "center", alignSelf: "center" }}
                           >
@@ -1230,7 +1235,7 @@ export default function MealPlanScreen() {
                         </Pressable>
                       ))}
                     </View>
-                  ) : dropTarget?.type === "group" && dropTarget.groupName === group.groupName ? null : (
+                  ) : (
                     <View style={{ paddingVertical: Spacing.xl, alignItems: "center", marginBottom: Spacing.md }}>
                       <Text style={{ fontSize: 13, color: Colors.neutral[400] }}>
                         등록된 그룹 식단이 없어요
@@ -1328,16 +1333,16 @@ export default function MealPlanScreen() {
               activeOpacity={0.6}
               onPress={() => {
                 if (!menuTarget) return;
-                let meal: Meal | undefined;
+                let meal: CalendarMeal | undefined;
                 if (menuTarget.source === "personal") {
-                  meal = selectedMeals.find(m => m.id === menuTarget.mealId);
+                  meal = selectedMeals.find(m => String(m.id) === menuTarget.mealId);
                 } else {
-                  const group = groupMeals.find(g => g.groupName === menuTarget.groupName);
-                  meal = group?.meals[selectedDate]?.find(m => m.id === menuTarget.mealId);
+                  const group = groupSections.find(g => g.groupId === menuTarget.groupId);
+                  meal = group?.meals[selectedDate]?.find(m => String(m.id) === menuTarget.mealId);
                 }
                 if (meal) {
                   LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                  setSavedRecipes(prev => [{ id: uniqueId(meal.id), title: meal.title, thumbnail: meal.thumbnail }, ...prev]);
+                  addQueue(meal.recipeId);
                 }
                 closeMealMenu();
               }}
@@ -1357,22 +1362,38 @@ export default function MealPlanScreen() {
             {/* 식단 삭제 */}
             <TouchableOpacity
               activeOpacity={0.6}
-              onPress={() => {
+              onPress={async () => {
                 if (!menuTarget) return;
                 LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                 if (menuTarget.source === "personal") {
-                  setMeals(prev => ({
+                  setLocalMeals(prev => ({
                     ...prev,
-                    [selectedDate]: (prev[selectedDate] || []).filter(m => m.id !== menuTarget.mealId),
+                    [selectedDate]: (prev[selectedDate] || []).filter(m => String(m.id) !== menuTarget.mealId),
                   }));
                 } else {
-                  setGroupMeals(prev => prev.map(g =>
-                    g.groupName === menuTarget.groupName
-                      ? { ...g, meals: { ...g.meals, [selectedDate]: (g.meals[selectedDate] || []).filter(m => m.id !== menuTarget.mealId) } }
-                      : g
-                  ));
+                  setLocalGroupMeals(prev => {
+                    const groupMeals = prev[menuTarget.groupId] || {};
+                    return {
+                      ...prev,
+                      [menuTarget.groupId]: {
+                        ...groupMeals,
+                        [selectedDate]: (groupMeals[selectedDate] || []).filter(m => String(m.id) !== menuTarget.mealId),
+                      },
+                    };
+                  });
                 }
                 closeMealMenu();
+
+                const mealIdNum = parseInt(menuTarget.mealId);
+                if (Number.isNaN(mealIdNum) || mealIdNum < 0) {
+                  return;
+                }
+                try {
+                  await deleteCalendarMeal(mealIdNum);
+                } catch (err) {
+                  console.error("식단 삭제 실패:", err);
+                  refetchCalendar();
+                }
               }}
               style={{
                 flexDirection: "row",

@@ -2,13 +2,14 @@
  * 쇼츠/홈 관련 Hooks
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { USE_MOCK, api } from '@/services/api';
 import {
   MOCK_SHORTS,
   MOCK_CURATION_SECTIONS,
   type ShortsItem,
   type CurationSection,
+  type CurationRecipe,
 } from '@/data/mock';
 
 /**
@@ -84,5 +85,447 @@ export function useCurationSections() {
     loading,
     error,
     refetch: fetchSections,
+  };
+}
+
+// =====================================================================
+// Curation V2 (추천 큐레이션)
+// =====================================================================
+
+interface CurationV2Recipe {
+  id: number;
+  title: string;
+  bookmarkCount: number;
+  sourceUrl?: string;
+  mainImgUrl?: string;
+  authorName?: string;
+  creatorName?: string;
+}
+
+interface CurationV2Item {
+  curationId: number;
+  title: string;
+  description?: string;
+  recipes: CurationV2Recipe[];
+}
+
+interface CurationV2PageInfo {
+  page: number;
+  size: number;
+  hasNext: boolean;
+  first: boolean;
+  last: boolean;
+}
+
+interface CurationV2Response {
+  curations: CurationV2Item[];
+  pageInfo: CurationV2PageInfo;
+}
+
+interface ApiResponse<T> {
+  code: string;
+  message: string;
+  data?: T;
+}
+
+type TopRecipeItem = ShortsItem;
+
+const DEFAULT_PAGE_SIZE = 5;
+const CURATION_PAGE_SIZE = 20;
+
+const getYoutubeThumbnail = (videoId: string) =>
+  `https://i.ytimg.com/vi/${videoId}/hq720.jpg`;
+
+const extractYoutubeId = (url?: string): string | null => {
+  if (!url) return null;
+  const shortsMatch = url.match(/\/shorts\/([a-zA-Z0-9_-]+)/);
+  if (shortsMatch?.[1]) return shortsMatch[1];
+  const watchMatch = url.match(/[?&]v=([a-zA-Z0-9_-]+)/);
+  if (watchMatch?.[1]) return watchMatch[1];
+  const shortUrlMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+  if (shortUrlMatch?.[1]) return shortUrlMatch[1];
+  return null;
+};
+
+const mapRecipeToCurationRecipe = (recipe: CurationV2Recipe): CurationRecipe => {
+  const videoId = extractYoutubeId(recipe.sourceUrl) ?? String(recipe.id);
+  return {
+    id: String(recipe.id),
+    title: recipe.title,
+    thumbnail: recipe.mainImgUrl || getYoutubeThumbnail(videoId),
+    duration: "0:00",
+    author: recipe.authorName || recipe.creatorName || "작성자",
+    creatorName: recipe.creatorName,
+    bookmarks: recipe.bookmarkCount,
+  };
+};
+
+const mapRecipeToTopItem = (recipe: CurationV2Recipe): TopRecipeItem => {
+  const videoId = extractYoutubeId(recipe.sourceUrl) ?? String(recipe.id);
+  return {
+    id: String(recipe.id),
+    videoId,
+    videoUrl: recipe.sourceUrl || `https://www.youtube.com/shorts/${videoId}`,
+    title: recipe.title,
+    author: recipe.authorName || recipe.creatorName || "작성자",
+    authorAvatar: recipe.authorName?.[0],
+    creatorName: recipe.creatorName,
+    thumbnail: recipe.mainImgUrl || getYoutubeThumbnail(videoId),
+    views: undefined,
+    tags: [],
+    bookmarks: recipe.bookmarkCount,
+  };
+};
+
+const mapCurationRecipeToShortsItem = (recipe: CurationRecipe): ShortsItem => ({
+  id: recipe.id,
+  videoId: recipe.id,
+  videoUrl: `https://www.youtube.com/shorts/${recipe.id}`,
+  title: recipe.title,
+  author: recipe.author,
+  authorAvatar: recipe.author?.[0],
+  creatorName: recipe.creatorName,
+  thumbnail: recipe.thumbnail || getYoutubeThumbnail(recipe.id),
+  views: undefined,
+  tags: [],
+  bookmarks: recipe.bookmarks ?? 0,
+});
+
+const appendUniqueShorts = (prev: ShortsItem[], next: ShortsItem[]) => {
+  const seen = new Set(prev.map((item) => item.id));
+  const merged = [...prev];
+  next.forEach((item) => {
+    if (!seen.has(item.id)) {
+      seen.add(item.id);
+      merged.push(item);
+    }
+  });
+  return merged;
+};
+
+const getCurationDedupKey = (item: ShortsItem) => {
+  const title = (item.title ?? "").trim().toLowerCase();
+  const creator = (item.creatorName || item.author || "").trim().toLowerCase();
+  return `${title}|${creator}`;
+};
+
+const appendUniqueShortsByKey = (prev: ShortsItem[], next: ShortsItem[]) => {
+  const seen = new Set(prev.map(getCurationDedupKey));
+  const merged = [...prev];
+  next.forEach((item) => {
+    const key = getCurationDedupKey(item);
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(item);
+    }
+  });
+  return merged;
+};
+
+export function useRecommendedCurations() {
+  const [sections, setSections] = useState<CurationSection[]>([]);
+  const [topRecipes, setTopRecipes] = useState<TopRecipeItem[]>([]);
+  const [topCuration, setTopCuration] = useState<CurationSection | null>(null);
+  const [pageInfo, setPageInfo] = useState<CurationV2PageInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const fetchingPagesRef = useRef<Set<number>>(new Set());
+  const fetchedPagesRef = useRef<Set<number>>(new Set());
+
+  const fetchPage = useCallback(async (page: number) => {
+    if (fetchingPagesRef.current.has(page) || fetchedPagesRef.current.has(page)) return;
+    fetchingPagesRef.current.add(page);
+    if (USE_MOCK) {
+      const topSection = MOCK_CURATION_SECTIONS[0];
+      const restSections = MOCK_CURATION_SECTIONS.slice(1);
+      if (page === 0) {
+        setTopRecipes(
+          (topSection?.recipes ?? []).map((recipe) =>
+            mapRecipeToTopItem({
+              id: Number(recipe.id),
+              title: recipe.title,
+              bookmarkCount: recipe.bookmarks ?? 0,
+              sourceUrl: `https://www.youtube.com/shorts/${recipe.id}`,
+              mainImgUrl: recipe.thumbnail,
+              authorName: recipe.author,
+              creatorName: recipe.creatorName,
+            })
+          )
+        );
+        if (topSection) {
+          setTopCuration({
+            id: topSection.id,
+            title: topSection.title,
+            description: topSection.description,
+            recipes: topSection.recipes ?? [],
+          });
+        } else {
+          setTopCuration(null);
+        }
+        setSections(restSections);
+      }
+      setPageInfo({
+        page: 0,
+        size: DEFAULT_PAGE_SIZE,
+        hasNext: false,
+        first: true,
+        last: true,
+      });
+      fetchingPagesRef.current.delete(page);
+      fetchedPagesRef.current.add(page);
+      return;
+    }
+
+    try {
+      const response = await api.get<ApiResponse<CurationV2Response>>(
+        `/api/v2/recipes/curations/recommended?page=${page}&size=${DEFAULT_PAGE_SIZE}`
+      );
+
+      console.log('[CurationV2] raw response:', JSON.stringify(response));
+      const data = response.data;
+      console.log('[CurationV2] data curations length:', data?.curations?.length ?? 0);
+      const curations = data?.curations ?? [];
+
+      if (page === 0) {
+        const [first, ...rest] = curations;
+        setTopRecipes(first?.recipes?.map(mapRecipeToTopItem) ?? []);
+        if (first) {
+          setTopCuration({
+            id: String(first.curationId),
+            title: first.title,
+            description: first.description,
+            recipes: (first.recipes ?? []).map(mapRecipeToCurationRecipe),
+          });
+        } else {
+          setTopCuration(null);
+        }
+        setSections(rest.map((curation) => ({
+          id: String(curation.curationId),
+          title: curation.title,
+          description: curation.description,
+          recipes: (curation.recipes ?? []).map(mapRecipeToCurationRecipe),
+        })));
+      } else {
+        setSections((prev) => {
+          const next = curations.map((curation) => ({
+            id: String(curation.curationId),
+            title: curation.title,
+            description: curation.description,
+            recipes: (curation.recipes ?? []).map(mapRecipeToCurationRecipe),
+          }));
+          const seen = new Set(prev.map((section) => section.id));
+          return [...prev, ...next.filter((section) => !seen.has(section.id))];
+        });
+      }
+
+      if (data?.pageInfo) {
+        setPageInfo({
+          ...data.pageInfo,
+          page,
+        });
+      } else {
+        setPageInfo({
+          page,
+          size: DEFAULT_PAGE_SIZE,
+          hasNext: false,
+          first: page === 0,
+          last: true,
+        });
+      }
+      fetchedPagesRef.current.add(page);
+    } finally {
+      fetchingPagesRef.current.delete(page);
+    }
+  }, []);
+
+  const fetchInitial = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      fetchingPagesRef.current.clear();
+      fetchedPagesRef.current.clear();
+      await fetchPage(0);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchPage]);
+
+  const fetchNextPage = useCallback(async () => {
+    if (loadingMore) return;
+    if (!pageInfo?.hasNext) return;
+    try {
+      setLoadingMore(true);
+      await fetchPage(pageInfo.page + 1);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [fetchPage, loadingMore, pageInfo]);
+
+  useEffect(() => {
+    fetchInitial();
+  }, [fetchInitial]);
+
+  return {
+    topRecipes,
+    topCuration,
+    sections,
+    loading,
+    loadingMore,
+    error,
+    hasNext: pageInfo?.hasNext ?? false,
+    fetchNextPage,
+    refetch: fetchInitial,
+  };
+}
+
+// =====================================================================
+// Curation shorts (큐레이션 상세 쇼츠)
+// =====================================================================
+
+interface CurationDetailResponse {
+  curationId: number;
+  title: string;
+  description?: string;
+  recipes: CurationV2Recipe[];
+  pageInfo: CurationV2PageInfo;
+}
+
+export function useCurationShorts(curationId?: string, initialRecipes?: CurationRecipe[]) {
+  const [shorts, setShorts] = useState<ShortsItem[]>([]);
+  const [pageInfo, setPageInfo] = useState<CurationV2PageInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const fetchingPagesRef = useRef<Set<number>>(new Set());
+  const fetchedPagesRef = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    fetchingPagesRef.current.clear();
+    fetchedPagesRef.current.clear();
+  }, [curationId]);
+
+  const fetchPage = useCallback(async (page: number, mergeWithInitial: boolean = false) => {
+    if (!curationId) return;
+    if (fetchingPagesRef.current.has(page) || fetchedPagesRef.current.has(page)) return;
+    fetchingPagesRef.current.add(page);
+
+    if (USE_MOCK) {
+      const section = MOCK_CURATION_SECTIONS.find((item) => item.id === curationId);
+      const startIndex = page * CURATION_PAGE_SIZE;
+      const pageRecipes = section?.recipes?.slice(startIndex, startIndex + CURATION_PAGE_SIZE) ?? [];
+      const hasNext = !!section && startIndex + CURATION_PAGE_SIZE < section.recipes.length;
+      const mapped = pageRecipes.map(mapCurationRecipeToShortsItem);
+      if (page === 0 && mergeWithInitial && initialRecipes && initialRecipes.length > 0) {
+        const initialMapped = initialRecipes.map(mapCurationRecipeToShortsItem);
+        setShorts(appendUniqueShortsByKey(initialMapped, mapped));
+      } else {
+        setShorts((prev) => (page === 0 ? mapped : appendUniqueShortsByKey(prev, mapped)));
+      }
+      setPageInfo({
+        page,
+        size: CURATION_PAGE_SIZE,
+        hasNext,
+        first: page === 0,
+        last: !hasNext,
+      });
+      fetchingPagesRef.current.delete(page);
+      fetchedPagesRef.current.add(page);
+      return;
+    }
+
+    try {
+      const response = await api.get<ApiResponse<CurationDetailResponse>>(
+        `/api/v2/recipes/curations/${curationId}/search?page=${page}&size=${CURATION_PAGE_SIZE}`
+      );
+      const data = response.data;
+      const nextItems = (data?.recipes ?? []).map(mapRecipeToTopItem);
+      if (page === 0 && mergeWithInitial && initialRecipes && initialRecipes.length > 0) {
+        const initialMapped = initialRecipes.map(mapCurationRecipeToShortsItem);
+        setShorts(appendUniqueShortsByKey(initialMapped, nextItems));
+      } else {
+        setShorts((prev) => (page === 0 ? nextItems : appendUniqueShortsByKey(prev, nextItems)));
+      }
+      if (data?.pageInfo) {
+        setPageInfo(data.pageInfo);
+      } else {
+        setPageInfo({
+          page,
+          size: CURATION_PAGE_SIZE,
+          hasNext: false,
+          first: page === 0,
+          last: true,
+        });
+      }
+      fetchedPagesRef.current.add(page);
+    } finally {
+      fetchingPagesRef.current.delete(page);
+    }
+  }, [curationId, initialRecipes]);
+
+  const fetchInitial = useCallback(async () => {
+    if (!curationId) {
+      setShorts([]);
+      setPageInfo(null);
+      setLoading(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      fetchingPagesRef.current.clear();
+      fetchedPagesRef.current.clear();
+      setShorts([]);
+      setPageInfo(null);
+
+      if (initialRecipes && initialRecipes.length > 0) {
+        setShorts(initialRecipes.map(mapCurationRecipeToShortsItem));
+        setPageInfo({
+          page: 0,
+          size: CURATION_PAGE_SIZE,
+          hasNext: false,
+          first: true,
+          last: false,
+        });
+        await fetchPage(0, true);
+      } else {
+        await fetchPage(0);
+      }
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [curationId, fetchPage, initialRecipes]);
+
+  const fetchNextPage = useCallback(async () => {
+    if (loadingMore) return;
+    if (!pageInfo?.hasNext) return;
+    try {
+      setLoadingMore(true);
+      await fetchPage(pageInfo.page + 1);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [fetchPage, loadingMore, pageInfo]);
+
+  useEffect(() => {
+    fetchInitial();
+  }, [fetchInitial]);
+
+  return {
+    shorts,
+    loading,
+    loadingMore,
+    error,
+    hasNext: pageInfo?.hasNext ?? false,
+    fetchNextPage,
+    refetch: fetchInitial,
   };
 }
