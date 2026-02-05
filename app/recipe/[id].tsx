@@ -26,6 +26,9 @@ import {
   MoreVertical,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
+import RecipeBookSelectModal from "@/components/RecipeBookSelectModal";
+import { api } from "@/services/api"; // To call API directly
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -897,14 +900,23 @@ export default function RecipeDetailScreen() {
     return amount;
   };
 
+  const [showBookSelectModal, setShowBookSelectModal] = useState(false);
+  // We need a hook to add to *generic* book. Actually addRecipe takes recipeId.
+  // The API is POST /api/v1/recipebooks/{bookId}/recipes. 
+  // It's better to implement addToBook function in the modal onSelect callback directly using api service 
+  // OR export a helper from useRecipes.
+
+  // Re-checking useRecipes.ts: addRecipe is inside useRecipeBookDetail(bookId).
+  // I should probably just call the API directly here or make a new hook.
+  // But wait, useRecipeBookDetail is for a specific book.
+
+  // Let's use simple API call for now or reuse addRecipe logic.
+  // Actually, RecipeBookSelectModal only returns bookId. I need to call the API.
+
+  // Let's add the state first.
+
   const handleAddToRecipeBook = () => {
-    Alert.alert(
-      "레시피북에 저장",
-      `"${recipe.title}" 레시피가 레시피북에 추가되었습니다.`,
-      [
-        { text: "확인", onPress: () => router.push("/(tabs)/recipe-book") },
-      ]
-    );
+    setShowBookSelectModal(true);
   };
 
   const handleAddToMealPlan = () => {
@@ -1374,6 +1386,43 @@ export default function RecipeDetailScreen() {
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+
+      {/* 레시피북 선택 모달 */}
+      <RecipeBookSelectModal
+        visible={showBookSelectModal}
+        onClose={() => setShowBookSelectModal(false)}
+        onSelect={async (bookId, bookName) => {
+          try {
+            const numericId = Number(recipe.id);
+            if (isNaN(numericId)) {
+              console.warn("Invalid recipe ID for API:", recipe.id);
+              // Mock 모드이거나 잘못된 데이터일 경우 그냥 진행하거나 에러 처리
+              // 여기서는 API 호출 시 에러가 날 것이므로 미리 차단하든지, 
+              // 혹은 Mock 모드에서는 API 호출을 건너뛰도록 처리할 필요가 있음.
+              // 하지만 현재는 API 호출이 필수이므로, 에러가 발생하면 catch로 넘어감.
+            }
+
+            await api.post(`/api/v1/recipebooks/${bookId}/recipes`, { recipeId: numericId });
+            Alert.alert("완료", `"${bookName}"에 저장되었습니다.`);
+
+            // 북마크 상태 업데이트 (UI 반영용)
+            // 실제 데이터는 서버에서 관리되지만 즉각적인 피드백을 위해 로컬 상태 업데이트
+            setRecipe(prev => ({
+              ...prev,
+              isBookmarked: true,
+              bookmarkCount: prev.isBookmarked ? prev.bookmarkCount : prev.bookmarkCount + 1
+            }));
+          } catch (error: any) {
+            console.error(error);
+            if (error.message && error.message.includes("이미 레시피북에 추가된")) {
+              Alert.alert("알림", "이미 해당 레시피북에 저장된 레시피입니다.");
+            } else {
+              Alert.alert("오류", "레시피 저장에 실패했습니다.");
+            }
+          }
+        }}
+        title="저장 위치"
+      />
+    </View >
   );
 }

@@ -14,7 +14,8 @@ import { router } from 'expo-router';
 import { api, USE_MOCK } from './api';
 
 // 개발 빌드에서만 true로 변경
-const ENABLE_PUSH = true;
+// TODO: 백엔드 /api/v1/device-tokens API 구현 후 활성화
+const ENABLE_PUSH = false;
 
 type NotificationType = 'GROUP_INVITE' | 'RECIPE_SHARED' | 'CALENDAR_UPDATE' | 'COMMENT_ADDED';
 
