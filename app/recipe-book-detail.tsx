@@ -26,6 +26,17 @@ import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-sy
 import { useRecipeBookDetail, usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
 import RecipeBookSelectModal from "@/components/RecipeBookSelectModal";
 
+import { API_BASE_URL } from "@/constants/oauth";
+
+// 이미지 URL 처리 헬퍼 함수
+const getImageUrl = (url?: string) => {
+  if (!url) return "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200";
+  if (url.startsWith("http")) return url;
+  if (url.startsWith("data:")) return url;
+  // 상대 경로인 경우 API URL 추가
+  return `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+};
+
 // 레시피 카드 컴포넌트
 function RecipeCard({
   recipe,
