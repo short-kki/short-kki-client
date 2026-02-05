@@ -615,7 +615,10 @@ export default function RecipeBookScreen() {
                     {/* 그룹 헤더 - 필터링 중이 아닐 때만 표시 */}
                     {!filterGroupId && (
                       <TouchableOpacity
-                        onPress={() => router.push("/(tabs)/group")}
+                        onPress={() => router.push({
+                          pathname: "/(tabs)/group",
+                          params: { groupId, _t: Date.now().toString() },
+                        })}
                         activeOpacity={0.7}
                         style={{
                           flexDirection: "row",
@@ -662,7 +665,7 @@ export default function RecipeBookScreen() {
                           if (book.groupId) {
                             router.push({
                               pathname: "/(tabs)/group",
-                              params: { groupId: book.groupId },
+                              params: { groupId: book.groupId, _t: Date.now().toString() },
                             });
                           }
                         }}

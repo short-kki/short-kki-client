@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   Plus,
@@ -55,11 +55,22 @@ type GroupTypeValue = typeof GROUP_TYPES[number]['value'];
 export default function GroupScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ groupId?: string; _t?: string }>();
 
   // Hooks로 데이터 관리
   const { groups, createGroup, deleteGroup } = useGroups();
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const { feeds, toggleLike, deleteFeed, refetch: refetchFeeds } = useGroupFeeds(selectedGroup?.id);
+
+  // params로 groupId가 전달되면 해당 그룹을 자동 선택
+  useEffect(() => {
+    if (params.groupId && groups.length > 0) {
+      const target = groups.find(g => String(g.id) === String(params.groupId));
+      if (target) {
+        setSelectedGroup(target);
+      }
+    }
+  }, [params.groupId, params._t, groups]);
 
   // 화면에 포커스될 때 피드 새로고침
   useFocusEffect(
@@ -199,13 +210,11 @@ export default function GroupScreen() {
         });
         break;
       case "레시피북":
-        // 해당 그룹의 기본 레시피북으로 직접 이동
         router.push({
-          pathname: "/recipe-book-detail",
+          pathname: "/group-recipe-books",
           params: {
-            bookId: `g${selectedGroup?.id}-default`,
             groupId: selectedGroup?.id,
-            groupName: selectedGroup?.name
+            groupName: selectedGroup?.name,
           },
         });
         break;

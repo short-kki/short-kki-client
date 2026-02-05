@@ -42,6 +42,8 @@ Note: The `development` iOS profile builds for simulator only (`"simulator": tru
 - **Navigation**: Expo Router (file-based routing with typed routes)
 - **Video**: react-native-youtube-bridge for YouTube Shorts playback
 - **Auth**: expo-auth-session for OAuth (Naver, Google), expo-secure-store for token storage
+- **Images**: expo-image for optimized image loading, expo-image-picker for selection
+- **File Upload**: Presigned URL flow to S3 via `services/fileUpload.ts`
 - **Icons**: lucide-react-native
 
 ### Key Directories
@@ -53,8 +55,9 @@ Note: The `development` iOS profile builds for simulator only (`"simulator": tru
 - `constants/` - Design tokens and OAuth configuration
 - `utils/` - Utilities for auth storage and YouTube URL parsing
 - `hooks/` - Custom hooks that abstract data fetching (groups, shorts, recipes)
-- `services/` - API client (`api.ts` with fetch wrapper)
+- `services/` - API client (`api.ts`), file upload (`fileUpload.ts`), push notifications (`pushNotification.ts`)
 - `data/mock/` - Mock data for development (groups, shorts, recipes)
+- `docs/` - Deployment guide (`DEPLOYMENT.md`)
 
 ### Path Aliases
 Use `@/` for absolute imports from project root (e.g., `@/components/`, `@/contexts/`)
@@ -64,7 +67,8 @@ The app uses a hooks-based data layer with optional mock data for development:
 1. **Hooks** (`hooks/useGroups.ts`, `useShorts.ts`, `useRecipes.ts`) - Abstract data fetching with loading/error states
 2. **Mock toggle**: `USE_MOCK` in `services/api.ts` - set to `true` for mock data, `false` for real API
 3. **Mock data**: `data/mock/` contains typed mock data matching API contracts
-4. **API docs**: `docs/group-feed-shopping-api.md` contains Group, Feed, and Shopping List API specs
+4. **API response format**: Backend returns `{ code, message, data: T }` — the `api.ts` fetch wrapper returns the raw response, so hooks/callers unwrap `.data` as needed
+5. **File uploads**: Use presigned URL flow — request upload URL from `/api/v1/files/uploads`, PUT to S3, then PATCH to confirm. See `services/fileUpload.ts` for `uploadImage()`, `uploadImages()`, and `uploadImageWithRetry()`
 
 Example hook usage:
 ```typescript
@@ -109,8 +113,13 @@ Push notifications are implemented via `services/pushNotification.ts`:
 
 ### Environment Configuration
 - `__DEV__` flag switches API URL: `localhost:8080` (dev) vs `api.shortkki.com` (prod)
+- For physical device dev testing, set `NGROK_URL` in `constants/oauth.ts` to an ngrok tunnel (iOS blocks plain HTTP)
 - `DEV_MODE.ENABLE_MOCK_LOGIN` in `constants/oauth.ts` enables mock login without backend
 - Typed routes enabled via `experiments.typedRoutes` in app.json
+
+### Testing & CI
+- No test framework is configured — there are no test files in the project
+- No CI/CD pipelines — builds and deploys use EAS commands manually
 
 ## Design System
 
