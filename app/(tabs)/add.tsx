@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
+  Modal,
+  FlatList,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -159,9 +161,13 @@ export default function AddRecipeScreen() {
   const [tagList, setTagList] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
 
-  // Ingredient Autocomplete State
-  const [suggestions, setSuggestions] = useState<{ id: number; name: string }[]>([]);
-  const [activeIngredientId, setActiveIngredientId] = useState<string | null>(null);
+  // Ingredient Search Modal State
+  const [ingredientModalVisible, setIngredientModalVisible] = useState(false);
+  const [ingredientSearchQuery, setIngredientSearchQuery] = useState("");
+  const [ingredientSuggestions, setIngredientSuggestions] = useState<{ id: number; name: string }[]>([]);
+  const [editingIngredientId, setEditingIngredientId] = useState<string | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchInputRef = useRef<TextInput>(null);
 
   // ============================================================================
   // URL Mode Handlers
@@ -266,26 +272,60 @@ export default function AddRecipeScreen() {
     setTagList(tagList.filter((_, i) => i !== index));
   };
 
-  const handleIngredientNameChange = async (id: string, text: string) => {
-    updateIngredient(id, "name", text);
-    setActiveIngredientId(id);
+  // 재료 검색 모달 열기
+  const openIngredientModal = (ingredientId: string) => {
+    const ingredient = ingredients.find((ing) => ing.id === ingredientId);
+    setEditingIngredientId(ingredientId);
+    setIngredientSearchQuery(ingredient?.name || "");
+    setIngredientSuggestions([]);
+    setIngredientModalVisible(true);
+    // 모달이 열린 후 검색창에 포커스
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 100);
+  };
+
+  // 재료 검색
+  const handleIngredientSearch = async (text: string) => {
+    setIngredientSearchQuery(text);
 
     if (text.trim().length > 0) {
+      setIsSearching(true);
       try {
         const results = await ingredientApi.search(text);
-        setSuggestions(results);
+        setIngredientSuggestions(results);
       } catch (e) {
         console.error(e);
+      } finally {
+        setIsSearching(false);
       }
     } else {
-      setSuggestions([]);
+      setIngredientSuggestions([]);
     }
   };
 
-  const selectIngredientSuggestion = (id: string, name: string) => {
-    updateIngredient(id, "name", name);
-    setSuggestions([]);
-    setActiveIngredientId(null);
+  // 검색 결과에서 재료 선택
+  const selectIngredientFromModal = (name: string) => {
+    if (editingIngredientId) {
+      updateIngredient(editingIngredientId, "name", name);
+    }
+    closeIngredientModal();
+  };
+
+  // 검색 결과에 없는 재료 직접 추가 (확인 버튼)
+  const confirmCustomIngredient = () => {
+    if (editingIngredientId && ingredientSearchQuery.trim()) {
+      updateIngredient(editingIngredientId, "name", ingredientSearchQuery.trim());
+    }
+    closeIngredientModal();
+  };
+
+  // 모달 닫기
+  const closeIngredientModal = () => {
+    setIngredientModalVisible(false);
+    setIngredientSearchQuery("");
+    setIngredientSuggestions([]);
+    setEditingIngredientId(null);
   };
 
   const pickImage = async () => {
@@ -1159,68 +1199,29 @@ export default function AddRecipeScreen() {
                       alignItems: "center",
                     }}
                   >
-                    <View style={{ flex: 2, position: "relative", zIndex: 10 }}>
-                      <TextInput
+                    {/* 재료명 - 터치하면 모달 열림 */}
+                    <TouchableOpacity
+                      onPress={() => openIngredientModal(ing.id)}
+                      style={{
+                        flex: 2,
+                        backgroundColor: Colors.neutral[0],
+                        borderWidth: 1,
+                        borderColor: Colors.neutral[200],
+                        borderRadius: BorderRadius.lg,
+                        padding: Spacing.md,
+                        minHeight: 44,
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text
                         style={{
-                          backgroundColor: Colors.neutral[0],
-                          borderWidth: 1,
-                          borderColor: Colors.neutral[200],
-                          borderRadius: BorderRadius.lg,
-                          padding: Spacing.md,
                           fontSize: Typography.fontSize.sm,
+                          color: ing.name ? Colors.neutral[900] : Colors.neutral[400],
                         }}
-                        placeholder="재료명"
-                        placeholderTextColor={Colors.neutral[400]}
-                        value={ing.name}
-                        onChangeText={(v) => handleIngredientNameChange(ing.id, v)}
-                        onFocus={() => setActiveIngredientId(ing.id)}
-                        onBlur={() => {
-                          // 딜레이를 주어 클릭 이벤트가 먼저 발생하도록 함
-                          setTimeout(() => {
-                            if (activeIngredientId === ing.id) {
-                              setActiveIngredientId(null);
-                            }
-                          }, 200);
-                        }}
-                      />
-                      {activeIngredientId === ing.id && suggestions.length > 0 && (
-                        <View
-                          style={{
-                            position: "absolute",
-                            top: "100%",
-                            left: 0,
-                            right: 0,
-                            backgroundColor: Colors.neutral[0],
-                            borderWidth: 1,
-                            borderColor: Colors.neutral[200],
-                            borderRadius: BorderRadius.md,
-                            marginTop: 4,
-                            zIndex: 1000,
-                            shadowColor: "#000",
-                            shadowOffset: { width: 0, height: 2 },
-                            shadowOpacity: 0.1,
-                            shadowRadius: 4,
-                            elevation: 5,
-                          }}
-                        >
-                          {suggestions.map((item) => (
-                            <TouchableOpacity
-                              key={item.id}
-                              style={{
-                                padding: Spacing.md,
-                                borderBottomWidth: 1,
-                                borderBottomColor: Colors.neutral[100],
-                              }}
-                              onPress={() => selectIngredientSuggestion(ing.id, item.name)}
-                            >
-                              <Text style={{ fontSize: Typography.fontSize.sm, color: Colors.neutral[800] }}>
-                                {item.name}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-                    </View>
+                      >
+                        {ing.name || "재료 검색"}
+                      </Text>
+                    </TouchableOpacity>
                     <TextInput
                       style={{
                         flex: 1,
@@ -1415,6 +1416,235 @@ export default function AddRecipeScreen() {
           )}
         </ScrollView>
       </View>
+
+      {/* 재료 검색 모달 */}
+      <Modal
+        visible={ingredientModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={closeIngredientModal}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: Colors.neutral[50],
+            paddingTop: Platform.OS === "ios" ? 60 : 20,
+          }}
+        >
+          {/* 모달 헤더 */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: Spacing.lg,
+              paddingVertical: Spacing.md,
+              borderBottomWidth: 1,
+              borderBottomColor: Colors.neutral[100],
+              backgroundColor: Colors.neutral[0],
+            }}
+          >
+            <TouchableOpacity
+              onPress={closeIngredientModal}
+              style={{ padding: 4, marginRight: Spacing.sm }}
+            >
+              <X size={24} color={Colors.neutral[900]} />
+            </TouchableOpacity>
+            <Text
+              style={{
+                flex: 1,
+                fontSize: Typography.fontSize.lg,
+                fontWeight: Typography.fontWeight.bold,
+                color: Colors.neutral[900],
+              }}
+            >
+              재료 검색
+            </Text>
+          </View>
+
+          {/* 검색 입력창 */}
+          <View
+            style={{
+              padding: Spacing.lg,
+              backgroundColor: Colors.neutral[0],
+              borderBottomWidth: 1,
+              borderBottomColor: Colors.neutral[100],
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: Colors.neutral[100],
+                borderRadius: BorderRadius.lg,
+                paddingHorizontal: Spacing.md,
+              }}
+            >
+              <Search size={20} color={Colors.neutral[400]} />
+              <TextInput
+                ref={searchInputRef}
+                style={{
+                  flex: 1,
+                  height: 48,
+                  marginLeft: Spacing.sm,
+                  fontSize: Typography.fontSize.base,
+                  color: Colors.neutral[900],
+                }}
+                placeholder="재료명을 입력하세요"
+                placeholderTextColor={Colors.neutral[400]}
+                value={ingredientSearchQuery}
+                onChangeText={handleIngredientSearch}
+                autoFocus
+                returnKeyType="done"
+              />
+              {ingredientSearchQuery.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setIngredientSearchQuery("");
+                    setIngredientSuggestions([]);
+                  }}
+                  style={{ padding: 4 }}
+                >
+                  <X size={18} color={Colors.neutral[400]} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* 검색 중 로딩 */}
+          {isSearching && (
+            <View style={{ padding: Spacing.xl, alignItems: "center" }}>
+              <ActivityIndicator size="small" color={Colors.primary[500]} />
+            </View>
+          )}
+
+          {/* 검색 결과 */}
+          {!isSearching && ingredientSuggestions.length > 0 && (
+            <FlatList
+              data={ingredientSuggestions}
+              keyExtractor={(item) => item.id.toString()}
+              style={{ flex: 1, backgroundColor: Colors.neutral[0] }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  onPress={() => selectIngredientFromModal(item.name)}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    padding: Spacing.lg,
+                    borderBottomWidth: 1,
+                    borderBottomColor: Colors.neutral[100],
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: Colors.primary[50],
+                      justifyContent: "center",
+                      alignItems: "center",
+                      marginRight: Spacing.md,
+                    }}
+                  >
+                    <ChefHat size={20} color={Colors.primary[500]} />
+                  </View>
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontSize: Typography.fontSize.base,
+                      color: Colors.neutral[900],
+                    }}
+                  >
+                    {item.name}
+                  </Text>
+                  <Check size={20} color={Colors.neutral[300]} />
+                </TouchableOpacity>
+              )}
+            />
+          )}
+
+          {/* 검색 결과 없음 + 직접 추가 */}
+          {!isSearching &&
+            ingredientSearchQuery.trim().length > 0 &&
+            ingredientSuggestions.length === 0 && (
+              <View style={{ flex: 1, backgroundColor: Colors.neutral[0] }}>
+                <View
+                  style={{
+                    padding: Spacing.xl,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: Typography.fontSize.base,
+                      color: Colors.neutral[500],
+                      textAlign: "center",
+                      marginBottom: Spacing.lg,
+                    }}
+                  >
+                    "{ingredientSearchQuery}"에 대한 검색 결과가 없습니다.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={confirmCustomIngredient}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      backgroundColor: Colors.primary[500],
+                      paddingHorizontal: Spacing.xl,
+                      paddingVertical: Spacing.md,
+                      borderRadius: BorderRadius.lg,
+                    }}
+                  >
+                    <Plus size={20} color="#FFFFFF" />
+                    <Text
+                      style={{
+                        marginLeft: Spacing.sm,
+                        fontSize: Typography.fontSize.base,
+                        fontWeight: Typography.fontWeight.semiBold,
+                        color: "#FFFFFF",
+                      }}
+                    >
+                      "{ingredientSearchQuery}" 직접 추가
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+          {/* 검색어 없을 때 안내 */}
+          {!isSearching && ingredientSearchQuery.trim().length === 0 && (
+            <View
+              style={{
+                flex: 1,
+                justifyContent: "center",
+                alignItems: "center",
+                padding: Spacing.xl,
+              }}
+            >
+              <Search size={48} color={Colors.neutral[300]} />
+              <Text
+                style={{
+                  marginTop: Spacing.lg,
+                  fontSize: Typography.fontSize.base,
+                  color: Colors.neutral[500],
+                  textAlign: "center",
+                }}
+              >
+                재료명을 검색하세요
+              </Text>
+              <Text
+                style={{
+                  marginTop: Spacing.sm,
+                  fontSize: Typography.fontSize.sm,
+                  color: Colors.neutral[400],
+                  textAlign: "center",
+                }}
+              >
+                검색 결과에서 선택하거나{"\n"}없으면 직접 추가할 수 있어요
+              </Text>
+            </View>
+          )}
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
