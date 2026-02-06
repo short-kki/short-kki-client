@@ -76,11 +76,13 @@ function mapApiFeedToFeedItem(apiFeed: ApiFeed): FeedItem {
   console.log('[Feed Image Debug]', {
     feedId: apiFeed.id,
     imageUrl: apiFeed.imageUrl,
+    feedType: apiFeed.feedType,
   });
 
   return {
     id: apiFeed.id.toString(),
     type: 'post',
+    feedType: apiFeed.feedType,
     user: apiFeed.authorName,
     userAvatar: apiFeed.authorName.substring(0, 1),
     content: apiFeed.content,

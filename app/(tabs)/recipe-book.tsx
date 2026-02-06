@@ -16,7 +16,6 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import {
   Plus,
   MoreVertical,
-  BookOpen,
   Folder,
   ChevronRight,
   Edit3,
@@ -331,19 +330,15 @@ export default function RecipeBookScreen() {
           paddingVertical: Spacing.md,
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <BookOpen size={24} color={Colors.primary[500]} />
-          <Text
-            style={{
-              fontSize: Typography.fontSize["2xl"],
-              fontWeight: "700",
-              color: Colors.neutral[900],
-              marginLeft: Spacing.sm,
-            }}
-          >
-            레시피북
-          </Text>
-        </View>
+        <Text
+          style={{
+            fontSize: Typography.fontSize["2xl"],
+            fontWeight: "700",
+            color: Colors.neutral[900],
+          }}
+        >
+          레시피북
+        </Text>
         {/* 레시피북 추가 버튼 - 개인 탭에서만 표시 */}
         {activeTab === "personal" && (
           <TouchableOpacity

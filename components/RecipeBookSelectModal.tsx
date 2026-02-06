@@ -10,7 +10,7 @@ const RECIPE_PLACEHOLDER = require("@/assets/images/recipe-placeholder3x.png");
 interface RecipeBookSelectModalProps {
     visible: boolean;
     onClose: () => void;
-    onSelect: (bookId: string, bookName: string) => Promise<void>;
+    onSelect: (bookId: string, bookName: string, groupId?: string, groupName?: string) => Promise<void>;
     currentBookId?: string; // 현재 레시피북 ID (이동 시 제외)
     title?: string; // 모달 제목
 }
@@ -28,10 +28,10 @@ export default function RecipeBookSelectModal({
     const { recipeBooks: personalBooks = [] } = usePersonalRecipeBooks();
     const { recipeBooks: groupBooks = [] } = useGroupRecipeBooks();
 
-    const handleBookSelect = async (bookId: string, bookName: string) => {
+    const handleBookSelect = async (bookId: string, bookName: string, groupId?: string, groupName?: string) => {
         onClose();
         try {
-            await onSelect(bookId, bookName);
+            await onSelect(bookId, bookName, groupId, groupName);
         } catch (error) {
             console.error("레시피북 선택 실패:", error);
             Alert.alert("오류", "레시피북 선택에 실패했습니다.");
@@ -177,7 +177,7 @@ export default function RecipeBookSelectModal({
                             : groupBooks.map((book) => (
                                 <TouchableOpacity
                                     key={book.id}
-                                    onPress={() => handleBookSelect(book.id, book.name)}
+                                    onPress={() => handleBookSelect(book.id, book.name, book.groupId, book.groupName)}
                                     style={{
                                         flexDirection: "row",
                                         alignItems: "center",

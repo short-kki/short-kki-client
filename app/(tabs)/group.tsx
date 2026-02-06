@@ -506,7 +506,71 @@ export default function GroupScreen() {
                   overflow: "hidden",
                 }}
               >
-                {item.type === "post" ? (
+                {item.type === "post" && item.feedType === "NEW_RECIPE_ADDED" ? (
+                  // 레시피 추가 알림 피드 (특별한 스타일)
+                  <View
+                    style={{
+                      padding: Spacing.md,
+                      backgroundColor: Colors.primary[50],
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                      }}
+                    >
+                      {/* 레시피 아이콘 */}
+                      <View
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 24,
+                          backgroundColor: Colors.primary[100],
+                          justifyContent: "center",
+                          alignItems: "center",
+                        }}
+                      >
+                        <BookOpen size={24} color={Colors.primary[600]} />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: Spacing.md }}>
+                        {/* 알림 내용 */}
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            color: Colors.neutral[800],
+                            lineHeight: 20,
+                          }}
+                        >
+                          <Text style={{ fontWeight: "700", color: Colors.primary[600] }}>
+                            {item.user}
+                          </Text>
+                          님이 새 레시피를 추가했어요
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 13,
+                            color: Colors.neutral[600],
+                            marginTop: 4,
+                            lineHeight: 18,
+                          }}
+                          numberOfLines={2}
+                        >
+                          {item.content}
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: Colors.neutral[400],
+                            marginTop: 6,
+                          }}
+                        >
+                          {item.time}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ) : item.type === "post" ? (
                   // 사용자 생성 피드 (숏끼 스타일)
                   <View style={{ padding: Spacing.md }}>
                     {/* Post Header */}
@@ -916,7 +980,7 @@ export default function GroupScreen() {
           <Text
             style={{
               fontSize: Typography.fontSize["2xl"],
-              fontWeight: Typography.fontWeight.bold,
+              fontWeight: "700",
               color: Colors.neutral[900],
             }}
           >
@@ -930,15 +994,19 @@ export default function GroupScreen() {
               onPress={() => setShowCreateModal(true)}
               activeOpacity={0.8}
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 18,
-                backgroundColor: Colors.primary[500],
-                justifyContent: "center",
+                flexDirection: "row",
                 alignItems: "center",
+                backgroundColor: Colors.primary[500],
+                paddingHorizontal: Spacing.md,
+                paddingVertical: Spacing.sm,
+                borderRadius: BorderRadius.full,
+                gap: 4,
               }}
             >
-              <Plus size={20} color="#FFFFFF" />
+              <Plus size={18} color="#FFF" />
+              <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 14 }}>
+                추가
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
