@@ -236,11 +236,43 @@ export function useGroupRecipeBooksById(groupId?: string) {
         const filtered = MOCK_GROUP_RECIPE_BOOKS.filter(b => b.groupId === groupId);
         setRecipeBooks(filtered);
       } else {
+        // 1. 그룹 레시피북 목록 조회
         const response = await api.get<BaseResponse<RecipeBookApiResponse[]>>(
           `/api/v1/recipebooks/groups/${groupId}`
         );
-        const mappedBooks = response.data.map(mapRecipeBookFromApi);
-        setRecipeBooks(mappedBooks);
+        const books = response.data;
+
+        // 2. 각 레시피북의 상세 정보를 병렬로 조회하여 썸네일 가져오기
+        const booksWithThumbnails = await Promise.all(
+          books.map(async (book) => {
+            try {
+              const detailResponse = await api.get<BaseResponse<RecipeBookApiResponse>>(
+                `/api/v1/recipebooks/${book.id}`
+              );
+              // 상세 응답에서 recipes가 있으면 썸네일 추출 (mainImgUrl 우선)
+              const recipes = detailResponse.data.recipes || [];
+              const thumbnails = recipes
+                .filter(r => r.mainImgUrl || r.thumbnailUrl)
+                .map(r => r.mainImgUrl || r.thumbnailUrl!)
+                .slice(0, 3);
+              const recipeCount = recipes.length || book.recipeCount || 0;
+
+              return {
+                id: String(book.id),
+                name: book.title,
+                isDefault: book.isDefault,
+                recipeCount,
+                thumbnails,
+              };
+            } catch (err) {
+              console.error(`레시피북 ${book.id} 상세 조회 실패:`, err);
+              // 상세 조회 실패 시 기본 정보만 반환
+              return mapRecipeBookFromApi(book);
+            }
+          })
+        );
+
+        setRecipeBooks(booksWithThumbnails);
       }
     } catch (err) {
       setError(err as Error);

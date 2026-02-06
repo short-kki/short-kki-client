@@ -5,6 +5,7 @@
 // 그룹 관련
 export {
   useGroups,
+  useGroupDetail,
   useGroupFeeds,
   useGroupMembers,
   useShoppingList,

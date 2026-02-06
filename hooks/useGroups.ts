@@ -44,6 +44,7 @@ interface ApiFeed {
   likes: number;
   likedByMe: boolean;
   imageUrl: string | null; // 서버에서 제공하는 전체 CDN URL
+  recipeId: number | null; // NEW_RECIPE_ADDED 타입일 때 레시피 ID
   createdAt: string;
 }
 
@@ -77,6 +78,7 @@ function mapApiFeedToFeedItem(apiFeed: ApiFeed): FeedItem {
     feedId: apiFeed.id,
     imageUrl: apiFeed.imageUrl,
     feedType: apiFeed.feedType,
+    recipeId: apiFeed.recipeId,
   });
 
   return {
@@ -91,6 +93,7 @@ function mapApiFeedToFeedItem(apiFeed: ApiFeed): FeedItem {
     comments: 0,
     time: formatRelativeTime(apiFeed.createdAt),
     isLiked: apiFeed.likedByMe,
+    recipeId: apiFeed.recipeId?.toString(),
   };
 }
 
@@ -565,6 +568,82 @@ export async function getGroupPreviewByInviteCode(inviteCode: string): Promise<{
   return {
     ...response.data,
     id: response.data.id.toString(),
+  };
+}
+
+/**
+ * 그룹 상세 정보 조회
+ */
+export function useGroupDetail(groupId?: string) {
+  const [group, setGroup] = useState<ApiGroup | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchGroupDetail = useCallback(async () => {
+    if (!groupId) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (USE_MOCK) {
+        // Mock 데이터
+        setGroup({
+          id: Number(groupId),
+          name: '우리 가족 식단',
+          description: '가족들이 함께 레시피를 공유하는 그룹입니다.',
+          thumbnailImgUrl: null,
+          groupType: 'FAMILY',
+          memberCount: 4,
+          myRole: 'ADMIN',
+          createdAt: new Date().toISOString(),
+        });
+      } else {
+        // 실제 API 호출: GET /api/v1/groups/{groupId}
+        const response = await api.get<ApiResponse<ApiGroup>>(`/api/v1/groups/${groupId}`);
+        setGroup(response.data);
+      }
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [groupId]);
+
+  useEffect(() => {
+    fetchGroupDetail();
+  }, [fetchGroupDetail]);
+
+  // 그룹 수정 API
+  const updateGroup = useCallback(async (data: {
+    name: string;
+    description?: string;
+    thumbnailImgUrl?: string;
+    groupType: 'COUPLE' | 'FAMILY' | 'FRIENDS' | 'ETC';
+  }): Promise<void> => {
+    if (!groupId) throw new Error('그룹 ID가 없습니다');
+
+    if (USE_MOCK) {
+      // Mock 모드: 로컬 상태만 업데이트
+      setGroup((prev) => prev ? { ...prev, ...data } : null);
+      return;
+    }
+
+    // 실제 API 호출: PUT /api/v1/groups/{groupId}
+    console.log('[useGroupDetail] PUT 요청:', `/api/v1/groups/${groupId}`);
+    console.log('[useGroupDetail] 요청 데이터:', JSON.stringify(data, null, 2));
+    const response = await api.put<ApiResponse<null>>(`/api/v1/groups/${groupId}`, data);
+    console.log('[useGroupDetail] 응답:', response);
+    // 상태 업데이트
+    setGroup((prev) => prev ? { ...prev, ...data } : null);
+  }, [groupId]);
+
+  return {
+    group,
+    loading,
+    error,
+    refetch: fetchGroupDetail,
+    updateGroup,
   };
 }
 

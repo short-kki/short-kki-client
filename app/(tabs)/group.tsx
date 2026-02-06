@@ -37,6 +37,7 @@ import {
   MessageCircle,
   PartyPopper,
   Check,
+  AlertTriangle,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { useGroups, useGroupFeeds } from "@/hooks";
@@ -61,7 +62,7 @@ export default function GroupScreen() {
   const params = useLocalSearchParams<{ groupId?: string; _t?: string }>();
 
   // Hooks로 데이터 관리
-  const { groups, createGroup, deleteGroup } = useGroups();
+  const { groups, createGroup, deleteGroup, refetch: refetchGroups } = useGroups();
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const { feeds, toggleLike, deleteFeed, refetch: refetchFeeds } = useGroupFeeds(selectedGroup?.id);
 
@@ -75,13 +76,16 @@ export default function GroupScreen() {
     }
   }, [params.groupId, params._t, groups]);
 
-  // 화면에 포커스될 때 피드 새로고침
+  // 화면에 포커스될 때 그룹 목록 및 피드 새로고침
   useFocusEffect(
     useCallback(() => {
+      // 그룹 목록 새로고침 (수정 후 돌아왔을 때 반영)
+      refetchGroups();
+      // 그룹 상세 화면일 경우 피드도 새로고침
       if (selectedGroup) {
         refetchFeeds();
       }
-    }, [selectedGroup, refetchFeeds])
+    }, [selectedGroup, refetchGroups, refetchFeeds])
   );
 
   // UI 상태
@@ -95,6 +99,9 @@ export default function GroupScreen() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdGroupName, setCreatedGroupName] = useState("");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTargetGroup, setDeleteTargetGroup] = useState<Group | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [isCreating, setIsCreating] = useState(false);
 
@@ -131,26 +138,30 @@ export default function GroupScreen() {
     }
   };
 
-  const handleDeleteGroup = (groupId: string) => {
-    Alert.alert("그룹 삭제", "정말 이 그룹을 삭제하시겠습니까?", [
-      { text: "취소", style: "cancel" },
-      {
-        text: "삭제",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteGroup(groupId);
-            Alert.alert("완료", "그룹이 삭제되었습니다.");
-          } catch (error) {
-            console.error("그룹 삭제 실패:", error);
-            Alert.alert(
-              "오류",
-              error instanceof Error ? error.message : "그룹 삭제에 실패했습니다."
-            );
-          }
-        },
-      },
-    ]);
+  const handleDeleteGroup = (group: Group) => {
+    setDeleteTargetGroup(group);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteGroup = async () => {
+    if (!deleteTargetGroup || isDeleting) return;
+
+    try {
+      setIsDeleting(true);
+      await deleteGroup(deleteTargetGroup.id);
+      setShowDeleteModal(false);
+      setDeleteTargetGroup(null);
+      // 삭제 성공 알림은 간단하게 Alert 사용
+      Alert.alert("완료", "그룹이 삭제되었습니다.");
+    } catch (error) {
+      console.error("그룹 삭제 실패:", error);
+      Alert.alert(
+        "오류",
+        error instanceof Error ? error.message : "그룹 삭제에 실패했습니다."
+      );
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleShowGroupMenu = (group: Group) => {
@@ -172,7 +183,7 @@ export default function GroupScreen() {
           });
           break;
         case "delete":
-          handleDeleteGroup(menuTargetGroup.id);
+          handleDeleteGroup(menuTargetGroup);
           break;
         case "leave":
           Alert.alert("그룹 나가기", `"${menuTargetGroup.name}" 그룹에서 나가시겠습니까?`, [
@@ -508,65 +519,123 @@ export default function GroupScreen() {
               >
                 {item.type === "post" && item.feedType === "NEW_RECIPE_ADDED" ? (
                   // 레시피 추가 알림 피드 (특별한 스타일)
-                  <View
-                    style={{
-                      padding: Spacing.md,
-                      backgroundColor: Colors.primary[50],
-                    }}
-                  >
+                  <View>
+                    {/* 상단 알림 배너 */}
                     <View
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
+                        paddingHorizontal: Spacing.md,
+                        paddingVertical: 10,
+                        backgroundColor: Colors.primary[500],
+                        gap: 8,
                       }}
                     >
-                      {/* 레시피 아이콘 */}
                       <View
                         style={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 24,
-                          backgroundColor: Colors.primary[100],
+                          width: 28,
+                          height: 28,
+                          borderRadius: 14,
+                          backgroundColor: "rgba(255,255,255,0.2)",
                           justifyContent: "center",
                           alignItems: "center",
                         }}
                       >
-                        <BookOpen size={24} color={Colors.primary[600]} />
+                        <BookOpen size={16} color="#FFF" />
                       </View>
-                      <View style={{ flex: 1, marginLeft: Spacing.md }}>
-                        {/* 알림 내용 */}
-                        <Text
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: "#FFF", flex: 1 }}>
+                        새 레시피가 추가되었어요!
+                      </Text>
+                      <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>
+                        {item.time}
+                      </Text>
+                    </View>
+
+                    {/* 콘텐츠 영역 */}
+                    <View style={{ padding: Spacing.md, backgroundColor: Colors.primary[50] }}>
+                      {/* 유저 정보 */}
+                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+                        <View
                           style={{
-                            fontSize: 14,
-                            color: Colors.neutral[800],
-                            lineHeight: 20,
+                            width: 36,
+                            height: 36,
+                            borderRadius: 18,
+                            backgroundColor: Colors.primary[500],
+                            justifyContent: "center",
+                            alignItems: "center",
                           }}
                         >
-                          <Text style={{ fontWeight: "700", color: Colors.primary[600] }}>
+                          <Text style={{ fontSize: 14, fontWeight: "700", color: "#FFF" }}>
+                            {item.userAvatar}
+                          </Text>
+                        </View>
+                        <View style={{ marginLeft: 10 }}>
+                          <Text style={{ fontSize: 14, fontWeight: "600", color: Colors.neutral[900] }}>
                             {item.user}
                           </Text>
-                          님이 새 레시피를 추가했어요
-                        </Text>
-                        <Text
+                          <Text style={{ fontSize: 12, color: Colors.neutral[500] }}>
+                            레시피북에 추가함
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* 레시피 카드 */}
+                      <View
+                        style={{
+                          backgroundColor: Colors.neutral[0],
+                          borderRadius: 16,
+                          padding: 14,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          borderWidth: 1,
+                          borderColor: Colors.primary[100],
+                          shadowColor: Colors.primary[500],
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.08,
+                          shadowRadius: 8,
+                          elevation: 2,
+                        }}
+                      >
+                        {/* 레시피 아이콘/썸네일 */}
+                        <View
                           style={{
-                            fontSize: 13,
-                            color: Colors.neutral[600],
-                            marginTop: 4,
-                            lineHeight: 18,
-                          }}
-                          numberOfLines={2}
-                        >
-                          {item.content}
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: Colors.neutral[400],
-                            marginTop: 6,
+                            width: 56,
+                            height: 56,
+                            borderRadius: 12,
+                            backgroundColor: Colors.secondary[100],
+                            justifyContent: "center",
+                            alignItems: "center",
                           }}
                         >
-                          {item.time}
-                        </Text>
+                          <Text style={{ fontSize: 28 }}>🍳</Text>
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 14 }}>
+                          <View
+                            style={{
+                              backgroundColor: Colors.primary[100],
+                              paddingHorizontal: 8,
+                              paddingVertical: 3,
+                              borderRadius: 6,
+                              alignSelf: "flex-start",
+                              marginBottom: 6,
+                            }}
+                          >
+                            <Text style={{ fontSize: 11, fontWeight: "600", color: Colors.primary[600] }}>
+                              NEW
+                            </Text>
+                          </View>
+                          <Text
+                            style={{
+                              fontSize: 15,
+                              fontWeight: "700",
+                              color: Colors.neutral[900],
+                              lineHeight: 20,
+                            }}
+                            numberOfLines={2}
+                          >
+                            {item.content.match(/"([^"]+)"/)?.[1] || item.content}
+                          </Text>
+                        </View>
                       </View>
                     </View>
                   </View>
@@ -1034,18 +1103,30 @@ export default function GroupScreen() {
                 }}
               >
                 {/* Group Avatar */}
-                <View
-                  style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: 26,
-                    backgroundColor: Colors.primary[100],
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <Users size={24} color={Colors.primary[500]} />
-                </View>
+                {group.thumbnail ? (
+                  <Image
+                    source={{ uri: group.thumbnail }}
+                    style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: 26,
+                    }}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View
+                    style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: 26,
+                      backgroundColor: Colors.primary[100],
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Users size={24} color={Colors.primary[500]} />
+                  </View>
+                )}
 
                 {/* Group Info */}
                 <View style={{ flex: 1, marginLeft: Spacing.md }}>
@@ -1870,6 +1951,180 @@ export default function GroupScreen() {
                 확인
               </Text>
             </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 그룹 삭제 확인 모달 */}
+      <Modal visible={showDeleteModal} transparent animationType="fade">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={() => !isDeleting && setShowDeleteModal(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: "#FFFFFF",
+              borderRadius: 24,
+              padding: 28,
+              marginHorizontal: 40,
+              alignItems: "center",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.15,
+              shadowRadius: 20,
+              elevation: 10,
+              width: "85%",
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* 경고 아이콘 */}
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: Colors.error.light,
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <AlertTriangle size={36} color={Colors.error.main} />
+            </View>
+
+            {/* 타이틀 */}
+            <Text
+              style={{
+                fontSize: 20,
+                fontWeight: "800",
+                color: Colors.neutral[900],
+                marginBottom: 8,
+              }}
+            >
+              그룹을 삭제할까요?
+            </Text>
+
+            {/* 그룹 정보 */}
+            {deleteTargetGroup && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: Colors.neutral[100],
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  marginBottom: 12,
+                  width: "100%",
+                  justifyContent: "center",
+                }}
+              >
+                <Users size={18} color={Colors.neutral[600]} />
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontWeight: "600",
+                    color: Colors.neutral[800],
+                    marginLeft: 8,
+                  }}
+                  numberOfLines={1}
+                >
+                  {deleteTargetGroup.name}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: Colors.neutral[500],
+                    marginLeft: 8,
+                  }}
+                >
+                  · 멤버 {deleteTargetGroup.memberCount}명
+                </Text>
+              </View>
+            )}
+
+            {/* 경고 메시지 */}
+            <Text
+              style={{
+                fontSize: 14,
+                color: Colors.neutral[500],
+                textAlign: "center",
+                lineHeight: 20,
+              }}
+            >
+              그룹을 삭제하면 모든 피드와 레시피북이{"\n"}
+              함께 삭제되며 복구할 수 없습니다.
+            </Text>
+
+            {/* 버튼들 */}
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 12,
+                marginTop: 24,
+                width: "100%",
+              }}
+            >
+              {/* 취소 버튼 */}
+              <TouchableOpacity
+                onPress={() => {
+                  setShowDeleteModal(false);
+                  setDeleteTargetGroup(null);
+                }}
+                disabled={isDeleting}
+                activeOpacity={0.8}
+                style={{
+                  flex: 1,
+                  backgroundColor: Colors.neutral[100],
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontWeight: "600",
+                    color: Colors.neutral[700],
+                  }}
+                >
+                  취소
+                </Text>
+              </TouchableOpacity>
+
+              {/* 삭제 버튼 */}
+              <TouchableOpacity
+                onPress={confirmDeleteGroup}
+                disabled={isDeleting}
+                activeOpacity={0.8}
+                style={{
+                  flex: 1,
+                  backgroundColor: isDeleting ? Colors.neutral[300] : Colors.error.main,
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: "center",
+                  flexDirection: "row",
+                  justifyContent: "center",
+                  gap: 6,
+                }}
+              >
+                <Trash2 size={18} color="#FFFFFF" />
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontWeight: "700",
+                    color: "#FFFFFF",
+                  }}
+                >
+                  {isDeleting ? "삭제 중..." : "삭제"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>

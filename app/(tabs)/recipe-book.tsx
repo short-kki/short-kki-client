@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   Plus,
   MoreVertical,
@@ -190,9 +191,17 @@ export default function RecipeBookScreen() {
   const params = useLocalSearchParams<{ groupId?: string; groupName?: string; _t?: string }>();
 
   // hooks에서 데이터 가져오기
-  const { recipeBooks: personalBooks, loading: personalLoading, createRecipeBook, removeRecipeBook, renameRecipeBook } = usePersonalRecipeBooks();
-  const { recipeBooks: groupBooks, loading: groupLoading } = useGroupRecipeBooks();
+  const { recipeBooks: personalBooks, loading: personalLoading, createRecipeBook, removeRecipeBook, renameRecipeBook, refetch: refetchPersonal } = usePersonalRecipeBooks();
+  const { recipeBooks: groupBooks, loading: groupLoading, refetch: refetchGroup } = useGroupRecipeBooks();
   const [isCreating, setIsCreating] = useState(false);
+
+  // 화면에 포커스될 때 데이터 새로고침
+  useFocusEffect(
+    useCallback(() => {
+      refetchPersonal();
+      refetchGroup();
+    }, [refetchPersonal, refetchGroup])
+  );
 
   // 그룹에서 진입한 경우 그룹 탭으로 시작
   const [activeTab, setActiveTab] = useState<"personal" | "group">(

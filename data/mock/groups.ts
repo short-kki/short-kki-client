@@ -22,6 +22,7 @@ export interface FeedPost {
   comments: number;
   time: string;
   isLiked: boolean;
+  recipeId?: string; // NEW_RECIPE_ADDED 타입일 때 레시피 ID
 }
 
 export interface FeedRecipe {
