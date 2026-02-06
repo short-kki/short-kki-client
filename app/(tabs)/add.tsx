@@ -183,7 +183,23 @@ export default function AddRecipeScreen() {
       setParsedRecipe(null);
       setMode("select");
       router.replace("/(tabs)");
-    } catch (err) {
+    } catch (err: any) {
+      const errorMessage = err?.message?.toLowerCase() || "";
+
+      // 중복 레시피 에러는 토스트만 표시하고 현재 화면 유지
+      if (
+        errorMessage.includes("duplicate") ||
+        errorMessage.includes("중복") ||
+        errorMessage.includes("already") ||
+        errorMessage.includes("이미 등록") ||
+        errorMessage.includes("conflict") ||
+        errorMessage.includes("409") ||
+        errorMessage.includes("source_003")
+      ) {
+        showToast("이미 등록된 레시피입니다");
+        return;
+      }
+
       const message = err instanceof Error ? err.message : "레시피 저장 중 오류가 발생했습니다.";
       Alert.alert("오류", message);
     } finally {
@@ -441,11 +457,12 @@ export default function AddRecipeScreen() {
               </View>
             </View>
 
-            {/* 결과 영역 (고정 레이아웃) */}
+            {/* 결과 영역 */}
             <View style={{ flex: 1, minHeight: 0, paddingHorizontal: 20, paddingTop: 14 }}>
               <View
                 style={{
-                  height: 280,
+                  flex: 1,
+                  maxHeight: 280,
                   backgroundColor: parsedRecipe ? "#FFFFFF" : Colors.neutral[50],
                   borderRadius: 24,
                   padding: 12,
@@ -543,8 +560,17 @@ export default function AddRecipeScreen() {
               </View>
             </View>
 
-            {/* 하단 CTA (고정 위치) */}
-            <View style={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: insets.bottom + 18 }}>
+            {/* 하단 CTA (탭바 위에 고정) */}
+            <View
+              style={{
+                paddingHorizontal: 20,
+                paddingTop: 12,
+                paddingBottom: 12,
+                backgroundColor: "#FEFEFE",
+                borderTopWidth: 1,
+                borderTopColor: Colors.neutral[100],
+              }}
+            >
               <Text style={{ fontSize: 12, color: Colors.neutral[400], textAlign: "center", marginBottom: 10 }}>
                 조회수와 수익은 100% 원작자에게 돌아갑니다
               </Text>

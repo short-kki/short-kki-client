@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
   ArrowLeft,
-  Heart,
+  Bookmark,
   Clock,
   MoreVertical,
   ChefHat,
@@ -76,31 +76,36 @@ function RecipeCard({
             contentFit="cover"
           />
           {/* 시간 배지 */}
-          <View
-            style={{
-              position: "absolute",
-              top: 8,
-              right: 8,
-              backgroundColor: "rgba(0,0,0,0.7)",
-              paddingHorizontal: 8,
-              paddingVertical: 4,
-              borderRadius: BorderRadius.sm,
-              flexDirection: "row",
-              alignItems: "center",
-            }}
-          >
-            <Clock size={10} color="#FFF" />
-            <Text
+          {recipe.duration ? (
+            <View
               style={{
-                color: "#FFF",
-                fontSize: 10,
-                fontWeight: "600",
-                marginLeft: 3,
+                position: "absolute",
+                top: 8,
+                right: 8,
+                backgroundColor: "rgba(0,0,0,0.7)",
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: BorderRadius.sm,
+                flexDirection: "row",
+                alignItems: "center",
               }}
             >
-              {recipe.duration}
-            </Text>
-          </View>
+              <Clock size={10} color="#FFF" />
+              <Text
+                style={{
+                  color: "#FFF",
+                  fontSize: 10,
+                  fontWeight: "600",
+                  marginLeft: 3,
+                }}
+              >
+                {recipe.duration}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        {/* 정보 */}
+        <View style={{ padding: Spacing.sm, position: "relative" }}>
           {/* 더보기 버튼 */}
           <TouchableOpacity
             onPress={(e) => {
@@ -110,18 +115,14 @@ function RecipeCard({
             style={{
               position: "absolute",
               top: 8,
-              left: 8,
-              backgroundColor: "rgba(0,0,0,0.5)",
-              borderRadius: 12,
+              right: 8,
               padding: 4,
+              zIndex: 1,
             }}
             activeOpacity={0.7}
           >
-            <MoreVertical size={14} color="#FFF" />
+            <MoreVertical size={16} color={Colors.neutral[400]} />
           </TouchableOpacity>
-        </View>
-        {/* 정보 */}
-        <View style={{ padding: Spacing.sm }}>
           <Text
             style={{
               fontSize: Typography.fontSize.sm,
@@ -148,7 +149,7 @@ function RecipeCard({
               marginTop: 4,
             }}
           >
-            <Heart size={10} color={Colors.primary[500]} fill={Colors.primary[500]} />
+            <Bookmark size={10} color={Colors.primary[500]} fill={Colors.primary[500]} />
             <Text
               style={{
                 fontSize: Typography.fontSize.xs,
@@ -283,11 +284,11 @@ export default function RecipeBookDetailScreen() {
 
       {/* 레시피 그리드 */}
       <ScrollView
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
         contentContainerStyle={{
           paddingHorizontal: Spacing.xl,
           paddingTop: Spacing.lg,
-          paddingBottom: 40,
+          paddingBottom: Spacing.md,
         }}
       >
         {loading ? (

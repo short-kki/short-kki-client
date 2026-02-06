@@ -8,6 +8,7 @@ import {
   Pressable,
   Keyboard,
   BackHandler,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -213,7 +214,10 @@ export default function SearchScreen() {
   };
 
   const handleSearch = () => {
-    if (!searchQuery.trim() && totalFilterCount === 0) return;
+    if (!searchQuery.trim() && totalFilterCount === 0) {
+      Alert.alert("알림", "검색어를 입력해주세요.");
+      return;
+    }
     navigateToResults(searchQuery);
   };
 
@@ -510,8 +514,8 @@ export default function SearchScreen() {
             }}
           />
 
-          {/* 인기 검색어 */}
-          <View style={{ marginTop: 16 }}>
+          {/* 인기 검색어 - 임시 주석 처리 */}
+          {/* <View style={{ marginTop: 16 }}>
             <Text
               style={{
                 fontSize: 16,
@@ -558,7 +562,7 @@ export default function SearchScreen() {
                 )
               )}
             </View>
-          </View>
+          </View> */}
         </ScrollView>
       )}
 
@@ -581,9 +585,8 @@ export default function SearchScreen() {
           <TouchableOpacity
             onPress={handleSearch}
             activeOpacity={0.8}
-            disabled={!searchQuery.trim()}
             style={{
-              backgroundColor: searchQuery.trim() ? Colors.primary[500] : Colors.neutral[300],
+              backgroundColor: searchQuery.trim() || totalFilterCount > 0 ? Colors.primary[500] : Colors.neutral[300],
               paddingVertical: 14,
               borderRadius: 12,
               alignItems: "center",

@@ -22,9 +22,17 @@ interface ApiResponse<T> {
   data: T;
 }
 
+// 그룹 캘린더 응답 (API 문서 기준)
+interface GroupCalendarResponse {
+  groupId: number;
+  groupName: string;
+  calendars: CalendarMeal[];
+}
+
+// 캘린더 API 응답 (API 문서 기준)
 interface CalendarApiResponse {
-  personals: CalendarMeal[];
-  groups: CalendarMeal[];
+  personalCalendars: CalendarMeal[];
+  groupCalendars: GroupCalendarResponse[];
 }
 
 // 날짜별로 그룹핑하는 헬퍼
@@ -67,12 +75,19 @@ function groupByGroupAndDate(meals: CalendarMeal[]): Record<string, Record<strin
 
 /**
  * 레시피 캘린더 조회
- * @param year 조회 연도
- * @param month 조회 월 (0-indexed: 0=1월, 11=12월)
+ * @param startDate 조회 시작일 (YYYY-MM-DD)
+ * @param endDate 조회 종료일 (YYYY-MM-DD)
  */
-export function useRecipeCalendar(year: number, month: number) {
+// 그룹 정보 타입
+interface GroupInfo {
+  groupId: number;
+  groupName: string;
+}
+
+export function useRecipeCalendar(startDate: string, endDate: string) {
   const [personalMeals, setPersonalMeals] = useState<Record<string, CalendarMeal[]>>({});
   const [groupMealsByGroup, setGroupMealsByGroup] = useState<Record<string, Record<string, CalendarMeal[]>>>({});
+  const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -82,11 +97,7 @@ export function useRecipeCalendar(year: number, month: number) {
       setError(null);
 
       if (USE_MOCK) {
-        // Mock 데이터: 월에 해당하는 데이터만 필터링
-        const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-        const lastDay = new Date(year, month + 1, 0).getDate();
-        const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
+        // Mock 데이터: 기간에 해당하는 데이터만 필터링
         const filteredPersonals = MOCK_CALENDAR_PERSONALS.filter(
           (m) => m.scheduledDate >= startDate && m.scheduledDate <= endDate
         );
@@ -98,23 +109,50 @@ export function useRecipeCalendar(year: number, month: number) {
         setGroupMealsByGroup(groupByGroupAndDate(filteredGroups));
       } else {
         // 실제 API 호출: GET /api/v1/calendar/recipes?startDate=...&endDate=...
-        const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-        const lastDay = new Date(year, month + 1, 0).getDate();
-        const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        console.log(`[Calendar API] 요청: startDate=${startDate}, endDate=${endDate}`);
 
         const response = await api.get<ApiResponse<CalendarApiResponse>>(
           `/api/v1/calendar/recipes?startDate=${startDate}&endDate=${endDate}`
         );
 
-        setPersonalMeals(groupByDate(response.data.personals));
-        setGroupMealsByGroup(groupByGroupAndDate(response.data.groups));
+        console.log('[Calendar API] 응답:', JSON.stringify(response, null, 2));
+
+        // personalCalendars 처리
+        const personalCalendars = response.data?.personalCalendars || [];
+        console.log(`[Calendar API] 개인 캘린더: ${personalCalendars.length}개`);
+        setPersonalMeals(groupByDate(personalCalendars));
+
+        // groupCalendars 처리: 그룹별로 묶인 구조를 풀어서 groupId → 날짜별 맵으로 변환
+        const groupCalendars = response.data?.groupCalendars || [];
+        console.log(`[Calendar API] 그룹 캘린더: ${groupCalendars.length}개 그룹`);
+
+        // 그룹 목록 저장 (식단 유무와 관계없이)
+        const groupList: GroupInfo[] = groupCalendars.map((gc) => ({
+          groupId: gc.groupId,
+          groupName: gc.groupName,
+        }));
+        setGroups(groupList);
+
+        const groupMealsFlattened: CalendarMeal[] = [];
+        for (const groupCalendar of groupCalendars) {
+          console.log(`[Calendar API] 그룹 ${groupCalendar.groupId} (${groupCalendar.groupName}): ${groupCalendar.calendars?.length || 0}개 식단`);
+          for (const calendar of (groupCalendar.calendars || [])) {
+            groupMealsFlattened.push({
+              ...calendar,
+              groupId: groupCalendar.groupId,
+              groupName: groupCalendar.groupName,
+            });
+          }
+        }
+        console.log(`[Calendar API] 총 그룹 식단: ${groupMealsFlattened.length}개`);
+        setGroupMealsByGroup(groupByGroupAndDate(groupMealsFlattened));
       }
     } catch (err) {
       setError(err as Error);
     } finally {
       setLoading(false);
     }
-  }, [year, month]);
+  }, [startDate, endDate]);
 
   useEffect(() => {
     fetchCalendar();
@@ -129,6 +167,7 @@ export function useRecipeCalendar(year: number, month: number) {
   return {
     personalMeals,
     groupMealsByGroup,
+    groups,
     loading,
     error,
     refetch: fetchCalendar,
@@ -235,6 +274,7 @@ export function useRecipeQueue() {
         id: Date.now(),
         recipeId: queueItem?.recipeId ?? 0,
         recipeTitle: queueItem?.recipeTitle ?? '',
+        cookingTime: null,
         mainImgUrl: queueItem?.mainImgUrl ?? null,
         scheduledDate,
         sortOrder: 0,

@@ -1,12 +1,12 @@
 import { useState, useRef, useCallback } from "react";
 import { Tabs, useRouter } from "expo-router";
-import { View, Pressable, Modal, Text, TouchableOpacity, Animated, Easing } from "react-native";
+import { View, Pressable, Text, TouchableOpacity, Animated, Easing } from "react-native";
 import { Home, CalendarDays, Plus, BookOpen, Users, Globe, PenLine, ChevronRight } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors, Spacing, BorderRadius } from "@/constants/design-system";
 
 export default function TabLayout() {
-  const [modalVisible, setModalVisible] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -14,7 +14,7 @@ export default function TabLayout() {
   const sheetTranslateY = useRef(new Animated.Value(300)).current;
 
   const openMenu = useCallback(() => {
-    setModalVisible(true);
+    setMenuOpen(true);
     Animated.parallel([
       Animated.timing(overlayOpacity, {
         toValue: 1,
@@ -43,13 +43,25 @@ export default function TabLayout() {
         useNativeDriver: true,
       }),
     ]).start(() => {
-      setModalVisible(false);
+      setMenuOpen(false);
       onDone?.();
     });
   }, [overlayOpacity, sheetTranslateY]);
 
+  const handleUrlImport = useCallback(() => {
+    closeMenu(() => {
+      router.push({ pathname: "/(tabs)/add", params: { mode: "url" } });
+    });
+  }, [closeMenu, router]);
+
+  const handleManualCreate = useCallback(() => {
+    closeMenu(() => {
+      router.push("/recipe-create-manual");
+    });
+  }, [closeMenu, router]);
+
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: Colors.primary[500],
@@ -196,140 +208,135 @@ export default function TabLayout() {
         />
       </Tabs>
 
-      {/* ─── 추가 메뉴 바텀시트 ─── */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        statusBarTranslucent
-        animationType="none"
-        onRequestClose={() => closeMenu()}
+      {/* ─── 추가 메뉴 바텀시트 (Modal 대신 absolute View) ─── */}
+      <View
+        pointerEvents={menuOpen ? "auto" : "none"}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 1000,
+          justifyContent: "flex-end",
+        }}
       >
-        <View style={{ flex: 1, justifyContent: "flex-end" }}>
-          {/* 오버레이 - 페이드 */}
-          <Animated.View
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: "rgba(0,0,0,0.35)",
-              opacity: overlayOpacity,
-            }}
-          >
-            <Pressable style={{ flex: 1 }} onPress={() => closeMenu()} />
-          </Animated.View>
+        {/* 오버레이 */}
+        <Animated.View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.35)",
+            opacity: overlayOpacity,
+          }}
+        >
+          <Pressable style={{ flex: 1 }} onPress={() => closeMenu()} />
+        </Animated.View>
 
-          {/* 시트 - 슬라이드업 */}
-          <Animated.View
+        {/* 시트 */}
+        <Animated.View
+          style={{
+            transform: [{ translateY: sheetTranslateY }],
+            backgroundColor: "#FFFFFF",
+            borderTopLeftRadius: BorderRadius.xl,
+            borderTopRightRadius: BorderRadius.xl,
+            paddingTop: Spacing.sm,
+            paddingBottom: insets.bottom + Spacing.xl + 100,
+            marginBottom: -100,
+            paddingHorizontal: Spacing.xl,
+          }}
+        >
+          {/* 핸들 바 */}
+          <View style={{
+            width: 36,
+            height: 4,
+            borderRadius: 2,
+            backgroundColor: Colors.neutral[200],
+            alignSelf: "center",
+            marginBottom: Spacing.lg,
+          }} />
+
+          {/* 타이틀 */}
+          <Text style={{
+            fontSize: 18,
+            fontWeight: "700",
+            color: Colors.neutral[900],
+            marginBottom: Spacing.lg,
+          }}>
+            레시피 추가
+          </Text>
+
+          {/* URL로 가져오기 */}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={handleUrlImport}
             style={{
-              transform: [{ translateY: sheetTranslateY }],
-              backgroundColor: "#FFFFFF",
-              borderTopLeftRadius: BorderRadius.xl,
-              borderTopRightRadius: BorderRadius.xl,
-              paddingTop: Spacing.sm,
-              paddingBottom: insets.bottom + Spacing.xl + 100,
-              marginBottom: -100,
-              paddingHorizontal: Spacing.xl,
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: Colors.neutral[50],
+              borderRadius: BorderRadius.lg,
+              padding: Spacing.lg,
+              marginBottom: Spacing.sm,
             }}
           >
-            {/* 핸들 바 */}
             <View style={{
-              width: 36,
-              height: 4,
-              borderRadius: 2,
-              backgroundColor: Colors.neutral[200],
-              alignSelf: "center",
-              marginBottom: Spacing.lg,
-            }} />
-
-            {/* 타이틀 */}
-            <Text style={{
-              fontSize: 18,
-              fontWeight: "700",
-              color: Colors.neutral[900],
-              marginBottom: Spacing.lg,
+              width: 44,
+              height: 44,
+              borderRadius: 14,
+              backgroundColor: Colors.primary[50],
+              justifyContent: "center",
+              alignItems: "center",
             }}>
-              레시피 추가
-            </Text>
+              <Globe size={22} color={Colors.primary[500]} />
+            </View>
+            <View style={{ flex: 1, marginLeft: Spacing.md }}>
+              <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.neutral[900] }}>
+                URL로 가져오기
+              </Text>
+              <Text style={{ fontSize: 13, color: Colors.neutral[500], marginTop: 2 }}>
+                유튜브, 블로그 링크로 자동 추출
+              </Text>
+            </View>
+            <ChevronRight size={18} color={Colors.neutral[300]} />
+          </TouchableOpacity>
 
-            {/* URL로 가져오기 */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => {
-                closeMenu(() => {
-                  router.push({ pathname: "/(tabs)/add", params: { mode: "url" } });
-                });
-              }}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: Colors.neutral[50],
-                borderRadius: BorderRadius.lg,
-                padding: Spacing.lg,
-                marginBottom: Spacing.sm,
-              }}
-            >
-              <View style={{
-                width: 44,
-                height: 44,
-                borderRadius: 14,
-                backgroundColor: Colors.primary[50],
-                justifyContent: "center",
-                alignItems: "center",
-              }}>
-                <Globe size={22} color={Colors.primary[500]} />
-              </View>
-              <View style={{ flex: 1, marginLeft: Spacing.md }}>
-                <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.neutral[900] }}>
-                  URL로 가져오기
-                </Text>
-                <Text style={{ fontSize: 13, color: Colors.neutral[500], marginTop: 2 }}>
-                  유튜브, 블로그 링크로 자동 추출
-                </Text>
-              </View>
-              <ChevronRight size={18} color={Colors.neutral[300]} />
-            </TouchableOpacity>
-
-            {/* 직접 작성하기 */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => {
-                closeMenu(() => {
-                  router.push("/recipe-create-manual");
-                });
-              }}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: Colors.neutral[50],
-                borderRadius: BorderRadius.lg,
-                padding: Spacing.lg,
-              }}
-            >
-              <View style={{
-                width: 44,
-                height: 44,
-                borderRadius: 14,
-                backgroundColor: Colors.secondary[50],
-                justifyContent: "center",
-                alignItems: "center",
-              }}>
-                <PenLine size={22} color={Colors.secondary[600]} />
-              </View>
-              <View style={{ flex: 1, marginLeft: Spacing.md }}>
-                <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.neutral[900] }}>
-                  직접 작성하기
-                </Text>
-                <Text style={{ fontSize: 13, color: Colors.neutral[500], marginTop: 2 }}>
-                  나만의 레시피를 직접 입력
-                </Text>
-              </View>
-              <ChevronRight size={18} color={Colors.neutral[300]} />
-            </TouchableOpacity>
-          </Animated.View>
-        </View>
-      </Modal>
-    </>
+          {/* 직접 작성하기 */}
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={handleManualCreate}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: Colors.neutral[50],
+              borderRadius: BorderRadius.lg,
+              padding: Spacing.lg,
+            }}
+          >
+            <View style={{
+              width: 44,
+              height: 44,
+              borderRadius: 14,
+              backgroundColor: Colors.secondary[50],
+              justifyContent: "center",
+              alignItems: "center",
+            }}>
+              <PenLine size={22} color={Colors.secondary[600]} />
+            </View>
+            <View style={{ flex: 1, marginLeft: Spacing.md }}>
+              <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.neutral[900] }}>
+                직접 작성하기
+              </Text>
+              <Text style={{ fontSize: 13, color: Colors.neutral[500], marginTop: 2 }}>
+                나만의 레시피를 직접 입력
+              </Text>
+            </View>
+            <ChevronRight size={18} color={Colors.neutral[300]} />
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </View>
   );
 }

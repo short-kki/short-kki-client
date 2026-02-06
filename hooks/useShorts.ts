@@ -149,6 +149,7 @@ const mapRecipeToCurationRecipe = (recipe: CurationV2Recipe): CurationRecipe => 
     author: recipe.authorName || recipe.creatorName || "작성자",
     creatorName: recipe.creatorName,
     bookmarks: recipe.bookmarkCount,
+    sourceUrl: recipe.sourceUrl,
   };
 };
 
@@ -169,19 +170,22 @@ const mapRecipeToTopItem = (recipe: CurationV2Recipe): TopRecipeItem => {
   };
 };
 
-const mapCurationRecipeToShortsItem = (recipe: CurationRecipe): ShortsItem => ({
-  id: recipe.id,
-  videoId: recipe.id,
-  videoUrl: `https://www.youtube.com/shorts/${recipe.id}`,
-  title: recipe.title,
-  author: recipe.author,
-  authorAvatar: recipe.author?.[0],
-  creatorName: recipe.creatorName,
-  thumbnail: recipe.thumbnail || getYoutubeThumbnail(recipe.id),
-  views: undefined,
-  tags: [],
-  bookmarks: recipe.bookmarks ?? 0,
-});
+const mapCurationRecipeToShortsItem = (recipe: CurationRecipe): ShortsItem => {
+  const videoId = extractYoutubeId(recipe.sourceUrl) ?? recipe.id;
+  return {
+    id: recipe.id,
+    videoId,
+    videoUrl: recipe.sourceUrl || `https://www.youtube.com/shorts/${videoId}`,
+    title: recipe.title,
+    author: recipe.author,
+    authorAvatar: recipe.author?.[0],
+    creatorName: recipe.creatorName,
+    thumbnail: recipe.thumbnail || getYoutubeThumbnail(videoId),
+    views: undefined,
+    tags: [],
+    bookmarks: recipe.bookmarks ?? 0,
+  };
+};
 
 const appendUniqueShorts = (prev: ShortsItem[], next: ShortsItem[]) => {
   const seen = new Set(prev.map((item) => item.id));
@@ -281,31 +285,36 @@ export function useRecommendedCurations() {
 
       if (page === 0) {
         const [first, ...rest] = curations;
-        setTopRecipes(first?.recipes?.map(mapRecipeToTopItem) ?? []);
-        if (first) {
+        const firstRecipes = first?.recipes ?? [];
+        setTopRecipes(firstRecipes.length > 0 ? firstRecipes.map(mapRecipeToTopItem) : []);
+        if (first && firstRecipes.length > 0) {
           setTopCuration({
             id: String(first.curationId),
             title: first.title,
             description: first.description,
-            recipes: (first.recipes ?? []).map(mapRecipeToCurationRecipe),
+            recipes: firstRecipes.map(mapRecipeToCurationRecipe),
           });
         } else {
           setTopCuration(null);
         }
-        setSections(rest.map((curation) => ({
-          id: String(curation.curationId),
-          title: curation.title,
-          description: curation.description,
-          recipes: (curation.recipes ?? []).map(mapRecipeToCurationRecipe),
-        })));
-      } else {
-        setSections((prev) => {
-          const next = curations.map((curation) => ({
+        setSections(rest
+          .filter((curation) => curation.recipes && curation.recipes.length > 0)
+          .map((curation) => ({
             id: String(curation.curationId),
             title: curation.title,
             description: curation.description,
             recipes: (curation.recipes ?? []).map(mapRecipeToCurationRecipe),
-          }));
+          })));
+      } else {
+        setSections((prev) => {
+          const next = curations
+            .filter((curation) => curation.recipes && curation.recipes.length > 0)
+            .map((curation) => ({
+              id: String(curation.curationId),
+              title: curation.title,
+              description: curation.description,
+              recipes: (curation.recipes ?? []).map(mapRecipeToCurationRecipe),
+            }));
           const seen = new Set(prev.map((section) => section.id));
           return [...prev, ...next.filter((section) => !seen.has(section.id))];
         });
@@ -345,6 +354,18 @@ export function useRecommendedCurations() {
     }
   }, [fetchPage]);
 
+  // 새로고침용 - 기존 데이터 유지하면서 백그라운드에서 새로 가져오기
+  const refetch = useCallback(async () => {
+    try {
+      setError(null);
+      fetchingPagesRef.current.clear();
+      fetchedPagesRef.current.clear();
+      await fetchPage(0);
+    } catch (err) {
+      setError(err as Error);
+    }
+  }, [fetchPage]);
+
   const fetchNextPage = useCallback(async () => {
     if (loadingMore) return;
     if (!pageInfo?.hasNext) return;
@@ -371,7 +392,7 @@ export function useRecommendedCurations() {
     error,
     hasNext: pageInfo?.hasNext ?? false,
     fetchNextPage,
-    refetch: fetchInitial,
+    refetch,
   };
 }
 

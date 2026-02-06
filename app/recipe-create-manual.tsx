@@ -10,6 +10,9 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  Pressable,
+  FlatList,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,9 +27,12 @@ import {
   ImagePlus,
   Trash2,
   Check,
+  Search,
+  ChevronRight,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/design-system";
 import { recipeApi, type RecipeCreateRequest } from "@/services/recipeApi";
+import { api } from "@/services/api";
 
 // ============================================================================
 // TYPES
@@ -42,6 +48,17 @@ interface Ingredient {
 interface Step {
   id: string;
   description: string;
+}
+
+// API에서 가져오는 재료 타입
+interface ApiIngredient {
+  id: number;
+  name: string;
+}
+
+interface IngredientsApiResponse {
+  ingredients: ApiIngredient[];
+  total: number;
 }
 
 type Difficulty = "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
@@ -104,10 +121,40 @@ export default function RecipeCreateManualScreen() {
   const [steps, setSteps] = useState<Step[]>([{ id: "1", description: "" }]);
 
   // Tags
-  const [tags, setTags] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
 
   // UI State
   const [isSaving, setIsSaving] = useState(false);
+
+  // 재료 검색 관련 State
+  const [apiIngredients, setApiIngredients] = useState<ApiIngredient[]>([]);
+  const [ingredientsLoading, setIngredientsLoading] = useState(true);
+  const [showIngredientSearchModal, setShowIngredientSearchModal] = useState(false);
+  const [ingredientSearchQuery, setIngredientSearchQuery] = useState("");
+  const [editingIngredientId, setEditingIngredientId] = useState<string | null>(null);
+
+  // 재료 목록 API 호출
+  useEffect(() => {
+    const fetchIngredients = async () => {
+      try {
+        setIngredientsLoading(true);
+        // 인증 헤더 포함하여 요청 (문서는 불필요라고 하지만 서버에서 403 반환)
+        const response = await api.get<{ data: IngredientsApiResponse }>("/api/v1/ingredients");
+        setApiIngredients(response.data.ingredients);
+      } catch (error) {
+        console.log("재료 목록 조회 실패:", error);
+      } finally {
+        setIngredientsLoading(false);
+      }
+    };
+    fetchIngredients();
+  }, []);
+
+  // 검색 필터링된 재료 목록
+  const filteredIngredients = apiIngredients.filter((ing) =>
+    ing.name.toLowerCase().includes(ingredientSearchQuery.toLowerCase())
+  );
 
   // Debug: 컴포넌트 마운트 확인
   useEffect(() => {
@@ -144,6 +191,22 @@ export default function RecipeCreateManualScreen() {
     );
   };
 
+  // 재료 검색 모달 열기
+  const openIngredientSearch = (ingredientId: string) => {
+    setEditingIngredientId(ingredientId);
+    setIngredientSearchQuery("");
+    setShowIngredientSearchModal(true);
+  };
+
+  // 재료 선택
+  const selectIngredient = (apiIngredient: ApiIngredient) => {
+    if (editingIngredientId) {
+      updateIngredient(editingIngredientId, "name", apiIngredient.name);
+    }
+    setShowIngredientSearchModal(false);
+    setEditingIngredientId(null);
+  };
+
   // ============================================================================
   // HANDLERS - Steps
   // ============================================================================
@@ -160,6 +223,26 @@ export default function RecipeCreateManualScreen() {
 
   const updateStep = (id: string, description: string) => {
     setSteps(steps.map((step) => (step.id === id ? { ...step, description } : step)));
+  };
+
+  // ============================================================================
+  // HANDLERS - Tags
+  // ============================================================================
+
+  const addTag = () => {
+    const trimmedTag = tagInput.trim().replace(/^#/, ""); // # 제거
+    if (trimmedTag && !tags.includes(trimmedTag)) {
+      setTags([...tags, trimmedTag]);
+      setTagInput("");
+    }
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    setTags(tags.filter((tag) => tag !== tagToRemove));
+  };
+
+  const handleTagInputSubmit = () => {
+    addTag();
   };
 
   // ============================================================================
@@ -208,12 +291,6 @@ export default function RecipeCreateManualScreen() {
     setIsSaving(true);
 
     try {
-      // Parse tags
-      const tagList = tags
-        .split(/[,\s#]+/)
-        .map((t) => t.trim())
-        .filter((t) => t.length > 0);
-
       const request: RecipeCreateRequest = {
         basicInfo: {
           title: title.trim(),
@@ -235,7 +312,7 @@ export default function RecipeCreateManualScreen() {
           description: step.description.trim(),
         })),
         recipeSource: "USER",
-        tags: tagList.length > 0 ? tagList : undefined,
+        tags: tags.length > 0 ? tags : undefined,
       };
 
       await recipeApi.create(request);
@@ -246,8 +323,28 @@ export default function RecipeCreateManualScreen() {
           onPress: () => router.push("/(tabs)/recipe-book"),
         },
       ]);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Recipe create error:", error);
+      const errorMessage = error?.message?.toLowerCase() || "";
+
+      // 중복 레시피 에러는 무시하고 성공으로 처리
+      if (
+        errorMessage.includes("duplicate") ||
+        errorMessage.includes("중복") ||
+        errorMessage.includes("already exists") ||
+        errorMessage.includes("conflict") ||
+        error?.message?.includes("409")
+      ) {
+        console.log("Duplicate recipe - treating as success");
+        Alert.alert("저장 완료", `"${title}" 레시피가 저장되었습니다.`, [
+          {
+            text: "확인",
+            onPress: () => router.push("/(tabs)/recipe-book"),
+          },
+        ]);
+        return;
+      }
+
       Alert.alert("오류", "레시피 저장 중 오류가 발생했습니다.");
     } finally {
       setIsSaving(false);
@@ -477,13 +574,30 @@ export default function RecipeCreateManualScreen() {
 
             {ingredients.map((ingredient) => (
               <View key={ingredient.id} style={styles.ingredientRow}>
-                <TextInput
-                  style={[styles.input, { flex: 2 }]}
-                  placeholder="재료명"
-                  placeholderTextColor={Colors.neutral[400]}
-                  value={ingredient.name}
-                  onChangeText={(text) => updateIngredient(ingredient.id, "name", text)}
-                />
+                <TouchableOpacity
+                  onPress={() => openIngredientSearch(ingredient.id)}
+                  activeOpacity={0.7}
+                  style={[
+                    styles.input,
+                    {
+                      flex: 2,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      color: ingredient.name ? Colors.neutral[900] : Colors.neutral[400],
+                      fontSize: Typography.fontSize.base,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {ingredient.name || "재료 검색"}
+                  </Text>
+                  <Search size={16} color={Colors.neutral[400]} />
+                </TouchableOpacity>
                 <TextInput
                   style={[styles.input, { flex: 1 }]}
                   placeholder="수량"
@@ -553,16 +667,83 @@ export default function RecipeCreateManualScreen() {
           {/* 태그 */}
           <View style={{ marginBottom: Spacing.xl }}>
             <Text style={styles.label}>태그</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="#한식 #볶음밥 #간편요리"
-              placeholderTextColor={Colors.neutral[400]}
-              value={tags}
-              onChangeText={setTags}
-            />
-            <Text style={{ fontSize: 12, color: Colors.neutral[400], marginTop: Spacing.xs }}>
-              쉼표, 공백 또는 #으로 구분하세요
-            </Text>
+
+            {/* 태그 입력 */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="태그 입력 (예: 한식)"
+                  placeholderTextColor={Colors.neutral[400]}
+                  value={tagInput}
+                  onChangeText={setTagInput}
+                  onSubmitEditing={handleTagInputSubmit}
+                  returnKeyType="done"
+                />
+              </View>
+              <TouchableOpacity
+                onPress={addTag}
+                activeOpacity={0.7}
+                style={{
+                  width: 48,
+                  height: 48,
+                  backgroundColor: tagInput.trim() ? Colors.primary[500] : Colors.neutral[200],
+                  borderRadius: BorderRadius.xl,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Plus size={20} color={tagInput.trim() ? "#FFF" : Colors.neutral[400]} />
+              </TouchableOpacity>
+            </View>
+
+            {/* 등록된 태그 목록 */}
+            {tags.length > 0 && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  gap: Spacing.sm,
+                  marginTop: Spacing.md,
+                }}
+              >
+                {tags.map((tag) => (
+                  <View
+                    key={tag}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      backgroundColor: Colors.primary[50],
+                      paddingVertical: Spacing.xs,
+                      paddingLeft: Spacing.md,
+                      paddingRight: Spacing.xs,
+                      borderRadius: BorderRadius.full,
+                      gap: 4,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: Typography.fontSize.sm,
+                        color: Colors.primary[700],
+                        fontWeight: "500",
+                      }}
+                    >
+                      {tag}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => removeTag(tag)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={{
+                        padding: 4,
+                        borderRadius: BorderRadius.full,
+                      }}
+                    >
+                      <X size={14} color={Colors.primary[500]} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         </ScrollView>
 
@@ -616,6 +797,140 @@ export default function RecipeCreateManualScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* 재료 검색 모달 */}
+      <Modal visible={showIngredientSearchModal} transparent animationType="slide">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "flex-end",
+          }}
+          onPress={() => setShowIngredientSearchModal(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: Colors.neutral[0],
+              borderTopLeftRadius: BorderRadius["2xl"],
+              borderTopRightRadius: BorderRadius["2xl"],
+              height: "70%",
+              paddingTop: Spacing.md,
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* 핸들바 */}
+            <View
+              style={{
+                width: 36,
+                height: 4,
+                backgroundColor: Colors.neutral[300],
+                borderRadius: 2,
+                alignSelf: "center",
+                marginBottom: Spacing.md,
+              }}
+            />
+
+            {/* 제목 */}
+            <Text
+              style={{
+                fontSize: Typography.fontSize.lg,
+                fontWeight: "700",
+                color: Colors.neutral[900],
+                paddingHorizontal: Spacing.xl,
+                marginBottom: Spacing.md,
+              }}
+            >
+              재료 검색
+            </Text>
+
+            {/* 검색 입력창 */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: Colors.neutral[100],
+                marginHorizontal: Spacing.xl,
+                borderRadius: BorderRadius.xl,
+                paddingHorizontal: Spacing.md,
+                marginBottom: Spacing.md,
+              }}
+            >
+              <Search size={20} color={Colors.neutral[400]} />
+              <TextInput
+                style={{
+                  flex: 1,
+                  paddingVertical: Spacing.md,
+                  marginLeft: Spacing.sm,
+                  fontSize: Typography.fontSize.base,
+                  color: Colors.neutral[900],
+                }}
+                placeholder="재료명을 검색하세요"
+                placeholderTextColor={Colors.neutral[400]}
+                value={ingredientSearchQuery}
+                onChangeText={setIngredientSearchQuery}
+                autoFocus
+              />
+              {ingredientSearchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setIngredientSearchQuery("")}>
+                  <X size={18} color={Colors.neutral[400]} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* 재료 목록 */}
+            {ingredientsLoading ? (
+              <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+                <ActivityIndicator size="small" color={Colors.primary[500]} />
+                <Text style={{ color: Colors.neutral[500], marginTop: Spacing.sm }}>
+                  재료 목록 불러오는 중...
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredIngredients}
+                keyExtractor={(item) => item.id.toString()}
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl, flexGrow: 1 }}
+                keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={
+                  <View style={{ padding: Spacing.xl, alignItems: "center" }}>
+                    <Text style={{ color: Colors.neutral[500] }}>
+                      {ingredientSearchQuery
+                        ? `"${ingredientSearchQuery}"에 대한 검색 결과가 없습니다`
+                        : "등록된 재료가 없습니다"}
+                    </Text>
+                  </View>
+                }
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    onPress={() => selectIngredient(item)}
+                    activeOpacity={0.7}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      paddingVertical: Spacing.md,
+                      paddingHorizontal: Spacing.xl,
+                      borderBottomWidth: 1,
+                      borderBottomColor: Colors.neutral[100],
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: Typography.fontSize.base,
+                        color: Colors.neutral[900],
+                      }}
+                    >
+                      {item.name}
+                    </Text>
+                    <ChevronRight size={18} color={Colors.neutral[400]} />
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }

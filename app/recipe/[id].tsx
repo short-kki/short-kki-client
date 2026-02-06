@@ -10,6 +10,7 @@ import {
   Alert,
   Share,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,16 +22,25 @@ import {
   Clock,
   Users,
   ChefHat,
-  CalendarPlus,
+  ListPlus,
   ShoppingCart,
   Share2,
   MoreVertical,
+  Flag,
+  X,
+  CheckCircle,
+  Calendar,
+  AlertCircle,
+  BookOpen,
+  Square,
+  CheckSquare,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import RecipeBookSelectModal from "@/components/RecipeBookSelectModal";
 import { recipeApi, type RecipeResponse } from "@/services/recipeApi";
 import { API_BASE_URL } from "@/constants/oauth";
 import { api } from "@/services/api";
+import { useRecipeQueue, useGroups } from "@/hooks";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -67,6 +77,21 @@ export default function RecipeDetailScreen() {
   const [servings, setServings] = useState(1);
   const [showBookSelectModal, setShowBookSelectModal] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false); // 로컬 북마크 상태
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showQueueSuccessModal, setShowQueueSuccessModal] = useState(false);
+  const [showSaveSuccessModal, setShowSaveSuccessModal] = useState(false);
+  const [showAlreadySavedModal, setShowAlreadySavedModal] = useState(false);
+  const [savedBookName, setSavedBookName] = useState("");
+  const [showGroupSelectModal, setShowGroupSelectModal] = useState(false);
+  const [showIngredientSelectModal, setShowIngredientSelectModal] = useState(false);
+  const [showShoppingSuccessModal, setShowShoppingSuccessModal] = useState(false);
+  const [showNoGroupModal, setShowNoGroupModal] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState("");
+  const [selectedGroupName, setSelectedGroupName] = useState("");
+  const [selectedIngredients, setSelectedIngredients] = useState<string[]>([]);
+  const [isAddingToShoppingList, setIsAddingToShoppingList] = useState(false);
+  const { addQueue } = useRecipeQueue();
+  const { groups, loading: groupsLoading } = useGroups();
 
   // 데이터 로딩
   useEffect(() => {
@@ -140,50 +165,85 @@ export default function RecipeDetailScreen() {
     setShowBookSelectModal(true);
   };
 
-  const handleAddToMealPlan = () => {
-    Alert.alert(
-      "식단에 추가",
-      `"${recipe?.title}" 레시피를 어떤 날짜에 추가할까요?`,
-      [
-        { text: "오늘", onPress: () => router.push("/(tabs)/meal-plan") },
-        { text: "내일", onPress: () => router.push("/(tabs)/meal-plan") },
-        { text: "직접 선택", onPress: () => router.push("/(tabs)/meal-plan") },
-        { text: "취소", style: "cancel" },
-      ]
-    );
+  const handleAddToQueue = async () => {
+    if (!recipe) return;
+    try {
+      await addQueue(recipe.id);
+      setShowQueueSuccessModal(true);
+    } catch (err) {
+      Alert.alert("오류", "대기열에 추가하는데 실패했습니다.");
+    }
   };
 
   const handleShoppingList = () => {
     if (!recipe) return;
-    Alert.alert(
-      "장보기 목록에 추가",
-      `${recipe.ingredients.length}개의 재료가 장보기 목록에 추가되었습니다.`,
-      [{ text: "확인" }]
+    if (groups.length === 0) {
+      setShowNoGroupModal(true);
+      return;
+    }
+    setShowGroupSelectModal(true);
+  };
+
+  // 그룹 선택 후 재료 선택 모달 열기
+  const handleGroupSelect = (groupId: string, groupName: string) => {
+    if (!recipe) return;
+    setSelectedGroupId(groupId);
+    setSelectedGroupName(groupName);
+    // 기본적으로 모든 재료 선택
+    setSelectedIngredients(recipe.ingredients.map((ing) => ing.name));
+    setShowGroupSelectModal(false);
+    setShowIngredientSelectModal(true);
+  };
+
+  // 재료 선택/해제 토글
+  const toggleIngredient = (ingredientName: string) => {
+    setSelectedIngredients((prev) =>
+      prev.includes(ingredientName)
+        ? prev.filter((name) => name !== ingredientName)
+        : [...prev, ingredientName]
     );
   };
 
-  const handleMoreOptions = async () => {
+  // 전체 선택/해제
+  const toggleAllIngredients = () => {
     if (!recipe) return;
-    Alert.alert(
-      recipe.title,
-      "어떤 작업을 하시겠어요?",
-      [
-        {
-          text: "공유하기",
-          onPress: async () => {
-            try {
-              await Share.share({
-                message: `숏끼에서 "${recipe.title}" 레시피를 확인해보세요!`,
-              });
-            } catch (e) {
-              console.log(e);
-            }
-          },
-        },
-        { text: "신고하기", onPress: () => Alert.alert("신고", "신고가 접수되었습니다.") },
-        { text: "취소", style: "cancel" },
-      ]
-    );
+    if (selectedIngredients.length === recipe.ingredients.length) {
+      setSelectedIngredients([]);
+    } else {
+      setSelectedIngredients(recipe.ingredients.map((ing) => ing.name));
+    }
+  };
+
+  // 장보기 목록에 추가
+  const handleAddToShoppingList = async () => {
+    if (!recipe || selectedIngredients.length === 0) return;
+
+    setShowIngredientSelectModal(false);
+    setIsAddingToShoppingList(true);
+
+    try {
+      // 선택된 재료만 추가
+      const items = selectedIngredients.map((name) => ({ name }));
+
+      // POST /api/v1/groups/{groupId}/shopping-list/bulk
+      await api.post(`/api/v1/groups/${selectedGroupId}/shopping-list/bulk`, { items });
+
+      setShowShoppingSuccessModal(true);
+    } catch (error) {
+      console.error("장보기 목록 추가 실패:", error);
+      Alert.alert("오류", "장보기 목록에 추가하는데 실패했습니다.");
+    } finally {
+      setIsAddingToShoppingList(false);
+    }
+  };
+
+  const handleMoreOptions = () => {
+    setShowMoreMenu(!showMoreMenu);
+  };
+
+  const handleReport = () => {
+    setShowMoreMenu(false);
+    Alert.alert("신고", "신고가 접수되었습니다.");
   };
 
   // 이미지 URL 처리 헬퍼 함수
@@ -220,113 +280,113 @@ export default function RecipeDetailScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[50] }}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="dark-content" />
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Hero Section - Thumbnail */}
-        <View style={{ position: "relative" }}>
-          <Image
-            source={{ uri: getImageUrl(recipe.mainImgUrl) }}
-            style={{
-              width: SCREEN_WIDTH,
-              height: SCREEN_WIDTH * 0.75,
-            }}
-            contentFit="cover"
-          />
+      {/* 메뉴 오버레이 (바깥 클릭시 닫기) */}
+      {showMoreMenu && (
+        <Pressable
+          onPress={() => setShowMoreMenu(false)}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 50,
+          }}
+        />
+      )}
 
-          {/* Gradient Overlay */}
-          <View
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 100,
-              backgroundColor: "rgba(0,0,0,0.3)",
-            }}
-          />
-
-          {/* Back Button */}
+      {/* Header */}
+      <View
+        style={{
+          paddingTop: insets.top,
+          backgroundColor: "#FFFFFF",
+          borderBottomWidth: 1,
+          borderBottomColor: Colors.neutral[100],
+          zIndex: 100,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            height: 52,
+            paddingHorizontal: 16,
+          }}
+        >
           <Pressable
             onPress={() => router.back()}
             style={{
-              position: "absolute",
-              top: insets.top + 8,
-              left: 16,
               width: 40,
               height: 40,
               borderRadius: 20,
-              backgroundColor: "rgba(0,0,0,0.5)",
+              backgroundColor: Colors.neutral[100],
               justifyContent: "center",
               alignItems: "center",
             }}
           >
-            <ChevronLeft size={24} color="#FFFFFF" />
+            <ChevronLeft size={24} color={Colors.neutral[700]} />
           </Pressable>
-
-          {/* More Button */}
-          <TouchableOpacity
-            onPress={handleMoreOptions}
-            activeOpacity={0.8}
-            style={{
-              position: "absolute",
-              top: insets.top + 8,
-              right: 16,
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              backgroundColor: "rgba(0,0,0,0.5)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <MoreVertical size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-
-          {/* Play Button - Video URL이 있을 때만 표시 (지금은 dummy로 없다고 가정하거나 확인 필요) */}
-          {recipe.sourceUrl && (
-            <Pressable
-              onPress={() => {
-                // 외부 링크 열기 또는 숏폼 플레이어로 이동
-                // router.push({ pathname: "/(tabs)/shorts" });
-              }}
+          <View style={{ position: "relative" }}>
+            <TouchableOpacity
+              onPress={handleMoreOptions}
+              activeOpacity={0.8}
               style={{
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                transform: [{ translateX: -32 }, { translateY: -32 }],
-                width: 64,
-                height: 64,
-                borderRadius: 32,
-                backgroundColor: "rgba(0,0,0,0.7)",
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: Colors.neutral[100],
                 justifyContent: "center",
                 alignItems: "center",
               }}
             >
-              <Play size={32} color="#FFFFFF" fill="#FFFFFF" />
-            </Pressable>
-          )}
+              <MoreVertical size={24} color={Colors.neutral[700]} />
+            </TouchableOpacity>
 
-          {/* Duration Badge */}
-          <View
-            style={{
-              position: "absolute",
-              bottom: 16,
-              right: 16,
-              backgroundColor: "rgba(0,0,0,0.7)",
-              paddingHorizontal: 12,
-              paddingVertical: 6,
-              borderRadius: 6,
-              flexDirection: "row",
-              alignItems: "center",
-            }}
-          >
-            <Clock size={14} color="#FFFFFF" />
-            <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "600", marginLeft: 4 }}>
-              {recipe.cookingTime}분
-            </Text>
+            {/* 드롭다운 메뉴 */}
+            {showMoreMenu && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 44,
+                  right: 0,
+                  backgroundColor: "#FFFFFF",
+                  borderRadius: 12,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.15,
+                  shadowRadius: 12,
+                  elevation: 8,
+                  minWidth: 140,
+                  overflow: "hidden",
+                  zIndex: 100,
+                }}
+              >
+                <TouchableOpacity
+                  onPress={handleReport}
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: 12,
+                    paddingHorizontal: 16,
+                    gap: 10,
+                  }}
+                >
+                  <Flag size={18} color={Colors.error.main} />
+                  <Text style={{ fontSize: 14, fontWeight: "500", color: Colors.error.main }}>
+                    신고하기
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false}>
 
         {/* Content Section */}
         <View style={{ padding: Spacing.xl }}>
@@ -343,7 +403,7 @@ export default function RecipeDetailScreen() {
               >
                 {recipe.title}
               </Text>
-              <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm }}>
+              <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm, gap: 8 }}>
                 <View
                   style={{
                     backgroundColor: Colors.primary[100],
@@ -354,6 +414,22 @@ export default function RecipeDetailScreen() {
                 >
                   <Text style={{ color: Colors.primary[600], fontSize: 12, fontWeight: "600" }}>
                     {recipe.difficulty}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: Colors.neutral[100],
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: 4,
+                    gap: 4,
+                  }}
+                >
+                  <Clock size={12} color={Colors.neutral[500]} />
+                  <Text style={{ color: Colors.neutral[600], fontSize: 12, fontWeight: "600" }}>
+                    {recipe.cookingTime}분
                   </Text>
                 </View>
               </View>
@@ -394,44 +470,6 @@ export default function RecipeDetailScreen() {
               {recipe.description}
             </Text>
           )}
-
-          {/* Author */}
-          <Pressable
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              marginTop: Spacing.lg,
-              padding: Spacing.md,
-              backgroundColor: Colors.neutral[100],
-              borderRadius: BorderRadius.lg,
-            }}
-          >
-            <View
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                backgroundColor: Colors.neutral[300],
-                justifyContent: "center",
-                alignItems: "center",
-                overflow: "hidden"
-              }}
-            >
-              {recipe.authorProfileImgUrl ? (
-                <Image source={{ uri: recipe.authorProfileImgUrl }} style={{ width: "100%", height: "100%" }} />
-              ) : (
-                <Text style={{ color: Colors.neutral[600], fontWeight: "bold", fontSize: 16 }}>
-                  {(recipe.authorName || "U").substring(0, 1)}
-                </Text>
-              )}
-            </View>
-            <View style={{ marginLeft: Spacing.md }}>
-              <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.neutral[900] }}>
-                {recipe.authorName}
-              </Text>
-              {/* Channel 정보는 현재 API에 없음, creatorName? */}
-            </View>
-          </Pressable>
 
           {/* Tags */}
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: Spacing.lg }}>
@@ -610,7 +648,7 @@ export default function RecipeDetailScreen() {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={handleAddToMealPlan}
+          onPress={handleAddToQueue}
           activeOpacity={0.8}
           style={{
             flex: 1,
@@ -623,9 +661,9 @@ export default function RecipeDetailScreen() {
             gap: 6,
           }}
         >
-          <CalendarPlus size={20} color={Colors.neutral[700]} />
+          <ListPlus size={20} color={Colors.neutral[700]} />
           <Text style={{ fontSize: 14, fontWeight: "600", color: Colors.neutral[700] }}>
-            식단추가
+            대기열
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -656,12 +694,12 @@ export default function RecipeDetailScreen() {
         onSelect={async (bookId, bookName) => {
           try {
             await api.post(`/api/v1/recipebooks/${bookId}/recipes`, { recipeId: recipe.id });
-            Alert.alert("완료", `"${bookName}"에 저장되었습니다.`);
+            setSavedBookName(bookName);
+            setShowSaveSuccessModal(true);
             setIsBookmarked(true);
           } catch (error: any) {
-            console.error(error);
             if (error.message && error.message.includes("이미 레시피북에 추가된")) {
-              Alert.alert("알림", "이미 해당 레시피북에 저장된 레시피입니다.");
+              setShowAlreadySavedModal(true);
             } else {
               Alert.alert("오류", "레시피 저장에 실패했습니다.");
             }
@@ -669,6 +707,883 @@ export default function RecipeDetailScreen() {
         }}
         title="저장 위치"
       />
+
+      {/* 대기열 추가 성공 모달 */}
+      <Modal visible={showQueueSuccessModal} transparent animationType="fade">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={() => setShowQueueSuccessModal(false)}
+        >
+          <Pressable
+            style={{
+              width: "85%",
+              backgroundColor: Colors.neutral[0],
+              borderRadius: BorderRadius["2xl"],
+              padding: Spacing.xl,
+              alignItems: "center",
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* 성공 아이콘 */}
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: Colors.success.light,
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: Spacing.lg,
+              }}
+            >
+              <CheckCircle size={40} color={Colors.success.main} />
+            </View>
+
+            {/* 제목 */}
+            <Text
+              style={{
+                fontSize: Typography.fontSize.xl,
+                fontWeight: "700",
+                color: Colors.neutral[900],
+                marginBottom: Spacing.sm,
+              }}
+            >
+              대기열에 추가되었어요!
+            </Text>
+
+            {/* 설명 */}
+            <Text
+              style={{
+                fontSize: Typography.fontSize.sm,
+                color: Colors.neutral[500],
+                textAlign: "center",
+                lineHeight: 20,
+                marginBottom: Spacing.xl,
+              }}
+            >
+              "{recipe.title}" 레시피가{"\n"}식단표 대기열에 추가되었습니다.
+            </Text>
+
+            {/* 버튼들 */}
+            <View style={{ flexDirection: "row", gap: Spacing.sm, width: "100%" }}>
+              <TouchableOpacity
+                onPress={() => setShowQueueSuccessModal(false)}
+                activeOpacity={0.8}
+                style={{
+                  flex: 1,
+                  backgroundColor: Colors.neutral[100],
+                  borderRadius: BorderRadius.lg,
+                  paddingVertical: Spacing.md,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "600",
+                    color: Colors.neutral[700],
+                  }}
+                >
+                  확인
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowQueueSuccessModal(false);
+                  router.push("/(tabs)/meal-plan");
+                }}
+                activeOpacity={0.8}
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  backgroundColor: Colors.primary[500],
+                  borderRadius: BorderRadius.lg,
+                  paddingVertical: Spacing.md,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                }}
+              >
+                <Calendar size={18} color="#FFFFFF" />
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "600",
+                    color: "#FFFFFF",
+                  }}
+                >
+                  식단표로 이동
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 레시피북 저장 성공 모달 */}
+      <Modal visible={showSaveSuccessModal} transparent animationType="fade">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={() => setShowSaveSuccessModal(false)}
+        >
+          <Pressable
+            style={{
+              width: "85%",
+              backgroundColor: Colors.neutral[0],
+              borderRadius: BorderRadius["2xl"],
+              padding: Spacing.xl,
+              alignItems: "center",
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* 성공 아이콘 */}
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: Colors.primary[50],
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: Spacing.lg,
+              }}
+            >
+              <BookOpen size={40} color={Colors.primary[500]} />
+            </View>
+
+            {/* 제목 */}
+            <Text
+              style={{
+                fontSize: Typography.fontSize.xl,
+                fontWeight: "700",
+                color: Colors.neutral[900],
+                marginBottom: Spacing.sm,
+              }}
+            >
+              레시피북에 저장되었어요!
+            </Text>
+
+            {/* 설명 */}
+            <Text
+              style={{
+                fontSize: Typography.fontSize.sm,
+                color: Colors.neutral[500],
+                textAlign: "center",
+                lineHeight: 20,
+                marginBottom: Spacing.xl,
+              }}
+            >
+              "{savedBookName}"에{"\n"}레시피가 저장되었습니다.
+            </Text>
+
+            {/* 버튼 */}
+            <TouchableOpacity
+              onPress={() => setShowSaveSuccessModal(false)}
+              activeOpacity={0.8}
+              style={{
+                width: "100%",
+                backgroundColor: Colors.primary[500],
+                borderRadius: BorderRadius.lg,
+                paddingVertical: Spacing.md,
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: Typography.fontSize.base,
+                  fontWeight: "600",
+                  color: "#FFFFFF",
+                }}
+              >
+                확인
+              </Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 이미 저장됨 모달 */}
+      <Modal visible={showAlreadySavedModal} transparent animationType="fade">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={() => setShowAlreadySavedModal(false)}
+        >
+          <Pressable
+            style={{
+              width: "85%",
+              backgroundColor: Colors.neutral[0],
+              borderRadius: BorderRadius["2xl"],
+              padding: Spacing.xl,
+              alignItems: "center",
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* 알림 아이콘 */}
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: Colors.warning.light,
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: Spacing.lg,
+              }}
+            >
+              <AlertCircle size={40} color={Colors.warning.main} />
+            </View>
+
+            {/* 제목 */}
+            <Text
+              style={{
+                fontSize: Typography.fontSize.xl,
+                fontWeight: "700",
+                color: Colors.neutral[900],
+                marginBottom: Spacing.sm,
+              }}
+            >
+              이미 저장된 레시피예요
+            </Text>
+
+            {/* 설명 */}
+            <Text
+              style={{
+                fontSize: Typography.fontSize.sm,
+                color: Colors.neutral[500],
+                textAlign: "center",
+                lineHeight: 20,
+                marginBottom: Spacing.xl,
+              }}
+            >
+              이 레시피는 이미 해당{"\n"}레시피북에 저장되어 있습니다.
+            </Text>
+
+            {/* 버튼 */}
+            <TouchableOpacity
+              onPress={() => setShowAlreadySavedModal(false)}
+              activeOpacity={0.8}
+              style={{
+                width: "100%",
+                backgroundColor: Colors.neutral[100],
+                borderRadius: BorderRadius.lg,
+                paddingVertical: Spacing.md,
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: Typography.fontSize.base,
+                  fontWeight: "600",
+                  color: Colors.neutral[700],
+                }}
+              >
+                확인
+              </Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 그룹 선택 모달 (장보기) */}
+      <Modal visible={showGroupSelectModal} transparent animationType="slide">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "flex-end",
+          }}
+          onPress={() => setShowGroupSelectModal(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: Colors.neutral[0],
+              borderTopLeftRadius: BorderRadius["2xl"],
+              borderTopRightRadius: BorderRadius["2xl"],
+              maxHeight: "60%",
+              paddingTop: Spacing.md,
+              paddingBottom: insets.bottom + Spacing.lg,
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* 핸들바 */}
+            <View
+              style={{
+                width: 36,
+                height: 4,
+                backgroundColor: Colors.neutral[300],
+                borderRadius: 2,
+                alignSelf: "center",
+                marginBottom: Spacing.md,
+              }}
+            />
+
+            {/* 제목 */}
+            <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.md }}>
+              <Text
+                style={{
+                  fontSize: Typography.fontSize.lg,
+                  fontWeight: "700",
+                  color: Colors.neutral[900],
+                }}
+              >
+                장보기 목록에 추가
+              </Text>
+              <Text
+                style={{
+                  fontSize: Typography.fontSize.sm,
+                  color: Colors.neutral[500],
+                  marginTop: 4,
+                }}
+              >
+                어느 그룹의 장보기 목록에 추가할까요?
+              </Text>
+            </View>
+
+            {/* 그룹 목록 */}
+            {groupsLoading ? (
+              <View style={{ padding: Spacing.xl, alignItems: "center" }}>
+                <ActivityIndicator size="small" color={Colors.primary[500]} />
+              </View>
+            ) : (
+              <ScrollView style={{ maxHeight: 300 }}>
+                {groups.map((group) => (
+                  <TouchableOpacity
+                    key={group.id}
+                    onPress={() => handleGroupSelect(group.id, group.name)}
+                    activeOpacity={0.7}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingVertical: Spacing.md,
+                      paddingHorizontal: Spacing.xl,
+                      borderBottomWidth: 1,
+                      borderBottomColor: Colors.neutral[100],
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 24,
+                        backgroundColor: Colors.primary[100],
+                        justifyContent: "center",
+                        alignItems: "center",
+                        marginRight: Spacing.md,
+                      }}
+                    >
+                      <Users size={24} color={Colors.primary[600]} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontSize: Typography.fontSize.base,
+                          fontWeight: "600",
+                          color: Colors.neutral[900],
+                        }}
+                      >
+                        {group.name}
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: Typography.fontSize.sm,
+                          color: Colors.neutral[500],
+                          marginTop: 2,
+                        }}
+                      >
+                        {group.memberCount}명
+                      </Text>
+                    </View>
+                    <ShoppingCart size={20} color={Colors.neutral[400]} />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+
+            {/* 취소 버튼 */}
+            <View style={{ paddingHorizontal: Spacing.xl, paddingTop: Spacing.md }}>
+              <TouchableOpacity
+                onPress={() => setShowGroupSelectModal(false)}
+                activeOpacity={0.8}
+                style={{
+                  backgroundColor: Colors.neutral[100],
+                  borderRadius: BorderRadius.lg,
+                  paddingVertical: Spacing.md,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "600",
+                    color: Colors.neutral[700],
+                  }}
+                >
+                  취소
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 재료 선택 모달 */}
+      <Modal visible={showIngredientSelectModal} transparent animationType="slide">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "flex-end",
+          }}
+          onPress={() => setShowIngredientSelectModal(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: Colors.neutral[0],
+              borderTopLeftRadius: BorderRadius["2xl"],
+              borderTopRightRadius: BorderRadius["2xl"],
+              height: "70%",
+              paddingTop: Spacing.md,
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* 핸들바 */}
+            <View
+              style={{
+                width: 36,
+                height: 4,
+                backgroundColor: Colors.neutral[300],
+                borderRadius: 2,
+                alignSelf: "center",
+                marginBottom: Spacing.md,
+              }}
+            />
+
+            {/* 헤더 */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingHorizontal: Spacing.xl,
+                marginBottom: Spacing.md,
+              }}
+            >
+              <View>
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.lg,
+                    fontWeight: "700",
+                    color: Colors.neutral[900],
+                  }}
+                >
+                  재료 선택
+                </Text>
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.sm,
+                    color: Colors.neutral[500],
+                    marginTop: 2,
+                  }}
+                >
+                  {selectedGroupName}에 추가할 재료를 선택하세요
+                </Text>
+              </View>
+              <TouchableOpacity onPress={toggleAllIngredients} activeOpacity={0.7}>
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.sm,
+                    color: Colors.primary[500],
+                    fontWeight: "600",
+                  }}
+                >
+                  {recipe && selectedIngredients.length === recipe.ingredients.length
+                    ? "전체 해제"
+                    : "전체 선택"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* 선택된 개수 */}
+            <View
+              style={{
+                backgroundColor: Colors.primary[50],
+                paddingVertical: Spacing.sm,
+                paddingHorizontal: Spacing.xl,
+                marginBottom: Spacing.sm,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: Typography.fontSize.sm,
+                  color: Colors.primary[700],
+                  fontWeight: "500",
+                }}
+              >
+                {selectedIngredients.length}개 선택됨
+              </Text>
+            </View>
+
+            {/* 재료 목록 */}
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: Spacing.md }}>
+              {recipe?.ingredients.map((ingredient, index) => {
+                const isSelected = selectedIngredients.includes(ingredient.name);
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    onPress={() => toggleIngredient(ingredient.name)}
+                    activeOpacity={0.7}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingVertical: Spacing.md,
+                      paddingHorizontal: Spacing.xl,
+                      backgroundColor: isSelected ? Colors.primary[50] : "transparent",
+                    }}
+                  >
+                    {isSelected ? (
+                      <CheckSquare size={24} color={Colors.primary[500]} />
+                    ) : (
+                      <Square size={24} color={Colors.neutral[300]} />
+                    )}
+                    <View style={{ flex: 1, marginLeft: Spacing.md }}>
+                      <Text
+                        style={{
+                          fontSize: Typography.fontSize.base,
+                          color: Colors.neutral[900],
+                          fontWeight: isSelected ? "600" : "400",
+                        }}
+                      >
+                        {ingredient.name}
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: Typography.fontSize.sm,
+                          color: Colors.neutral[500],
+                          marginTop: 2,
+                        }}
+                      >
+                        {ingredient.amount} {ingredient.unit}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* 하단 버튼 */}
+            <View
+              style={{
+                flexDirection: "row",
+                gap: Spacing.sm,
+                paddingHorizontal: Spacing.xl,
+                paddingTop: Spacing.md,
+                paddingBottom: insets.bottom + Spacing.md,
+                borderTopWidth: 1,
+                borderTopColor: Colors.neutral[100],
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => setShowIngredientSelectModal(false)}
+                activeOpacity={0.8}
+                style={{
+                  flex: 1,
+                  backgroundColor: Colors.neutral[100],
+                  borderRadius: BorderRadius.lg,
+                  paddingVertical: Spacing.md,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "600",
+                    color: Colors.neutral[700],
+                  }}
+                >
+                  취소
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleAddToShoppingList}
+                disabled={selectedIngredients.length === 0}
+                activeOpacity={0.8}
+                style={{
+                  flex: 2,
+                  backgroundColor:
+                    selectedIngredients.length === 0
+                      ? Colors.neutral[200]
+                      : Colors.primary[500],
+                  borderRadius: BorderRadius.lg,
+                  paddingVertical: Spacing.md,
+                  alignItems: "center",
+                  flexDirection: "row",
+                  justifyContent: "center",
+                  gap: 6,
+                }}
+              >
+                <ShoppingCart
+                  size={18}
+                  color={selectedIngredients.length === 0 ? Colors.neutral[400] : "#FFFFFF"}
+                />
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "600",
+                    color: selectedIngredients.length === 0 ? Colors.neutral[400] : "#FFFFFF",
+                  }}
+                >
+                  {selectedIngredients.length}개 추가하기
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 장보기 추가 성공 모달 */}
+      <Modal visible={showShoppingSuccessModal} transparent animationType="fade">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={() => setShowShoppingSuccessModal(false)}
+        >
+          <Pressable
+            style={{
+              width: "85%",
+              backgroundColor: Colors.neutral[0],
+              borderRadius: BorderRadius["2xl"],
+              padding: Spacing.xl,
+              alignItems: "center",
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* 성공 아이콘 */}
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: Colors.success.light,
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: Spacing.lg,
+              }}
+            >
+              <ShoppingCart size={40} color={Colors.success.main} />
+            </View>
+
+            {/* 제목 */}
+            <Text
+              style={{
+                fontSize: Typography.fontSize.xl,
+                fontWeight: "700",
+                color: Colors.neutral[900],
+                marginBottom: Spacing.sm,
+              }}
+            >
+              장보기 목록에 추가됐어요!
+            </Text>
+
+            {/* 설명 */}
+            <Text
+              style={{
+                fontSize: Typography.fontSize.sm,
+                color: Colors.neutral[500],
+                textAlign: "center",
+                lineHeight: 20,
+                marginBottom: Spacing.xl,
+              }}
+            >
+              {selectedIngredients.length}개의 재료가{"\n"}"{selectedGroupName}" 장보기 목록에 추가되었습니다.
+            </Text>
+
+            {/* 버튼 */}
+            <TouchableOpacity
+              onPress={() => setShowShoppingSuccessModal(false)}
+              activeOpacity={0.8}
+              style={{
+                width: "100%",
+                backgroundColor: Colors.primary[500],
+                borderRadius: BorderRadius.lg,
+                paddingVertical: Spacing.md,
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: Typography.fontSize.base,
+                  fontWeight: "600",
+                  color: "#FFFFFF",
+                }}
+              >
+                확인
+              </Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 그룹 없음 모달 */}
+      <Modal visible={showNoGroupModal} transparent animationType="fade">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={() => setShowNoGroupModal(false)}
+        >
+          <Pressable
+            style={{
+              width: "85%",
+              backgroundColor: Colors.neutral[0],
+              borderRadius: BorderRadius["2xl"],
+              padding: Spacing.xl,
+              alignItems: "center",
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* 아이콘 */}
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: Colors.neutral[100],
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: Spacing.lg,
+              }}
+            >
+              <Users size={40} color={Colors.neutral[400]} />
+            </View>
+
+            {/* 제목 */}
+            <Text
+              style={{
+                fontSize: Typography.fontSize.xl,
+                fontWeight: "700",
+                color: Colors.neutral[900],
+                marginBottom: Spacing.sm,
+              }}
+            >
+              참여 중인 그룹이 없어요
+            </Text>
+
+            {/* 설명 */}
+            <Text
+              style={{
+                fontSize: Typography.fontSize.sm,
+                color: Colors.neutral[500],
+                textAlign: "center",
+                lineHeight: 20,
+                marginBottom: Spacing.xl,
+              }}
+            >
+              장보기 목록은 그룹 단위로 관리됩니다.{"\n"}그룹에 참여한 후 이용해주세요.
+            </Text>
+
+            {/* 버튼들 */}
+            <View style={{ flexDirection: "row", gap: Spacing.sm, width: "100%" }}>
+              <TouchableOpacity
+                onPress={() => setShowNoGroupModal(false)}
+                activeOpacity={0.8}
+                style={{
+                  flex: 1,
+                  backgroundColor: Colors.neutral[100],
+                  borderRadius: BorderRadius.lg,
+                  paddingVertical: Spacing.md,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "600",
+                    color: Colors.neutral[700],
+                  }}
+                >
+                  닫기
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowNoGroupModal(false);
+                  router.push("/(tabs)/group");
+                }}
+                activeOpacity={0.8}
+                style={{
+                  flex: 1,
+                  backgroundColor: Colors.primary[500],
+                  borderRadius: BorderRadius.lg,
+                  paddingVertical: Spacing.md,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "600",
+                    color: "#FFFFFF",
+                  }}
+                >
+                  그룹 만들기
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 장보기 추가 로딩 */}
+      {isAddingToShoppingList && (
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.3)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: Colors.neutral[0],
+              borderRadius: BorderRadius.xl,
+              padding: Spacing.xl,
+              alignItems: "center",
+            }}
+          >
+            <ActivityIndicator size="large" color={Colors.primary[500]} />
+            <Text style={{ marginTop: Spacing.md, color: Colors.neutral[700] }}>
+              장보기 목록에 추가 중...
+            </Text>
+          </View>
+        </View>
+      )}
     </View >
   );
 }

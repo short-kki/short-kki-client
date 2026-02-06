@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
 
+const RECIPE_PLACEHOLDER = require("@/assets/images/recipe-placeholder3x.png");
+
 interface RecipeBookSelectModalProps {
     visible: boolean;
     onClose: () => void;
@@ -156,9 +158,11 @@ export default function RecipeBookSelectModal({
                                                 overflow: "hidden",
                                             }}
                                         >
-                                            {book.thumbnails[0] && (
-                                                <Image source={{ uri: book.thumbnails[0] }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
-                                            )}
+                                            <Image
+                                                source={book.thumbnails[0] ? { uri: book.thumbnails[0] } : RECIPE_PLACEHOLDER}
+                                                style={{ width: "100%", height: "100%" }}
+                                                contentFit="cover"
+                                            />
                                         </View>
                                         <View style={{ flex: 1 }}>
                                             <Text style={{ fontSize: Typography.fontSize.base, fontWeight: "600", color: Colors.neutral[900] }}>
@@ -192,9 +196,11 @@ export default function RecipeBookSelectModal({
                                             overflow: "hidden",
                                         }}
                                     >
-                                        {book.thumbnails[0] && (
-                                            <Image source={{ uri: book.thumbnails[0] }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
-                                        )}
+                                        <Image
+                                            source={book.thumbnails[0] ? { uri: book.thumbnails[0] } : RECIPE_PLACEHOLDER}
+                                            style={{ width: "100%", height: "100%" }}
+                                            contentFit="cover"
+                                        />
                                     </View>
                                     <View style={{ flex: 1 }}>
                                         <Text style={{ fontSize: Typography.fontSize.base, fontWeight: "600", color: Colors.neutral[900] }}>
