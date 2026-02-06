@@ -15,7 +15,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   BookOpen,
   Bookmark,
-  CalendarPlus,
+  ListPlus,
   Check,
   ExternalLink,
   FolderPlus,
@@ -410,7 +410,7 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
           </Text>
         </Pressable>
 
-        {/* 식단 추가 */}
+        {/* 대기열 추가 */}
         <TouchableOpacity onPress={onAddToMealPlan} activeOpacity={0.8} style={{ alignItems: "center" }}>
           <View
             style={{
@@ -422,10 +422,10 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
               alignItems: "center",
             }}
           >
-            <CalendarPlus size={26} color="#FFF" />
+            <ListPlus size={26} color="#FFF" />
           </View>
           <Text style={{ color: "#FFF", fontSize: 11, fontWeight: "500", marginTop: 4 }}>
-            식단
+            대기열
           </Text>
         </TouchableOpacity>
 
@@ -499,9 +499,11 @@ export default function ShortsScreen() {
     );
   }, [sections]);
 
+  const isValidYoutubeId = (id: string) => /^[a-zA-Z0-9_-]{11}$/.test(id);
+
   const SHORTS_DATA: ShortsItem[] = useMemo(() => {
-    if (isCurationMode) return curationShortsData;
-    return [...shorts, ...curationShorts];
+    const raw = isCurationMode ? curationShortsData : [...shorts, ...curationShorts];
+    return raw.filter((item) => isValidYoutubeId(item.videoId));
   }, [curationShortsData, isCurationMode, shorts, curationShorts]);
 
   const [activeIndex, setActiveIndex] = useState(0);
@@ -572,10 +574,12 @@ export default function ShortsScreen() {
   useEffect(() => {
     if (!startId || hasScrolledRef.current) return;
     const index = SHORTS_DATA.findIndex(item => item.id === startId);
-    if (index !== -1) {
+    if (index !== -1 && index < SHORTS_DATA.length) {
       setTimeout(() => {
-        flatListRef.current?.scrollToIndex({ index, animated: false });
-        setActiveIndex(index);
+        if (index < SHORTS_DATA.length) {
+          flatListRef.current?.scrollToIndex({ index, animated: false });
+          setActiveIndex(index);
+        }
         hasScrolledRef.current = true;
       }, 100);
     }

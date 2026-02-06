@@ -28,6 +28,7 @@ export interface CurationRecipe {
   author: string;
   creatorName?: string;
   bookmarks?: number;
+  sourceUrl?: string;
 }
 
 export interface CurationSection {

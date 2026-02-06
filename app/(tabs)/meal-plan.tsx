@@ -271,35 +271,46 @@ export default function MealPlanScreen() {
   const [showQueue, setShowQueue] = useState(false);
   const [showPersonalMeals, setShowPersonalMeals] = useState(true);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [mealPlanTab, setMealPlanTab] = useState<"personal" | "group">("personal");
   const [menuTarget, setMenuTarget] = useState<
     | { mealId: string; source: "personal" }
     | { mealId: string; source: "group"; groupId: string }
     | null
   >(null);
 
-  // 활성 월 계산: 주간 뷰는 목요일 기준, 월간 뷰는 viewMonth
-  const activeMonth = useMemo(() => {
+  // 조회 기간 계산: 주간 뷰는 해당 주의 일요일~토요일, 월간 뷰는 해당 월 1일~말일
+  const dateRange = useMemo(() => {
     if (viewMode === "month") {
-      return { year: viewMonth.year, month: viewMonth.month };
+      // 월간 뷰: 해당 월의 1일 ~ 말일
+      const startDate = new Date(viewMonth.year, viewMonth.month, 1);
+      const endDate = new Date(viewMonth.year, viewMonth.month + 1, 0);
+      return {
+        startDate: formatDateId(startDate),
+        endDate: formatDateId(endDate),
+      };
     }
-    // 주간 뷰: 목요일(+3일) 기준
-    const refDate = new Date(currentWeekStart);
-    refDate.setDate(refDate.getDate() + 3);
-    return { year: refDate.getFullYear(), month: refDate.getMonth() };
+    // 주간 뷰: 해당 주의 일요일 ~ 토요일
+    const weekEnd = new Date(currentWeekStart);
+    weekEnd.setDate(currentWeekStart.getDate() + 6);
+    return {
+      startDate: formatDateId(currentWeekStart),
+      endDate: formatDateId(weekEnd),
+    };
   }, [viewMode, viewMonth, currentWeekStart]);
 
   // 캘린더 API 훅
-  const { personalMeals: apiMeals, groupMealsByGroup: apiGroupMeals, loading: calendarLoading, error: calendarError, refetch: refetchCalendar, deleteCalendarMeal } = useRecipeCalendar(activeMonth.year, activeMonth.month);
+  const { personalMeals: apiMeals, groupMealsByGroup: apiGroupMeals, groups: apiGroups, loading: calendarLoading, error: calendarError, refetch: refetchCalendar, deleteCalendarMeal } = useRecipeCalendar(dateRange.startDate, dateRange.endDate);
 
   // 대기열 API 훅
   const { queues: savedRecipes, loading: queueLoading, addQueue, deleteQueue, addToCalendar, refetch: refetchQueue } = useRecipeQueue();
   const queueInitializedRef = useRef(false);
 
-  // 탭 포커스 시 대기열 새로고침
+  // 탭 포커스 시 캘린더 & 대기열 새로고침
   useFocusEffect(
     useCallback(() => {
+      refetchCalendar();
       refetchQueue();
-    }, [refetchQueue])
+    }, [refetchCalendar, refetchQueue])
   );
 
   // 대기열 초기 로드 완료 시 항목이 있으면 열기
@@ -360,13 +371,15 @@ export default function MealPlanScreen() {
 
   // ========== 드래그 앤 드랍 ==========
   const [draggedRecipe, setDraggedRecipe] = useState<{ id: string; recipeId: string; title: string; thumbnail: string } | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ type: "personal" } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ type: "personal" } | { type: "group"; groupId: string } | null>(null);
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const ghostX = useSharedValue(0);
   const ghostY = useSharedValue(0);
   const dragScale = useSharedValue(0);
   const personalSectionRef = useRef<View>(null);
   const personalLayout = useRef({ pageY: 0, height: 0, pageX: 0, width: 0 });
+  const groupSectionRefs = useRef<Record<string, View | null>>({});
+  const groupLayouts = useRef<Record<string, { pageY: number; height: number; pageX: number; width: number }>>({});
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollOffsetY = useRef(0);
   const autoScrollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -385,16 +398,16 @@ export default function MealPlanScreen() {
   const selectedMeals = localMeals[selectedDate] ?? EMPTY_MEALS;
 
   // 그룹별 섹션 정보: groupId → { groupName, meals by date }
+  // apiGroups를 기반으로 모든 그룹을 표시 (식단이 없어도)
   const groupSections = useMemo(() => {
     const sections: { groupId: string; groupName: string; meals: Record<string, CalendarMeal[]> }[] = [];
-    for (const [groupId, dateMap] of Object.entries(localGroupMeals)) {
-      // 첫 번째 meal에서 groupName 추출
-      const firstMeal = Object.values(dateMap).flat()[0];
-      const groupName = firstMeal?.groupName || `그룹 ${groupId}`;
-      sections.push({ groupId, groupName, meals: dateMap });
+    for (const group of apiGroups) {
+      const groupId = String(group.groupId);
+      const meals = localGroupMeals[groupId] || {};
+      sections.push({ groupId, groupName: group.groupName, meals });
     }
     return sections;
-  }, [localGroupMeals]);
+  }, [apiGroups, localGroupMeals]);
 
   const datesWithMeals = useMemo(() => {
     const set = new Set<string>();
@@ -424,6 +437,12 @@ export default function MealPlanScreen() {
     personalSectionRef.current?.measureInWindow((x, y, w, h) => {
       personalLayout.current = { pageX: x + w / 2, pageY: y, width: w, height: h };
     });
+    // 그룹 섹션들도 측정
+    for (const groupId of Object.keys(groupSectionRefs.current)) {
+      groupSectionRefs.current[groupId]?.measureInWindow((x, y, w, h) => {
+        groupLayouts.current[groupId] = { pageX: x + w / 2, pageY: y, width: w, height: h };
+      });
+    }
   }, []);
 
   const handleDragStart = useCallback((recipe: { id: string; recipeId: string; title: string; thumbnail: string }, x: number, y: number) => {
@@ -477,13 +496,27 @@ export default function MealPlanScreen() {
       stopAutoScroll();
     }
 
-    const pL = personalLayout.current;
-    if (pL.height > 0 && y >= pL.pageY && y <= pL.pageY + pL.height) {
-      setDropTarget(prev => prev?.type === "personal" ? prev : { type: "personal" });
-      return;
+    // 개인 식단 탭인 경우
+    if (mealPlanTab === "personal") {
+      const pL = personalLayout.current;
+      if (pL.height > 0 && y >= pL.pageY && y <= pL.pageY + pL.height) {
+        setDropTarget(prev => prev?.type === "personal" ? prev : { type: "personal" });
+        return;
+      }
     }
+
+    // 그룹 식단 탭인 경우
+    if (mealPlanTab === "group") {
+      for (const [groupId, layout] of Object.entries(groupLayouts.current)) {
+        if (layout.height > 0 && y >= layout.pageY && y <= layout.pageY + layout.height) {
+          setDropTarget(prev => (prev?.type === "group" && prev.groupId === groupId) ? prev : { type: "group", groupId });
+          return;
+        }
+      }
+    }
+
     setDropTarget(prev => prev === null ? prev : null);
-  }, [startAutoScroll, stopAutoScroll, insets.top, insets.bottom, windowHeight]);
+  }, [startAutoScroll, stopAutoScroll, insets.top, insets.bottom, windowHeight, mealPlanTab]);
 
   const dropTargetRef = useRef(dropTarget);
   dropTargetRef.current = dropTarget;
@@ -497,44 +530,98 @@ export default function MealPlanScreen() {
 
     // 낙관적 UI 업데이트 (임시 ID는 음수로 서버 ID와 충돌 방지)
     const tempId = _tempIdCounter--;
+    const isGroupTarget = target.type === "group";
+    const targetGroupId = isGroupTarget ? parseInt(target.groupId) : null;
+    const targetGroupName = isGroupTarget
+      ? apiGroups.find(g => String(g.groupId) === target.groupId)?.groupName || null
+      : null;
+
     const tempMeal: CalendarMeal = {
       id: tempId,
       recipeId: parseInt(recipe.recipeId),
       recipeTitle: recipe.title,
+      cookingTime: null,
       mainImgUrl: recipe.thumbnail || null,
       scheduledDate: selectedDate,
       sortOrder: 0,
-      groupId: null,
-      groupName: null,
+      groupId: targetGroupId,
+      groupName: targetGroupName,
     };
-    setLocalMeals(prev => ({
-      ...prev,
-      [selectedDate]: [tempMeal, ...(prev[selectedDate] || [])],
-    }));
+
+    if (isGroupTarget) {
+      // 그룹 식단에 추가
+      setLocalGroupMeals(prev => {
+        const groupId = target.groupId;
+        const groupMeals = prev[groupId] || {};
+        return {
+          ...prev,
+          [groupId]: {
+            ...groupMeals,
+            [selectedDate]: [tempMeal, ...(groupMeals[selectedDate] || [])],
+          },
+        };
+      });
+    } else {
+      // 개인 식단에 추가
+      setLocalMeals(prev => ({
+        ...prev,
+        [selectedDate]: [tempMeal, ...(prev[selectedDate] || [])],
+      }));
+    }
     setDraggedRecipe(null);
     setDropTarget(null);
 
     // API 호출: 대기열에서 캘린더로 추가
     try {
-      const createdMeal = await addToCalendar(parseInt(recipe.id), selectedDate, null);
+      const createdMeal = await addToCalendar(parseInt(recipe.id), selectedDate, targetGroupId);
       if (createdMeal) {
         // API 응답으로 로컬 상태 업데이트 (임시 ID를 실제 ID로 교체)
-        setLocalMeals(prev => ({
-          ...prev,
-          [selectedDate]: prev[selectedDate].map(m =>
-            m.id === tempId ? createdMeal : m
-          ),
-        }));
+        if (isGroupTarget) {
+          setLocalGroupMeals(prev => {
+            const groupId = target.groupId;
+            const groupMeals = prev[groupId] || {};
+            return {
+              ...prev,
+              [groupId]: {
+                ...groupMeals,
+                [selectedDate]: (groupMeals[selectedDate] || []).map(m =>
+                  m.id === tempId ? createdMeal : m
+                ),
+              },
+            };
+          });
+        } else {
+          setLocalMeals(prev => ({
+            ...prev,
+            [selectedDate]: prev[selectedDate].map(m =>
+              m.id === tempId ? createdMeal : m
+            ),
+          }));
+        }
       }
     } catch (err) {
       console.error('캘린더 추가 실패:', err);
       // 실패 시 낙관적 업데이트 롤백
-      setLocalMeals(prev => ({
-        ...prev,
-        [selectedDate]: prev[selectedDate].filter(m => m.id !== tempId),
-      }));
+      if (isGroupTarget) {
+        setLocalGroupMeals(prev => {
+          const groupId = target.groupId;
+          const groupMeals = prev[groupId] || {};
+          return {
+            ...prev,
+            [groupId]: {
+              ...groupMeals,
+              [selectedDate]: (groupMeals[selectedDate] || []).filter(m => m.id !== tempId),
+            },
+          };
+        });
+      } else {
+        setLocalMeals(prev => ({
+          ...prev,
+          [selectedDate]: prev[selectedDate].filter(m => m.id !== tempId),
+        }));
+      }
     }
-  }, [selectedDate, addToCalendar]);
+  }, [selectedDate, addToCalendar, apiGroups]);
 
   const cancelDrop = useCallback(() => {
     stopAutoScroll();
@@ -550,27 +637,51 @@ export default function MealPlanScreen() {
 
     stopAutoScroll();
     setScrollEnabled(true);
-    const pL = personalLayout.current;
-    const overPersonal = pL.height > 0 && y >= pL.pageY && y <= pL.pageY + pL.height;
 
-    if (overPersonal) {
-      const targetY = pL.pageY + 52;
-      const targetX = pL.pageX;
-      ghostX.value = withSpring(targetX, { damping: 20, stiffness: 200 });
-      ghostY.value = withSpring(targetY, { damping: 20, stiffness: 200 });
-      dragScale.value = withDelay(100, withTiming(0, { duration: 200 }, (finished) => {
-        if (finished) {
-          runOnJS(completeDrop)();
-        }
-      }));
-    } else {
-      dragScale.value = withTiming(0, { duration: 150 }, (finished) => {
-        if (finished) {
-          runOnJS(cancelDrop)();
-        }
-      });
+    // 개인 식단 탭인 경우
+    if (mealPlanTab === "personal") {
+      const pL = personalLayout.current;
+      const overPersonal = pL.height > 0 && y >= pL.pageY && y <= pL.pageY + pL.height;
+
+      if (overPersonal) {
+        const targetY = pL.pageY + 52;
+        const targetX = pL.pageX;
+        ghostX.value = withSpring(targetX, { damping: 20, stiffness: 200 });
+        ghostY.value = withSpring(targetY, { damping: 20, stiffness: 200 });
+        dragScale.value = withDelay(100, withTiming(0, { duration: 200 }, (finished) => {
+          if (finished) {
+            runOnJS(completeDrop)();
+          }
+        }));
+        return;
+      }
     }
-  }, [dragScale, ghostY, ghostX, completeDrop, cancelDrop, stopAutoScroll]);
+
+    // 그룹 식단 탭인 경우
+    if (mealPlanTab === "group") {
+      for (const [groupId, layout] of Object.entries(groupLayouts.current)) {
+        if (layout.height > 0 && y >= layout.pageY && y <= layout.pageY + layout.height) {
+          const targetY = layout.pageY + 52;
+          const targetX = layout.pageX;
+          ghostX.value = withSpring(targetX, { damping: 20, stiffness: 200 });
+          ghostY.value = withSpring(targetY, { damping: 20, stiffness: 200 });
+          dragScale.value = withDelay(100, withTiming(0, { duration: 200 }, (finished) => {
+            if (finished) {
+              runOnJS(completeDrop)();
+            }
+          }));
+          return;
+        }
+      }
+    }
+
+    // 유효한 드랍 영역이 아닌 경우
+    dragScale.value = withTiming(0, { duration: 150 }, (finished) => {
+      if (finished) {
+        runOnJS(cancelDrop)();
+      }
+    });
+  }, [dragScale, ghostY, ghostX, completeDrop, cancelDrop, stopAutoScroll, mealPlanTab]);
 
   const ghostStyle = useAnimatedStyle(() => ({
     transform: [
@@ -1016,11 +1127,82 @@ export default function MealPlanScreen() {
 
         {/* ─── 선택된 날짜의 식단 ─── */}
         <View style={{ paddingHorizontal: Spacing.xl, marginTop: Spacing.xl }}>
-          <Text style={{ fontSize: 18, fontWeight: "700", color: Colors.neutral[900], marginBottom: Spacing.base }}>
+          <Text style={{ fontSize: 18, fontWeight: "700", color: Colors.neutral[900], marginBottom: Spacing.md }}>
             {selectedDayLabel}
           </Text>
 
-          {/* ── 내 식단 (드랍 존) ── */}
+          {/* ── 탭 전환 (내 식단 / 그룹 식단) ── */}
+          <View style={{
+            flexDirection: "row",
+            backgroundColor: Colors.neutral[100],
+            borderRadius: BorderRadius.lg,
+            padding: 4,
+            marginBottom: Spacing.lg,
+          }}>
+            <Pressable
+              onPress={() => setMealPlanTab("personal")}
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                paddingVertical: Spacing.sm,
+                borderRadius: BorderRadius.md,
+                backgroundColor: mealPlanTab === "personal" ? Colors.neutral[0] : "transparent",
+                gap: 6,
+              }}
+            >
+              <User size={16} color={mealPlanTab === "personal" ? Colors.primary[500] : Colors.neutral[500]} />
+              <Text style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: mealPlanTab === "personal" ? Colors.primary[500] : Colors.neutral[500],
+              }}>
+                내 식단
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setMealPlanTab("group")}
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                paddingVertical: Spacing.sm,
+                borderRadius: BorderRadius.md,
+                backgroundColor: mealPlanTab === "group" ? Colors.neutral[0] : "transparent",
+                gap: 6,
+              }}
+            >
+              <Users size={16} color={mealPlanTab === "group" ? Colors.primary[500] : Colors.neutral[500]} />
+              <Text style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: mealPlanTab === "group" ? Colors.primary[500] : Colors.neutral[500],
+              }}>
+                그룹 식단
+              </Text>
+              {groupSections.length > 0 && (
+                <View style={{
+                  backgroundColor: mealPlanTab === "group" ? Colors.primary[100] : Colors.neutral[200],
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  borderRadius: 10,
+                }}>
+                  <Text style={{
+                    fontSize: 11,
+                    fontWeight: "600",
+                    color: mealPlanTab === "group" ? Colors.primary[600] : Colors.neutral[500],
+                  }}>
+                    {groupSections.length}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+
+          {/* ── 내 식단 탭 (드랍 존) ── */}
+          {mealPlanTab === "personal" && (
           <View ref={personalSectionRef}>
           <Pressable
             onPress={() => {
@@ -1120,7 +1302,9 @@ export default function MealPlanScreen() {
                       </Text>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                         <Clock size={13} color={Colors.neutral[400]} />
-                        <Text style={{ fontSize: 13, color: Colors.neutral[500] }}>-</Text>
+                        <Text style={{ fontSize: 13, color: Colors.neutral[500] }}>
+                          {meal.cookingTime ? `${meal.cookingTime}분` : "-"}
+                        </Text>
                       </View>
                     </View>
                     <Pressable
@@ -1144,13 +1328,56 @@ export default function MealPlanScreen() {
           )}
 
           </View>
+          )}
 
-          {/* ── 그룹 식단 ── */}
-          {!calendarLoading && !calendarError && groupSections.map((group) => {
+          {/* ── 그룹 식단 탭 ── */}
+          {mealPlanTab === "group" && (
+            <View>
+              {/* 로딩 상태 */}
+              {calendarLoading && (
+                <View style={{ paddingVertical: Spacing.xl, alignItems: "center", marginBottom: Spacing.md }}>
+                  <ActivityIndicator size="small" color={Colors.neutral[400]} />
+                  <Text style={{ fontSize: 13, color: Colors.neutral[400], marginTop: Spacing.xs }}>
+                    그룹 식단을 불러오는 중...
+                  </Text>
+                </View>
+              )}
+
+              {/* 에러 상태 */}
+              {calendarError && !calendarLoading && (
+                <View style={{ paddingVertical: Spacing.xl, alignItems: "center", marginBottom: Spacing.md }}>
+                  <Text style={{ fontSize: 13, color: Colors.error.main, marginBottom: Spacing.xs }}>
+                    그룹 식단을 불러오지 못했어요
+                  </Text>
+                  <Pressable onPress={refetchCalendar}>
+                    <Text style={{ fontSize: 13, color: Colors.primary[500], fontWeight: "600" }}>다시 시도</Text>
+                  </Pressable>
+                </View>
+              )}
+
+              {/* 그룹이 없을 때 */}
+              {!calendarLoading && !calendarError && groupSections.length === 0 && (
+                <View style={{ paddingVertical: Spacing["3xl"], alignItems: "center" }}>
+                  <Users size={32} color={Colors.neutral[300]} />
+                  <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.neutral[500], marginTop: Spacing.md }}>
+                    참여 중인 그룹이 없어요
+                  </Text>
+                  <Text style={{ fontSize: 13, color: Colors.neutral[400], marginTop: Spacing.xs, textAlign: "center" }}>
+                    그룹에 참여하면 그룹 식단을{"\n"}함께 관리할 수 있어요
+                  </Text>
+                </View>
+              )}
+
+              {/* 그룹별 식단 목록 */}
+              {!calendarLoading && !calendarError && groupSections.map((group) => {
             const groupDayMeals = group.meals[selectedDate] || [];
             const isCollapsed = collapsedGroups[group.groupId];
+            const isDropTarget = dropTarget?.type === "group" && dropTarget.groupId === group.groupId;
             return (
-              <View key={group.groupId}>
+              <View
+                key={group.groupId}
+                ref={(ref) => { groupSectionRefs.current[group.groupId] = ref; }}
+              >
                 <Pressable
                   onPress={() => {
                     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -1175,6 +1402,9 @@ export default function MealPlanScreen() {
                     <ChevronDown size={16} color={Colors.neutral[400]} />
                   )}
                 </Pressable>
+
+                {/* 그룹 드랍 플레이스홀더 */}
+                {isDropTarget && <DropPlaceholder />}
 
                 {!isCollapsed && (
                   groupDayMeals.length > 0 ? (
@@ -1222,7 +1452,9 @@ export default function MealPlanScreen() {
                             </Text>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                               <Clock size={13} color={Colors.neutral[400]} />
-                              <Text style={{ fontSize: 13, color: Colors.neutral[500] }}>-</Text>
+                              <Text style={{ fontSize: 13, color: Colors.neutral[500] }}>
+                                {meal.cookingTime ? `${meal.cookingTime}분` : "-"}
+                              </Text>
                             </View>
                           </View>
                           <Pressable
@@ -1235,17 +1467,19 @@ export default function MealPlanScreen() {
                         </Pressable>
                       ))}
                     </View>
-                  ) : (
+                  ) : !isDropTarget ? (
                     <View style={{ paddingVertical: Spacing.xl, alignItems: "center", marginBottom: Spacing.md }}>
                       <Text style={{ fontSize: 13, color: Colors.neutral[400] }}>
                         등록된 그룹 식단이 없어요
                       </Text>
                     </View>
-                  )
+                  ) : null
                 )}
               </View>
             );
           })}
+            </View>
+          )}
 
         </View>
 

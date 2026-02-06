@@ -3,9 +3,16 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, LogBox } from "react-native";
 import { useEffect } from "react";
 import "react-native-reanimated";
+
+// 특정 에러 메시지 LogBox에서 무시
+LogBox.ignoreLogs([
+  "이미 레시피북에 추가된",
+  "이미 등록",
+  "중복",
+]);
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";

@@ -121,8 +121,6 @@ const TopRankCard = React.memo(function TopRankCard({
             borderRadius: BorderRadius.lg,
             overflow: "hidden",
             backgroundColor: Colors.neutral[900],
-            renderToHardwareTextureAndroid: true,
-            shouldRasterizeIOS: true,
           }}
         >
         <Image
@@ -167,7 +165,7 @@ const TopRankCard = React.memo(function TopRankCard({
               textShadowOffset: { width: 0, height: 2 },
               textShadowRadius: 3,
             }}
-            includeFontPadding={false}
+
           >
             {rank}
           </Text>
@@ -189,7 +187,7 @@ const TopRankCard = React.memo(function TopRankCard({
                 textShadowOffset: { width: 0, height: 1 },
                 textShadowRadius: 2,
               }}
-              includeFontPadding={false}
+  
               numberOfLines={2}
               ellipsizeMode="tail"
             >
@@ -222,8 +220,6 @@ const ShortsCard = React.memo(function ShortsCard({ item, onPress }: { item: Sho
           borderRadius: BorderRadius.md,
           backgroundColor: Colors.neutral[0],
           ...Shadows.xs,
-          renderToHardwareTextureAndroid: true,
-          shouldRasterizeIOS: true,
         }}
       >
         <View
@@ -362,6 +358,9 @@ const SectionHeader = React.memo(function SectionHeader({
             color: Colors.neutral[900],
             letterSpacing: -0.3,
           }}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.7}
         >
           {title}
         </Text>
@@ -404,13 +403,46 @@ export default function HomeScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const [selectedFilter, setSelectedFilter] = useState("전체");
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const FILTER_BAR_HEIGHT = 44;
-  const HEADER_BAR_HEIGHT = 48;
-  const [headerHeight, setHeaderHeight] = useState(
-    insets.top + HEADER_BAR_HEIGHT + FILTER_BAR_HEIGHT
-  );
-  const headerTranslate = Animated.diffClamp(scrollY, 0, headerHeight);
   const logoSize = Math.min(52, Math.max(40, Math.round(screenWidth * 0.12)));
+  const FILTER_BAR_HEIGHT = 44;
+  const HEADER_BAR_HEIGHT = logoSize + Spacing.sm * 2; // logo + paddingVertical
+  const SEPARATOR_HEIGHT = 1;
+  const [headerHeight, setHeaderHeight] = useState(
+    insets.top + HEADER_BAR_HEIGHT + FILTER_BAR_HEIGHT + SEPARATOR_HEIGHT
+  );
+
+  // 커스텀 리프레시 인디케이터 (YouTube 스타일)
+  const REFRESH_INDICATOR_SIZE = 36;
+  const PULL_THRESHOLD = 80; // 당기는 임계값
+
+  // 당기는 거리에 따른 인디케이터 진행률 (0~1)
+  const pullProgress = scrollY.interpolate({
+    inputRange: [-PULL_THRESHOLD, 0],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
+  // 인디케이터 scale (당길수록 커짐)
+  const indicatorScale = scrollY.interpolate({
+    inputRange: [-PULL_THRESHOLD, -PULL_THRESHOLD * 0.3, 0],
+    outputRange: [1, 0.6, 0],
+    extrapolate: 'clamp',
+  });
+
+  // 인디케이터 위치 (당길수록 내려옴)
+  const indicatorTranslateY = scrollY.interpolate({
+    inputRange: [-PULL_THRESHOLD * 1.5, -PULL_THRESHOLD, 0],
+    outputRange: [PULL_THRESHOLD * 0.8, PULL_THRESHOLD * 0.5, 0],
+    extrapolate: 'clamp',
+  });
+
+  // iOS 바운스 시 scrollY가 음수가 되면 diffClamp가 오동작하므로 0 이하를 클램프
+  const clampedScrollY = scrollY.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+    extrapolateLeft: 'clamp',
+  });
+  const headerTranslate = Animated.diffClamp(clampedScrollY, 0, headerHeight);
 
   // hooks에서 데이터 가져오기
   const {
@@ -527,9 +559,8 @@ export default function HomeScreen() {
                 setIsRefreshing(false);
               }
             }}
-            tintColor={Colors.primary[500]}
-            colors={[Colors.primary[500]]}
-            progressViewOffset={headerHeight + Spacing.sm}
+            tintColor="transparent"
+            colors={["transparent"]}
           />
         }
         onScroll={Animated.event(
@@ -538,39 +569,42 @@ export default function HomeScreen() {
         )}
         scrollEventThrottle={16}
         contentContainerStyle={{
-          paddingTop: headerHeight + Spacing.sm,
+          paddingTop: headerHeight,
           paddingBottom: 16,
         }}
         sections={curationSections}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item: section }) => (
-          <View style={{ marginBottom: Spacing.base }}>
-            <SectionHeader
-              title={section.title.trim().startsWith("#") ? section.title : `# ${section.title}`}
-              description={section.description}
-              onSeeAll={() => handleSeeAllSection(section.id)}
-            />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              removeClippedSubviews
-              contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}
-            >
-              {section.recipes?.map((recipe) => (
-                <RecipeCard
-                  key={recipe.id}
-                  item={recipe}
-                  onPress={() => handleRecipePress(recipe.id, section)}
-                  size="medium"
-                />
-              ))}
-            </ScrollView>
-          </View>
-        )}
+        keyExtractor={(item: unknown) => (item as CurationSection).id}
+        renderItem={({ item }: { item: unknown }) => {
+          const section = item as CurationSection;
+          return (
+            <View style={{ marginBottom: Spacing.base }}>
+              <SectionHeader
+                title={section.title.trim().startsWith("#") ? section.title : `# ${section.title}`}
+                description={section.description}
+                onSeeAll={() => handleSeeAllSection(section.id)}
+              />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                removeClippedSubviews
+                contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}
+              >
+                {section.recipes?.map((recipe) => (
+                  <RecipeCard
+                    key={recipe.id}
+                    item={recipe}
+                    onPress={() => handleRecipePress(recipe.id, section)}
+                    size="medium"
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          );
+        }}
         ListHeaderComponent={
           <View>
-            {/* 로딩 상태 */}
-            {loading && !isRefreshing && (
+            {/* 초기 로딩 상태 (새로고침이 아닐 때만) */}
+            {loading && !isRefreshing && topRecipes.length === 0 && (
               <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
                 <ActivityIndicator size="large" color={Colors.primary[500]} />
                 <Text style={{ marginTop: Spacing.md, color: Colors.neutral[500] }}>
@@ -579,8 +613,8 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {/* 데이터가 없을 때 */}
-            {!loading && !isRefreshing && topRecipes.length === 0 && sections.length === 0 && (
+            {/* 데이터가 없을 때 (로딩 완료 후) */}
+            {!loading && topRecipes.length === 0 && sections.length === 0 && (
               <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
                 <Text style={{ fontSize: Typography.fontSize.lg, fontWeight: "600", color: Colors.neutral[500] }}>
                   콘텐츠가 없습니다
@@ -591,7 +625,7 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {/* TOP 레시피 랭킹 */}
+            {/* TOP 레시피 랭킹 - 데이터가 있으면 항상 표시 */}
             {topRecipes.length > 0 && (
               <View style={{ paddingTop: Spacing.base, paddingBottom: Spacing.lg }}>
                 <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.base }}>
@@ -753,6 +787,36 @@ export default function HomeScreen() {
           </ScrollView>
         </View>
         <View style={{ height: 1, backgroundColor: Colors.neutral[100] }} />
+      </Animated.View>
+
+      {/* 커스텀 리프레시 인디케이터 (YouTube 스타일) */}
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          top: headerHeight,
+          left: 0,
+          right: 0,
+          alignItems: "center",
+          zIndex: 99,
+          transform: [{ translateY: indicatorTranslateY }],
+          opacity: isRefreshing ? 1 : pullProgress,
+        }}
+      >
+        <Animated.View
+          style={{
+            width: REFRESH_INDICATOR_SIZE,
+            height: REFRESH_INDICATOR_SIZE,
+            borderRadius: REFRESH_INDICATOR_SIZE / 2,
+            backgroundColor: Colors.neutral[0],
+            alignItems: "center",
+            justifyContent: "center",
+            transform: [{ scale: isRefreshing ? 1 : indicatorScale }],
+            ...Shadows.md,
+          }}
+        >
+          <ActivityIndicator size="small" color={Colors.primary[500]} />
+        </Animated.View>
       </Animated.View>
     </View>
   );

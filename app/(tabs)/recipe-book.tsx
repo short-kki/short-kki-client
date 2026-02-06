@@ -58,7 +58,7 @@ function RecipeBookCard({
       style={{
         backgroundColor: Colors.neutral[0],
         borderRadius: BorderRadius.xl,
-        marginBottom: Spacing.lg,
+        marginBottom: Spacing.sm,
         overflow: "hidden",
         borderWidth: 1,
         borderColor: Colors.neutral[100],
@@ -168,25 +168,6 @@ function RecipeBookCard({
             </Text>
           )}
         </View>
-
-        {/* 그룹 레시피북인 경우 그룹 이동 버튼 */}
-        {book.groupId && onGroupPress && (
-          <TouchableOpacity
-            onPress={(e) => {
-              e.stopPropagation();
-              onGroupPress();
-            }}
-            style={{
-              padding: 8,
-              backgroundColor: Colors.neutral[100],
-              borderRadius: 20,
-              marginRight: 4,
-            }}
-            activeOpacity={0.7}
-          >
-            <ChevronRight size={20} color={Colors.neutral[600]} />
-          </TouchableOpacity>
-        )}
 
         {/* 메뉴 버튼 */}
         <TouchableOpacity
@@ -429,7 +410,7 @@ export default function RecipeBookScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingHorizontal: Spacing.xl,
-          paddingBottom: 120,
+          paddingBottom: Spacing.lg,
         }}
       >
         {activeTab === "personal" ? (

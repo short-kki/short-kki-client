@@ -49,7 +49,20 @@ async function fetchApi<T>(
     let errorMessage = `API Error: ${response.status}`;
     try {
       const errorData = await response.json();
-      console.error(`API Error [${endpoint}]:`, errorData);
+      // 중복/이미 등록된 에러는 console.log로 처리 (LogBox에 안 뜨게)
+      const isDuplicateError =
+        errorData.code === "SOURCE_003" ||
+        errorData.message?.includes("이미 등록") ||
+        errorData.message?.includes("이미 레시피북에 추가된") ||
+        errorData.message?.includes("중복") ||
+        response.status === 409;
+
+      if (isDuplicateError) {
+        console.log(`API Info [${endpoint}]:`, errorData);
+      } else {
+        console.error(`API Error [${endpoint}]:`, errorData);
+      }
+
       if (errorData.message) {
         errorMessage = errorData.message;
       } else if (errorData.code) {

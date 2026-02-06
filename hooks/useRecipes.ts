@@ -19,13 +19,15 @@ interface RecipeBookApiResponse {
   isDefault: boolean;
   sortOrder: number;
   createdAt: string;
-  recipes: RecipeSummaryApiResponse[];
+  recipeCount?: number; // 목록 조회 시 직접 제공될 수 있음
+  recipes?: RecipeSummaryApiResponse[]; // 상세 조회 시에만 제공될 수 있음
 }
 
 interface RecipeSummaryApiResponse {
   id: number;
   title: string;
   bookmarkCount: number;
+  cookingTime: number | null;
   thumbnailUrl: string | null;
   authorName: string | null;
   createdAt?: string; // API might not return this yet, but good to have
@@ -39,11 +41,13 @@ interface BaseResponse<T> {
 
 // 백엔드 응답을 프론트엔드 타입으로 변환
 function mapRecipeBookFromApi(apiResponse: RecipeBookApiResponse): RecipeBook {
+  console.log('[RecipeBook API] 응답:', JSON.stringify(apiResponse, null, 2));
   return {
     id: String(apiResponse.id),
     name: apiResponse.title,
     isDefault: apiResponse.isDefault,
-    recipeCount: apiResponse.recipes?.length || 0,
+    // recipeCount 직접 제공되면 사용, 아니면 recipes 배열 길이
+    recipeCount: apiResponse.recipeCount ?? apiResponse.recipes?.length ?? 0,
     thumbnails: apiResponse.recipes
       ?.filter(r => r.thumbnailUrl)
       .map(r => r.thumbnailUrl!)
@@ -56,7 +60,7 @@ function mapRecipeFromApi(apiResponse: RecipeSummaryApiResponse, bookId: string)
     id: String(apiResponse.id),
     title: apiResponse.title,
     thumbnail: apiResponse.thumbnailUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200',
-    duration: '', // API에서 제공하지 않음
+    duration: apiResponse.cookingTime ? `${apiResponse.cookingTime}분` : '',
     author: apiResponse.authorName || '알 수 없음',
     bookId,
     likes: apiResponse.bookmarkCount || 0,

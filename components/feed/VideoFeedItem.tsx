@@ -11,7 +11,7 @@ import {
   VolumeX,
   Volume2,
   ChefHat,
-  CalendarPlus,
+  ListPlus,
   ScrollText,
 } from "lucide-react-native";
 import { Colors } from "@/constants/design-system";
@@ -393,7 +393,7 @@ function VideoFeedItem({ item, isActive, itemHeight }: VideoFeedItemProps) {
               alignItems: "center",
             }}
           >
-            <CalendarPlus size={26} color="white" />
+            <ListPlus size={26} color="white" />
           </View>
           <Text
             style={{
@@ -403,7 +403,7 @@ function VideoFeedItem({ item, isActive, itemHeight }: VideoFeedItemProps) {
               marginTop: 4,
             }}
           >
-            식단추가
+            대기열
           </Text>
         </Pressable>
 

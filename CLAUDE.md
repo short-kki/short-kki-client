@@ -36,7 +36,7 @@ Note: The `development` iOS profile builds for simulator only (`"simulator": tru
 ## Architecture
 
 ### Tech Stack
-- **Framework**: React Native 0.81 with Expo SDK 54, New Architecture enabled, React Compiler enabled
+- **Framework**: React Native 0.81.5 with Expo SDK 54, New Architecture enabled, React Compiler enabled
 - **Language**: TypeScript with strict mode
 - **Styling**: NativeWind v4 (Tailwind CSS for React Native)
 - **Navigation**: Expo Router (file-based routing with typed routes)
@@ -47,15 +47,15 @@ Note: The `development` iOS profile builds for simulator only (`"simulator": tru
 - **Icons**: lucide-react-native
 
 ### Key Directories
-- `app/` - Expo Router screens (file-based routing)
-- `app/(tabs)/` - Bottom tab navigator (5 visible tabs: 홈, 식단표, 추가, 레시피북, 그룹; hidden: shorts, explore, calendar, profile)
+- `app/` - Expo Router screens (file-based routing). Key non-tab routes: `recipe/[id].tsx` (detail), `recipe-create-manual.tsx`, `search.tsx`, `search-results.tsx`, `shopping-list.tsx`, `group-edit.tsx`, `group-members.tsx`, `group-feed-create.tsx`, `group-recipe-books.tsx`, `recipe-book-detail.tsx`, `profile-edit.tsx`, `notifications.tsx`, `settings.tsx`
+- `app/(tabs)/` - Bottom tab navigator (5 visible tabs: 홈, 식단표, 추가, 레시피북, 그룹; hidden tabs: shorts, explore, calendar, profile)
 - `components/feed/` - TikTok-style video feed components
 - `components/ui/` - Reusable UI components (Button, Card, Input, Tag, Header)
 - `contexts/` - React contexts (AuthContext for app-wide auth state)
 - `constants/` - Design tokens and OAuth configuration
 - `utils/` - Utilities for auth storage and YouTube URL parsing
 - `hooks/` - Custom hooks that abstract data fetching (groups, shorts, recipes)
-- `services/` - API client (`api.ts`), file upload (`fileUpload.ts`), push notifications (`pushNotification.ts`)
+- `services/` - API client (`api.ts`), file upload (`fileUpload.ts`), push notifications (`pushNotification.ts`), recipe API (`recipeApi.ts`), ingredient API (`ingredientApi.ts`)
 - `data/mock/` - Mock data for development (groups, shorts, recipes)
 - `docs/` - Deployment guide (`DEPLOYMENT.md`)
 
@@ -64,11 +64,13 @@ Use `@/` for absolute imports from project root (e.g., `@/components/`, `@/conte
 
 ### Data Layer Pattern
 The app uses a hooks-based data layer with optional mock data for development:
-1. **Hooks** (`hooks/useGroups.ts`, `useShorts.ts`, `useRecipes.ts`) - Abstract data fetching with loading/error states
-2. **Mock toggle**: `USE_MOCK` in `services/api.ts` - set to `true` for mock data, `false` for real API
+1. **Hooks** (`hooks/useGroups.ts`, `useShorts.ts`, `useRecipes.ts`, `useRecipeCalendar.ts`, `useSearch.ts`) - Abstract data fetching with loading/error states
+2. **Mock toggle**: `USE_MOCK` in `services/api.ts` - set to `true` for mock data, `false` for real API (currently `false`)
 3. **Mock data**: `data/mock/` contains typed mock data matching API contracts
 4. **API response format**: Backend returns `{ code, message, data: T }` — the `api.ts` fetch wrapper returns the raw response, so hooks/callers unwrap `.data` as needed
 5. **File uploads**: Use presigned URL flow — request upload URL from `/api/v1/files/uploads`, PUT to S3, then PATCH to confirm. See `services/fileUpload.ts` for `uploadImage()`, `uploadImages()`, and `uploadImageWithRetry()`
+6. **Domain API services**: `recipeApi.ts` provides typed recipe CRUD (`create`, `getById`, `getAll`, `update`, `delete`); `ingredientApi.ts` provides ingredient search/autocomplete (currently mock-only)
+7. **Recipe types**: Defined in `services/recipeApi.ts` — `Difficulty`, `CuisineType`, `MealType`, `RecipeSource`, `RecipeCreateRequest`, `RecipeResponse`, etc.
 
 Example hook usage:
 ```typescript
@@ -77,9 +79,14 @@ const { groups, loading, error, refetch } = useGroups();
 ```
 
 Available hooks:
-- `useShorts()`, `useCurationSections()` - Home feed data
+- `useShorts()`, `useCurationSections()`, `useRecommendedCurations()`, `useCurationShorts()` - Home feed data
 - `useGroups()`, `useGroupFeeds(id)`, `useGroupMembers(id)`, `useShoppingList(id)` - Group data
-- `usePersonalRecipeBooks()`, `useGroupRecipeBooks(id)`, `useRecipeBookDetail(id)` - Recipe data
+- `usePersonalRecipeBooks()`, `useGroupRecipeBooks()`, `useGroupRecipeBooksById(id)`, `useRecipeBookDetail(id)` - Recipe data
+- `useRecipeCalendar(type, startDate, endDate)`, `useRecipeQueue()` - Meal calendar data
+- `useRecipeSearch(query)` - Search
+
+Standalone async functions (also exported from hooks):
+- `getGroupInviteCode(groupId)`, `getGroupPreviewByInviteCode(code)`, `joinGroupByInviteCode(code)` - Group invite flow
 
 ### Group Feature Architecture
 Groups are central to the app's social features:
