@@ -195,7 +195,7 @@ export default function GroupFeedCreateScreen() {
         console.log("[Feed Create] 피드 생성 응답:", response);
       }
 
-      setShowSuccessModal(true);
+      router.back();
     } catch (error) {
       console.error("피드 생성 실패:", error);
       Alert.alert(

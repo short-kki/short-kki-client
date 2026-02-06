@@ -83,12 +83,15 @@ function VideoFeedItem({ item, isActive, itemHeight }: VideoFeedItemProps) {
     [videoId]
   );
 
-  // 숫자 포맷 (1523 -> 1.5K)
-  const formatCount = (count: number) => {
-    if (count >= 1000) {
-      return (count / 1000).toFixed(1) + "K";
+  // 숫자 축약 포맷 (1000 → 1k, 1200 → 1.2k, 1000000 → 1M)
+  const formatCount = (count: number): string => {
+    if (count < 1000) return count.toString();
+    if (count < 1000000) {
+      const k = count / 1000;
+      return k % 1 === 0 ? `${k}k` : `${k.toFixed(1)}k`;
     }
-    return count.toString();
+    const m = count / 1000000;
+    return m % 1 === 0 ? `${m}M` : `${m.toFixed(1)}M`;
   };
 
   if (!videoId) {

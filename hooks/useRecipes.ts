@@ -42,7 +42,7 @@ interface BaseResponse<T> {
 
 // 백엔드 응답을 프론트엔드 타입으로 변환
 function mapRecipeBookFromApi(apiResponse: RecipeBookApiResponse): RecipeBook {
-  console.log('[RecipeBook API] 응답:', JSON.stringify(apiResponse, null, 2));
+  // console.log('[RecipeBook API] 응답:', JSON.stringify(apiResponse, null, 2));
   return {
     id: String(apiResponse.id),
     name: apiResponse.title,
@@ -98,15 +98,15 @@ export function usePersonalRecipeBooks() {
               const detailResponse = await api.get<BaseResponse<RecipeBookApiResponse>>(
                 `/api/v1/recipebooks/${book.id}`
               );
-              console.log(`[RecipeBook ${book.id}] 상세 응답:`, JSON.stringify(detailResponse.data, null, 2));
+              // console.log(`[RecipeBook ${book.id}] 상세 응답:`, JSON.stringify(detailResponse.data, null, 2));
               // 상세 응답에서 recipes가 있으면 썸네일 추출 (mainImgUrl 우선)
               const recipes = detailResponse.data.recipes || [];
-              console.log(`[RecipeBook ${book.id}] recipes 개수:`, recipes.length);
+              // console.log(`[RecipeBook ${book.id}] recipes 개수:`, recipes.length);
               const thumbnails = recipes
                 .filter(r => r.mainImgUrl || r.thumbnailUrl)
                 .map(r => r.mainImgUrl || r.thumbnailUrl!)
                 .slice(0, 3);
-              console.log(`[RecipeBook ${book.id}] 썸네일:`, thumbnails);
+              // console.log(`[RecipeBook ${book.id}] 썸네일:`, thumbnails);
               const recipeCount = recipes.length || book.recipeCount || 0;
 
               return {
@@ -414,11 +414,11 @@ export function useRecipeBookDetail(bookId?: string) {
         setRecipes(MOCK_RECIPE_BOOK_RECIPES[bookId] || []);
       } else {
         const response = await api.get<BaseResponse<RecipeBookApiResponse>>(`/api/v1/recipebooks/${bookId}`);
-        console.log('[RecipeBookDetail] API 응답:', JSON.stringify(response.data, null, 2));
-        console.log('[RecipeBookDetail] recipes 배열:', response.data.recipes);
+        // console.log('[RecipeBookDetail] API 응답:', JSON.stringify(response.data, null, 2));
+        // console.log('[RecipeBookDetail] recipes 배열:', response.data.recipes);
         setBookName(response.data.title);
         const mappedRecipes = (response.data.recipes || []).map(r => mapRecipeFromApi(r, bookId));
-        console.log('[RecipeBookDetail] 변환된 레시피:', mappedRecipes);
+        // console.log('[RecipeBookDetail] 변환된 레시피:', mappedRecipes);
         setRecipes(mappedRecipes);
       }
     } catch (err) {

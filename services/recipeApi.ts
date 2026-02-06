@@ -121,6 +121,8 @@ export const recipeApi = {
    */
   getById: async (id: number): Promise<RecipeResponse> => {
     const response = await api.get<BaseResponse<RecipeResponse>>(`/api/v1/recipes/${id}`);
+    console.log("[recipeApi.getById] raw response:", JSON.stringify(response, null, 2));
+    console.log("[recipeApi.getById] response.data:", JSON.stringify(response.data, null, 2));
     return response.data!;
   },
 

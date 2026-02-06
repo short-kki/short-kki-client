@@ -35,6 +35,8 @@ export interface CurationSection {
   id: string;
   title: string;
   description?: string;
+  mealTypes?: string[];
+  cuisineTypes?: string[];
   recipes: CurationRecipe[];
 }
 

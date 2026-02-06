@@ -44,7 +44,7 @@ import {
   User,
   Users,
 } from "lucide-react-native";
-import { Colors, Spacing, BorderRadius } from "@/constants/design-system";
+import { Colors, Spacing, BorderRadius, Typography } from "@/constants/design-system";
 import { useRecipeCalendar, useRecipeQueue } from "@/hooks";
 import type { CalendarMeal } from "@/data/mock";
 
@@ -396,6 +396,21 @@ export default function MealPlanScreen() {
   }, [monthCalendar]);
 
   const selectedMeals = localMeals[selectedDate] ?? EMPTY_MEALS;
+
+  // 내 식단이 있으면 내 식단, 없고 그룹 식단이 있으면 그룹, 둘 다 없으면 내 식단
+  useEffect(() => {
+    if (calendarLoading) return;
+    const hasPersonal = (localMeals[selectedDate] ?? []).length > 0;
+    if (hasPersonal) {
+      setMealPlanTab("personal");
+      return;
+    }
+    const hasGroup = Object.values(localGroupMeals).some(
+      (groupMeals) => (groupMeals[selectedDate] ?? []).length > 0
+    );
+    setMealPlanTab(hasGroup ? "group" : "personal");
+  }, [selectedDate, calendarLoading, localMeals, localGroupMeals]);
+
 
   // 그룹별 섹션 정보: groupId → { groupName, meals by date }
   // apiGroups를 기반으로 모든 그룹을 표시 (식단이 없어도)
@@ -776,11 +791,12 @@ export default function MealPlanScreen() {
       >
         {/* ─── 페이지 타이틀 ─── */}
         <Text style={{
-          fontSize: 22,
-          fontWeight: "800",
+          fontSize: Typography.fontSize.xl,
+          fontWeight: "700",
           color: Colors.neutral[900],
           paddingHorizontal: Spacing.xl,
-          paddingTop: Spacing.lg,
+          paddingTop: Spacing.md,
+          paddingBottom: Spacing.md,
         }}>
           식단표
         </Text>
@@ -1069,7 +1085,7 @@ export default function MealPlanScreen() {
           {showQueue && (
             <View style={{
               marginHorizontal: Spacing.md,
-              height: 112, // 이미지(76) + marginTop(4) + 텍스트(~16) + 여백(16)
+              height: 100, // 이미지(76) + marginTop(4) + 텍스트(~16) + 여백(4)
             }}>
             <ScrollView
               horizontal
@@ -1160,6 +1176,22 @@ export default function MealPlanScreen() {
               }}>
                 내 식단
               </Text>
+              {selectedMeals.length > 0 && (
+                <View style={{
+                  backgroundColor: mealPlanTab === "personal" ? Colors.primary[100] : Colors.neutral[200],
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  borderRadius: 10,
+                }}>
+                  <Text style={{
+                    fontSize: 11,
+                    fontWeight: "600",
+                    color: mealPlanTab === "personal" ? Colors.primary[600] : Colors.neutral[500],
+                  }}>
+                    {selectedMeals.length}
+                  </Text>
+                </View>
+              )}
             </Pressable>
             <Pressable
               onPress={() => setMealPlanTab("group")}
@@ -1182,52 +1214,31 @@ export default function MealPlanScreen() {
               }}>
                 그룹 식단
               </Text>
-              {groupSections.length > 0 && (
-                <View style={{
-                  backgroundColor: mealPlanTab === "group" ? Colors.primary[100] : Colors.neutral[200],
-                  paddingHorizontal: 6,
-                  paddingVertical: 2,
-                  borderRadius: 10,
-                }}>
-                  <Text style={{
-                    fontSize: 11,
-                    fontWeight: "600",
-                    color: mealPlanTab === "group" ? Colors.primary[600] : Colors.neutral[500],
+              {(() => {
+                const totalGroupMeals = groupSections.reduce((sum, g) => sum + (g.meals[selectedDate]?.length || 0), 0);
+                return totalGroupMeals > 0 ? (
+                  <View style={{
+                    backgroundColor: mealPlanTab === "group" ? Colors.primary[100] : Colors.neutral[200],
+                    paddingHorizontal: 6,
+                    paddingVertical: 2,
+                    borderRadius: 10,
                   }}>
-                    {groupSections.length}
-                  </Text>
-                </View>
-              )}
+                    <Text style={{
+                      fontSize: 11,
+                      fontWeight: "600",
+                      color: mealPlanTab === "group" ? Colors.primary[600] : Colors.neutral[500],
+                    }}>
+                      {totalGroupMeals}
+                    </Text>
+                  </View>
+                ) : null;
+              })()}
             </Pressable>
           </View>
 
           {/* ── 내 식단 탭 (드랍 존) ── */}
           {mealPlanTab === "personal" && (
           <View ref={personalSectionRef}>
-          <Pressable
-            onPress={() => {
-              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-              setShowPersonalMeals(!showPersonalMeals);
-            }}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              paddingVertical: Spacing.sm,
-              marginBottom: Spacing.xs,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <User size={16} color={Colors.neutral[600]} />
-              <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.neutral[800] }}>내 식단</Text>
-              <Text style={{ fontSize: 13, color: Colors.neutral[400] }}>{selectedMeals.length}</Text>
-            </View>
-            {showPersonalMeals ? (
-              <ChevronUp size={16} color={Colors.neutral[400]} />
-            ) : (
-              <ChevronDown size={16} color={Colors.neutral[400]} />
-            )}
-          </Pressable>
 
           {/* 내 식단 드랍 플레이스홀더 */}
           {dropTarget?.type === "personal" && (
@@ -1256,9 +1267,9 @@ export default function MealPlanScreen() {
             </View>
           )}
 
-          {showPersonalMeals && !calendarLoading && !calendarError && (
+          {!calendarLoading && !calendarError && (
             selectedMeals.length > 0 ? (
-              <View style={{ gap: Spacing.md, marginBottom: Spacing.md }}>
+              <View style={{ gap: Spacing.sm, marginBottom: Spacing.md }}>
                 {selectedMeals.map((meal) => (
                   <Pressable
                     key={meal.id}
@@ -1408,7 +1419,7 @@ export default function MealPlanScreen() {
 
                 {!isCollapsed && (
                   groupDayMeals.length > 0 ? (
-                    <View style={{ gap: Spacing.md, marginBottom: Spacing.md }}>
+                    <View style={{ gap: Spacing.sm, marginBottom: Spacing.md }}>
                       {groupDayMeals.map((meal) => (
                         <Pressable
                           key={meal.id}

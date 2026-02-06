@@ -12,7 +12,7 @@ export {
   type Group,
   type FeedItem,
   type FeedPost,
-  type FeedRecipe,
+  type FeedRecipeSummary,
   type GroupMember,
 } from './groups';
 

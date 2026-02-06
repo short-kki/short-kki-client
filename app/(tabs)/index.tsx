@@ -516,8 +516,29 @@ export default function HomeScreen() {
   };
 
   const FILTERS = ["전체", "한식", "양식", "일식", "디저트", "안주"];
+
+  const FILTER_MAP: Record<string, { type: "cuisine" | "meal"; value: string }> = {
+    "한식": { type: "cuisine", value: "KOREAN" },
+    "양식": { type: "cuisine", value: "WESTERN" },
+    "일식": { type: "cuisine", value: "JAPANESE" },
+    "디저트": { type: "meal", value: "DESSERT" },
+    "안주": { type: "meal", value: "SIDE_FOR_DRINK" },
+  };
+
+  const filteredSections = useMemo(() => {
+    if (selectedFilter === "전체") return sections;
+    const filterConfig = FILTER_MAP[selectedFilter];
+    if (!filterConfig) return sections;
+    return sections.filter((section) => {
+      if (filterConfig.type === "cuisine") {
+        return section.cuisineTypes?.includes(filterConfig.value);
+      }
+      return section.mealTypes?.includes(filterConfig.value);
+    });
+  }, [sections, selectedFilter]);
+
   const AnimatedSectionList = useRef(Animated.createAnimatedComponent(SectionList)).current;
-  const curationSections = sections.map((section) => ({
+  const curationSections = filteredSections.map((section) => ({
     ...section,
     data: [section],
   }));

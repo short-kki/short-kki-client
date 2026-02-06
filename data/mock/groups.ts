@@ -10,6 +10,16 @@ export interface Group {
   lastActivity: string;
 }
 
+export interface FeedRecipeSummary {
+  id: string;
+  title: string;
+  cookingTime: number;
+  bookmarkCount: number;
+  mainImgUrl: string | null;
+  authorName: string | null;
+  authorProfileImgUrl: string | null;
+}
+
 export interface FeedPost {
   id: string;
   type: "post";
@@ -22,26 +32,10 @@ export interface FeedPost {
   comments: number;
   time: string;
   isLiked: boolean;
-  recipeId?: string; // NEW_RECIPE_ADDED 타입일 때 레시피 ID
+  recipe?: FeedRecipeSummary;
 }
 
-export interface FeedRecipe {
-  id: string;
-  type: "recipe";
-  user: string;
-  userAvatar: string;
-  action: string;
-  recipe: {
-    id: string;
-    title: string;
-    thumbnail: string;
-  };
-  time: string;
-  isLiked: boolean;
-  likes: number;
-}
-
-export type FeedItem = FeedPost | FeedRecipe;
+export type FeedItem = FeedPost;
 
 // 그룹 목록
 export const MOCK_GROUPS: Group[] = [
@@ -87,18 +81,25 @@ export const MOCK_FEEDS: FeedItem[] = [
   },
   {
     id: "f2",
-    type: "recipe",
+    type: "post",
+    feedType: "NEW_RECIPE_ADDED",
     user: "아빠",
     userAvatar: "아",
-    action: "레시피북에 새 레시피를 추가했습니다",
+    content: "새 레시피를 추가했습니다.",
+    images: [],
+    likes: 3,
+    comments: 1,
+    time: "2시간 전",
+    isLiked: false,
     recipe: {
       id: "r1",
       title: "초간단 계란 볶음밥",
-      thumbnail: "https://i.ytimg.com/vi/Zu6ApCCNhN0/oar2.jpg",
+      cookingTime: 15,
+      bookmarkCount: 24,
+      mainImgUrl: "https://i.ytimg.com/vi/Zu6ApCCNhN0/oar2.jpg",
+      authorName: "백종원",
+      authorProfileImgUrl: null,
     },
-    time: "2시간 전",
-    isLiked: false,
-    likes: 0,
   },
   {
     id: "f3",
@@ -116,18 +117,25 @@ export const MOCK_FEEDS: FeedItem[] = [
   },
   {
     id: "f4",
-    type: "recipe",
+    type: "post",
+    feedType: "NEW_RECIPE_ADDED",
     user: "엄마",
     userAvatar: "엄",
-    action: "레시피북에 새 레시피를 추가했습니다",
+    content: "새 레시피를 추가했습니다.",
+    images: [],
+    likes: 5,
+    comments: 2,
+    time: "어제",
+    isLiked: false,
     recipe: {
       id: "r2",
       title: "연어 스테이크",
-      thumbnail: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=400",
+      cookingTime: 25,
+      bookmarkCount: 38,
+      mainImgUrl: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=400",
+      authorName: "엄마",
+      authorProfileImgUrl: null,
     },
-    time: "어제",
-    isLiked: false,
-    likes: 0,
   },
   {
     id: "f5",

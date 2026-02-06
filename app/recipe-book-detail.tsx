@@ -28,6 +28,17 @@ import RecipeBookSelectModal from "@/components/RecipeBookSelectModal";
 
 import { API_BASE_URL } from "@/constants/oauth";
 
+// 숫자 축약 포맷 (1000 → 1k, 1200 → 1.2k, 1000000 → 1M)
+const formatCount = (count: number): string => {
+  if (count < 1000) return count.toString();
+  if (count < 1000000) {
+    const k = count / 1000;
+    return k % 1 === 0 ? `${k}k` : `${k.toFixed(1)}k`;
+  }
+  const m = count / 1000000;
+  return m % 1 === 0 ? `${m}M` : `${m.toFixed(1)}M`;
+};
+
 // 이미지 URL 처리 헬퍼 함수
 const getImageUrl = (url?: string) => {
   if (!url) return "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200";
@@ -133,15 +144,6 @@ function RecipeCard({
           >
             {recipe.title}
           </Text>
-          <Text
-            style={{
-              fontSize: Typography.fontSize.xs,
-              color: Colors.neutral[500],
-              marginTop: 2,
-            }}
-          >
-            {recipe.author}
-          </Text>
           <View
             style={{
               flexDirection: "row",
@@ -157,7 +159,7 @@ function RecipeCard({
                 marginLeft: 3,
               }}
             >
-              {recipe.likes.toLocaleString()}
+              {formatCount(recipe.likes)}
             </Text>
             <Text
               style={{
@@ -553,29 +555,6 @@ export default function RecipeBookDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* 취소 버튼 */}
-            <View style={{ paddingHorizontal: Spacing.xl, paddingTop: Spacing.md }}>
-              <TouchableOpacity
-                onPress={() => setShowRecipeMenuModal(false)}
-                activeOpacity={0.8}
-                style={{
-                  backgroundColor: Colors.neutral[100],
-                  borderRadius: BorderRadius.lg,
-                  paddingVertical: Spacing.md,
-                  alignItems: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: "600",
-                    color: Colors.neutral[700],
-                  }}
-                >
-                  취소
-                </Text>
-              </TouchableOpacity>
-            </View>
           </Pressable>
         </Pressable>
       </Modal>

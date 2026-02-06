@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -10,11 +10,14 @@ import {
   TextInput,
   Alert,
   Dimensions,
+  BackHandler,
+  Animated,
+  Easing,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import {
   Plus,
   Bell,
@@ -38,6 +41,8 @@ import {
   PartyPopper,
   Check,
   AlertTriangle,
+  Clock,
+  Bookmark,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { useGroups, useGroupFeeds } from "@/hooks";
@@ -65,6 +70,31 @@ export default function GroupScreen() {
   const { groups, createGroup, deleteGroup, refetch: refetchGroups } = useGroups();
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const { feeds, toggleLike, deleteFeed, refetch: refetchFeeds } = useGroupFeeds(selectedGroup?.id);
+
+  // 그룹 탭을 다시 누르면 그룹 목록으로 돌아가기
+  const navigation = useNavigation();
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', (e) => {
+      if (selectedGroup) {
+        e.preventDefault();
+        setSelectedGroup(null);
+      }
+    });
+    return unsubscribe;
+  }, [navigation, selectedGroup]);
+
+  // 하드웨어 뒤로가기 시 그룹 상세 → 그룹 목록 (포커스 시에만 등록)
+  useFocusEffect(
+    useCallback(() => {
+      if (!selectedGroup) return;
+      const onBackPress = () => {
+        setSelectedGroup(null);
+        return true;
+      };
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => sub.remove();
+    }, [selectedGroup])
+  );
 
   // params로 groupId가 전달되면 해당 그룹을 자동 선택
   useEffect(() => {
@@ -104,6 +134,84 @@ export default function GroupScreen() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [isCreating, setIsCreating] = useState(false);
+
+  // 그룹 메뉴 바텀시트 애니메이션
+  const groupMenuOverlayOpacity = useRef(new Animated.Value(0)).current;
+  const groupMenuSheetTranslateY = useRef(new Animated.Value(300)).current;
+
+  const openGroupMenu = useCallback(() => {
+    setShowGroupMenuModal(true);
+    Animated.parallel([
+      Animated.timing(groupMenuOverlayOpacity, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+      Animated.timing(groupMenuSheetTranslateY, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [groupMenuOverlayOpacity, groupMenuSheetTranslateY]);
+
+  const closeGroupMenu = useCallback((onDone?: () => void) => {
+    Animated.parallel([
+      Animated.timing(groupMenuOverlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(groupMenuSheetTranslateY, {
+        toValue: 300,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowGroupMenuModal(false);
+      onDone?.();
+    });
+  }, [groupMenuOverlayOpacity, groupMenuSheetTranslateY]);
+
+  // 피드 메뉴 바텀시트 애니메이션
+  const feedMenuOverlayOpacity = useRef(new Animated.Value(0)).current;
+  const feedMenuSheetTranslateY = useRef(new Animated.Value(300)).current;
+
+  const openFeedMenu = useCallback(() => {
+    setShowFeedMenuModal(true);
+    Animated.parallel([
+      Animated.timing(feedMenuOverlayOpacity, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+      Animated.timing(feedMenuSheetTranslateY, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [feedMenuOverlayOpacity, feedMenuSheetTranslateY]);
+
+  const closeFeedMenu = useCallback((onDone?: () => void) => {
+    Animated.parallel([
+      Animated.timing(feedMenuOverlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(feedMenuSheetTranslateY, {
+        toValue: 300,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowFeedMenuModal(false);
+      onDone?.();
+    });
+  }, [feedMenuOverlayOpacity, feedMenuSheetTranslateY]);
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) {
@@ -166,15 +274,13 @@ export default function GroupScreen() {
 
   const handleShowGroupMenu = (group: Group) => {
     setMenuTargetGroup(group);
-    setShowGroupMenuModal(true);
+    openGroupMenu();
   };
 
   const handleGroupMenuAction = (action: "edit" | "delete" | "leave") => {
     if (!menuTargetGroup) return;
 
-    setShowGroupMenuModal(false);
-
-    setTimeout(() => {
+    closeGroupMenu(() => {
       switch (action) {
         case "edit":
           router.push({
@@ -204,7 +310,7 @@ export default function GroupScreen() {
           ]);
           break;
       }
-    }, 200);
+    });
   };
 
   const handleGroupPress = (group: Group) => {
@@ -260,15 +366,12 @@ export default function GroupScreen() {
 
   const handleFeedMenuPress = (feedId: string) => {
     setSelectedFeedId(feedId);
-    setShowFeedMenuModal(true);
+    openFeedMenu();
   };
 
   const handleFeedMenuAction = (action: "edit" | "delete") => {
-    setShowFeedMenuModal(false);
-
-    setTimeout(() => {
+    closeFeedMenu(() => {
       if (action === "edit") {
-        // 수정 화면으로 이동
         router.push({
           pathname: "/group-feed-create",
           params: {
@@ -304,7 +407,7 @@ export default function GroupScreen() {
           ]
         );
       }
-    }, 200);
+    });
   };
 
   const handleCreateFeed = () => {
@@ -517,129 +620,7 @@ export default function GroupScreen() {
                   overflow: "hidden",
                 }}
               >
-                {item.type === "post" && item.feedType === "NEW_RECIPE_ADDED" ? (
-                  // 레시피 추가 알림 피드 (특별한 스타일)
-                  <View>
-                    {/* 상단 알림 배너 */}
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingHorizontal: Spacing.md,
-                        paddingVertical: 10,
-                        backgroundColor: Colors.primary[500],
-                        gap: 8,
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: 14,
-                          backgroundColor: "rgba(255,255,255,0.2)",
-                          justifyContent: "center",
-                          alignItems: "center",
-                        }}
-                      >
-                        <BookOpen size={16} color="#FFF" />
-                      </View>
-                      <Text style={{ fontSize: 13, fontWeight: "600", color: "#FFF", flex: 1 }}>
-                        새 레시피가 추가되었어요!
-                      </Text>
-                      <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>
-                        {item.time}
-                      </Text>
-                    </View>
-
-                    {/* 콘텐츠 영역 */}
-                    <View style={{ padding: Spacing.md, backgroundColor: Colors.primary[50] }}>
-                      {/* 유저 정보 */}
-                      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-                        <View
-                          style={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 18,
-                            backgroundColor: Colors.primary[500],
-                            justifyContent: "center",
-                            alignItems: "center",
-                          }}
-                        >
-                          <Text style={{ fontSize: 14, fontWeight: "700", color: "#FFF" }}>
-                            {item.userAvatar}
-                          </Text>
-                        </View>
-                        <View style={{ marginLeft: 10 }}>
-                          <Text style={{ fontSize: 14, fontWeight: "600", color: Colors.neutral[900] }}>
-                            {item.user}
-                          </Text>
-                          <Text style={{ fontSize: 12, color: Colors.neutral[500] }}>
-                            레시피북에 추가함
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* 레시피 카드 */}
-                      <View
-                        style={{
-                          backgroundColor: Colors.neutral[0],
-                          borderRadius: 16,
-                          padding: 14,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          borderWidth: 1,
-                          borderColor: Colors.primary[100],
-                          shadowColor: Colors.primary[500],
-                          shadowOffset: { width: 0, height: 2 },
-                          shadowOpacity: 0.08,
-                          shadowRadius: 8,
-                          elevation: 2,
-                        }}
-                      >
-                        {/* 레시피 아이콘/썸네일 */}
-                        <View
-                          style={{
-                            width: 56,
-                            height: 56,
-                            borderRadius: 12,
-                            backgroundColor: Colors.secondary[100],
-                            justifyContent: "center",
-                            alignItems: "center",
-                          }}
-                        >
-                          <Text style={{ fontSize: 28 }}>🍳</Text>
-                        </View>
-                        <View style={{ flex: 1, marginLeft: 14 }}>
-                          <View
-                            style={{
-                              backgroundColor: Colors.primary[100],
-                              paddingHorizontal: 8,
-                              paddingVertical: 3,
-                              borderRadius: 6,
-                              alignSelf: "flex-start",
-                              marginBottom: 6,
-                            }}
-                          >
-                            <Text style={{ fontSize: 11, fontWeight: "600", color: Colors.primary[600] }}>
-                              NEW
-                            </Text>
-                          </View>
-                          <Text
-                            style={{
-                              fontSize: 15,
-                              fontWeight: "700",
-                              color: Colors.neutral[900],
-                              lineHeight: 20,
-                            }}
-                            numberOfLines={2}
-                          >
-                            {item.content.match(/"([^"]+)"/)?.[1] || item.content}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                  </View>
-                ) : item.type === "post" ? (
+                {item.type === "post" ? (
                   // 사용자 생성 피드 (숏끼 스타일)
                   <View style={{ padding: Spacing.md }}>
                     {/* Post Header */}
@@ -692,13 +673,9 @@ export default function GroupScreen() {
                       </View>
                       <TouchableOpacity
                         onPress={() => handleFeedMenuPress(item.id)}
-                        style={{
-                          padding: Spacing.xs,
-                          backgroundColor: Colors.neutral[100],
-                          borderRadius: BorderRadius.full,
-                        }}
+                        style={{ padding: Spacing.xs }}
                       >
-                        <MoreHorizontal size={18} color={Colors.neutral[500]} />
+                        <MoreHorizontal size={20} color={Colors.neutral[400]} />
                       </TouchableOpacity>
                     </View>
 
@@ -728,7 +705,7 @@ export default function GroupScreen() {
                             source={{ uri: item.images[0] }}
                             style={{
                               width: "100%",
-                              height: 200,
+                              aspectRatio: 1,
                             }}
                             contentFit="cover"
                           />
@@ -753,6 +730,78 @@ export default function GroupScreen() {
                           </ScrollView>
                         )}
                       </View>
+                    )}
+
+                    {/* Recipe Card (NEW_RECIPE_ADDED) */}
+                    {item.feedType === "NEW_RECIPE_ADDED" && item.recipe && (
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={() => router.push(`/recipe/${item.recipe!.id}` as any)}
+                        style={{
+                          borderRadius: 16,
+                          overflow: "hidden",
+                          marginBottom: Spacing.md,
+                        }}
+                      >
+                        {/* 썸네일 */}
+                        {item.recipe.mainImgUrl ? (
+                          <Image
+                            source={{ uri: item.recipe.mainImgUrl }}
+                            style={{ width: "100%", height: 160 }}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View
+                            style={{
+                              width: "100%",
+                              height: 160,
+                              backgroundColor: Colors.neutral[100],
+                              justifyContent: "center",
+                              alignItems: "center",
+                            }}
+                          >
+                            <BookOpen size={36} color={Colors.neutral[300]} />
+                          </View>
+                        )}
+                        {/* 레시피 정보 */}
+                        <View
+                          style={{
+                            padding: 14,
+                            backgroundColor: Colors.neutral[50],
+                            flexDirection: "row",
+                            alignItems: "center",
+                          }}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={{
+                                fontSize: 15,
+                                fontWeight: "700",
+                                color: Colors.neutral[900],
+                                marginBottom: 6,
+                              }}
+                              numberOfLines={1}
+                            >
+                              {item.recipe.title}
+                            </Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                                <Clock size={13} color={Colors.neutral[400]} />
+                                <Text style={{ fontSize: 12, color: Colors.neutral[500] }}>
+                                  {item.recipe.cookingTime}분
+                                </Text>
+                              </View>
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                                <Bookmark size={13} color={Colors.neutral[400]} />
+                                <Text style={{ fontSize: 12, color: Colors.neutral[500] }}>
+                                  {item.recipe.bookmarkCount}
+                                </Text>
+                              </View>
+                            </View>
+                          </View>
+                          <ChevronRight size={18} color={Colors.neutral[300]} />
+                        </View>
+                      </TouchableOpacity>
                     )}
 
                     {/* Like Button */}
@@ -786,81 +835,7 @@ export default function GroupScreen() {
                       </Text>
                     </TouchableOpacity>
                   </View>
-                ) : (
-                  // 레시피 추가 피드 (기존 스타일)
-                  <View style={{ padding: Spacing.md }}>
-                    {/* Recipe Feed Header */}
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        marginBottom: Spacing.sm,
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 16,
-                          backgroundColor: Colors.secondary[100],
-                          justifyContent: "center",
-                          alignItems: "center",
-                        }}
-                      >
-                        <BookmarkPlus size={16} color={Colors.secondary[600]} />
-                      </View>
-                      <View style={{ flex: 1, marginLeft: Spacing.sm }}>
-                        <Text style={{ fontSize: 14, color: Colors.neutral[900] }}>
-                          <Text style={{ fontWeight: "600" }}>{item.user}</Text>
-                          님이 {item.action}
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: Colors.neutral[400],
-                            marginTop: 2,
-                          }}
-                        >
-                          {item.time}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Recipe Card */}
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() =>
-                        item.recipe && handleRecipeCardPress(item.recipe.id)
-                      }
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        backgroundColor: Colors.neutral[50],
-                        borderRadius: BorderRadius.lg,
-                        padding: Spacing.sm,
-                      }}
-                    >
-                      <Image
-                        source={{ uri: item.recipe?.thumbnail }}
-                        style={{ width: 60, height: 60, borderRadius: 8 }}
-                        contentFit="cover"
-                      />
-                      <Text
-                        style={{
-                          flex: 1,
-                          fontSize: 14,
-                          fontWeight: "500",
-                          color: Colors.neutral[800],
-                          marginLeft: Spacing.md,
-                        }}
-                        numberOfLines={2}
-                      >
-                        {item.recipe?.title}
-                      </Text>
-                      <ChevronRight size={20} color={Colors.neutral[400]} />
-                    </TouchableOpacity>
-                  </View>
-                )}
+                ) : null}
               </View>
             ))
             )}
@@ -894,137 +869,82 @@ export default function GroupScreen() {
         </View>
 
         {/* 피드 메뉴 바텀시트 */}
-        <Modal visible={showFeedMenuModal} transparent animationType="slide">
-          <Pressable
-            style={{
-              flex: 1,
-              backgroundColor: "rgba(0,0,0,0.5)",
-              justifyContent: "flex-end",
-            }}
-            onPress={() => setShowFeedMenuModal(false)}
-          >
-            <Pressable
+        <Modal
+          visible={showFeedMenuModal}
+          transparent
+          statusBarTranslucent
+          animationType="none"
+          onRequestClose={() => closeFeedMenu()}
+        >
+          <View style={{ flex: 1, justifyContent: "flex-end" }}>
+            <Animated.View
               style={{
-                backgroundColor: Colors.neutral[0],
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: "rgba(0,0,0,0.35)",
+                opacity: feedMenuOverlayOpacity,
+              }}
+            >
+              <Pressable style={{ flex: 1 }} onPress={() => closeFeedMenu()} />
+            </Animated.View>
+
+            <Animated.View
+              style={{
+                transform: [{ translateY: feedMenuSheetTranslateY }],
+                backgroundColor: "#FFFFFF",
                 borderTopLeftRadius: BorderRadius.xl,
                 borderTopRightRadius: BorderRadius.xl,
-                paddingTop: Spacing.md,
-                paddingBottom: insets.bottom + Spacing.lg,
+                paddingTop: Spacing.sm,
+                paddingBottom: insets.bottom + Spacing.xl + 100,
+                marginBottom: -100,
+                paddingHorizontal: Spacing.xl,
               }}
-              onPress={(e) => e.stopPropagation()}
             >
-              {/* 핸들바 */}
-              <View
+              <View style={{
+                width: 36,
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: Colors.neutral[200],
+                alignSelf: "center",
+                marginBottom: Spacing.xl,
+              }} />
+
+              <TouchableOpacity
+                activeOpacity={0.6}
+                onPress={() => handleFeedMenuAction("edit")}
                 style={{
-                  width: 36,
-                  height: 4,
-                  backgroundColor: Colors.neutral[300],
-                  borderRadius: 2,
-                  alignSelf: "center",
-                  marginBottom: Spacing.lg,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: Spacing.md,
+                  paddingVertical: 14,
                 }}
-              />
+              >
+                <Edit3 size={20} color={Colors.neutral[600]} />
+                <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.neutral[900] }}>
+                  수정
+                </Text>
+              </TouchableOpacity>
 
-              {/* 메뉴 옵션들 */}
-              <View style={{ paddingTop: Spacing.sm }}>
-                {/* 수정 */}
-                <TouchableOpacity
-                  onPress={() => handleFeedMenuAction("edit")}
-                  activeOpacity={0.7}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingVertical: Spacing.md,
-                    paddingHorizontal: Spacing.xl,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 20,
-                      backgroundColor: Colors.neutral[100],
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Edit3 size={20} color={Colors.neutral[700]} />
-                  </View>
-                  <Text
-                    style={{
-                      flex: 1,
-                      fontSize: Typography.fontSize.base,
-                      fontWeight: "500",
-                      color: Colors.neutral[900],
-                      marginLeft: Spacing.md,
-                    }}
-                  >
-                    수정
-                  </Text>
-                </TouchableOpacity>
-
-                {/* 삭제 */}
-                <TouchableOpacity
-                  onPress={() => handleFeedMenuAction("delete")}
-                  activeOpacity={0.7}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingVertical: Spacing.md,
-                    paddingHorizontal: Spacing.xl,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 20,
-                      backgroundColor: Colors.error.light,
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Trash2 size={20} color={Colors.error.main} />
-                  </View>
-                  <Text
-                    style={{
-                      flex: 1,
-                      fontSize: Typography.fontSize.base,
-                      fontWeight: "500",
-                      color: Colors.error.main,
-                      marginLeft: Spacing.md,
-                    }}
-                  >
-                    삭제
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* 취소 버튼 */}
-              <View style={{ paddingHorizontal: Spacing.xl, paddingTop: Spacing.md }}>
-                <TouchableOpacity
-                  onPress={() => setShowFeedMenuModal(false)}
-                  activeOpacity={0.8}
-                  style={{
-                    backgroundColor: Colors.neutral[100],
-                    borderRadius: BorderRadius.lg,
-                    paddingVertical: Spacing.md,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: Typography.fontSize.base,
-                      fontWeight: "600",
-                      color: Colors.neutral[700],
-                    }}
-                  >
-                    취소
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </Pressable>
-          </Pressable>
+              <TouchableOpacity
+                activeOpacity={0.6}
+                onPress={() => handleFeedMenuAction("delete")}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: Spacing.md,
+                  paddingVertical: 14,
+                }}
+              >
+                <Trash2 size={20} color={Colors.error.main} />
+                <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.error.main }}>
+                  삭제
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
         </Modal>
       </View>
     );
@@ -1048,7 +968,7 @@ export default function GroupScreen() {
         >
           <Text
             style={{
-              fontSize: Typography.fontSize["2xl"],
+              fontSize: Typography.fontSize.xl,
               fontWeight: "700",
               color: Colors.neutral[900],
             }}
@@ -1364,337 +1284,183 @@ export default function GroupScreen() {
       </Modal>
 
       {/* 그룹 메뉴 바텀시트 */}
-      <Modal visible={showGroupMenuModal} transparent animationType="slide">
-        <Pressable
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            justifyContent: "flex-end",
-          }}
-          onPress={() => setShowGroupMenuModal(false)}
-        >
-          <Pressable
+      <Modal
+        visible={showGroupMenuModal}
+        transparent
+        statusBarTranslucent
+        animationType="none"
+        onRequestClose={() => closeGroupMenu()}
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          {/* 오버레이 */}
+          <Animated.View
             style={{
-              backgroundColor: Colors.neutral[0],
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.35)",
+              opacity: groupMenuOverlayOpacity,
+            }}
+          >
+            <Pressable style={{ flex: 1 }} onPress={() => closeGroupMenu()} />
+          </Animated.View>
+
+          {/* 시트 */}
+          <Animated.View
+            style={{
+              transform: [{ translateY: groupMenuSheetTranslateY }],
+              backgroundColor: "#FFFFFF",
               borderTopLeftRadius: BorderRadius.xl,
               borderTopRightRadius: BorderRadius.xl,
-              paddingTop: Spacing.md,
-              paddingBottom: insets.bottom + Spacing.lg,
+              paddingTop: Spacing.sm,
+              paddingBottom: insets.bottom + Spacing.xl + 100,
+              marginBottom: -100,
+              paddingHorizontal: Spacing.xl,
             }}
-            onPress={(e) => e.stopPropagation()}
           >
-            {/* 핸들바 */}
-            <View
-              style={{
-                width: 36,
-                height: 4,
-                backgroundColor: Colors.neutral[300],
-                borderRadius: 2,
-                alignSelf: "center",
-                marginBottom: Spacing.lg,
-              }}
-            />
+            {/* 핸들 바 */}
+            <View style={{
+              width: 36,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: Colors.neutral[200],
+              alignSelf: "center",
+              marginBottom: Spacing.xl,
+            }} />
 
-            {/* 제목 */}
-            <View
+            {/* 그룹 수정 */}
+            <TouchableOpacity
+              activeOpacity={0.6}
+              onPress={() => handleGroupMenuAction("edit")}
               style={{
-                paddingHorizontal: Spacing.xl,
-                paddingBottom: Spacing.lg,
-                borderBottomWidth: 1,
-                borderBottomColor: Colors.neutral[100],
+                flexDirection: "row",
+                alignItems: "center",
+                gap: Spacing.md,
+                paddingVertical: 14,
               }}
             >
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.lg,
-                  fontWeight: "700",
-                  color: Colors.neutral[900],
-                }}
-                numberOfLines={1}
-              >
-                {menuTargetGroup?.name}
+              <Edit3 size={20} color={Colors.neutral[600]} />
+              <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.neutral[900] }}>
+                그룹 수정
               </Text>
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.sm,
-                  color: Colors.neutral[500],
-                  marginTop: 4,
-                }}
-              >
-                멤버 {menuTargetGroup?.memberCount}명
+            </TouchableOpacity>
+
+            {/* 그룹 나가기 */}
+            <TouchableOpacity
+              activeOpacity={0.6}
+              onPress={() => handleGroupMenuAction("leave")}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: Spacing.md,
+                paddingVertical: 14,
+              }}
+            >
+              <LogOut size={20} color={Colors.neutral[600]} />
+              <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.neutral[900] }}>
+                그룹 나가기
               </Text>
-            </View>
+            </TouchableOpacity>
 
-            {/* 메뉴 옵션들 */}
-            <View style={{ paddingTop: Spacing.sm }}>
-              {/* 수정 */}
-              <TouchableOpacity
-                onPress={() => handleGroupMenuAction("edit")}
-                activeOpacity={0.7}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: Spacing.md,
-                  paddingHorizontal: Spacing.xl,
-                }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: Colors.neutral[100],
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <Edit3 size={20} color={Colors.neutral[700]} />
-                </View>
-                <Text
-                  style={{
-                    flex: 1,
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: "500",
-                    color: Colors.neutral[900],
-                    marginLeft: Spacing.md,
-                  }}
-                >
-                  그룹 수정
-                </Text>
-              </TouchableOpacity>
-
-              {/* 그룹 나가기 */}
-              <TouchableOpacity
-                onPress={() => handleGroupMenuAction("leave")}
-                activeOpacity={0.7}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: Spacing.md,
-                  paddingHorizontal: Spacing.xl,
-                }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: Colors.warning.light,
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <LogOut size={20} color={Colors.warning.main} />
-                </View>
-                <Text
-                  style={{
-                    flex: 1,
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: "500",
-                    color: Colors.neutral[900],
-                    marginLeft: Spacing.md,
-                  }}
-                >
-                  그룹 나가기
-                </Text>
-              </TouchableOpacity>
-
-              {/* 삭제 */}
-              <TouchableOpacity
-                onPress={() => handleGroupMenuAction("delete")}
-                activeOpacity={0.7}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: Spacing.md,
-                  paddingHorizontal: Spacing.xl,
-                }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: Colors.error.light,
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <Trash2 size={20} color={Colors.error.main} />
-                </View>
-                <Text
-                  style={{
-                    flex: 1,
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: "500",
-                    color: Colors.error.main,
-                    marginLeft: Spacing.md,
-                  }}
-                >
-                  그룹 삭제
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* 취소 버튼 */}
-            <View style={{ paddingHorizontal: Spacing.xl, paddingTop: Spacing.md }}>
-              <TouchableOpacity
-                onPress={() => setShowGroupMenuModal(false)}
-                activeOpacity={0.8}
-                style={{
-                  backgroundColor: Colors.neutral[100],
-                  borderRadius: BorderRadius.lg,
-                  paddingVertical: Spacing.md,
-                  alignItems: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: "600",
-                    color: Colors.neutral[700],
-                  }}
-                >
-                  취소
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
+            {/* 그룹 삭제 */}
+            <TouchableOpacity
+              activeOpacity={0.6}
+              onPress={() => handleGroupMenuAction("delete")}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: Spacing.md,
+                paddingVertical: 14,
+              }}
+            >
+              <Trash2 size={20} color={Colors.error.main} />
+              <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.error.main }}>
+                그룹 삭제
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
       </Modal>
 
       {/* 피드 메뉴 바텀시트 */}
-      <Modal visible={showFeedMenuModal} transparent animationType="slide">
-        <Pressable
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            justifyContent: "flex-end",
-          }}
-          onPress={() => setShowFeedMenuModal(false)}
-        >
-          <Pressable
+      <Modal
+        visible={showFeedMenuModal}
+        transparent
+        statusBarTranslucent
+        animationType="none"
+        onRequestClose={() => closeFeedMenu()}
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          <Animated.View
             style={{
-              backgroundColor: Colors.neutral[0],
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.35)",
+              opacity: feedMenuOverlayOpacity,
+            }}
+          >
+            <Pressable style={{ flex: 1 }} onPress={() => closeFeedMenu()} />
+          </Animated.View>
+
+          <Animated.View
+            style={{
+              transform: [{ translateY: feedMenuSheetTranslateY }],
+              backgroundColor: "#FFFFFF",
               borderTopLeftRadius: BorderRadius.xl,
               borderTopRightRadius: BorderRadius.xl,
-              paddingTop: Spacing.md,
-              paddingBottom: insets.bottom + Spacing.lg,
+              paddingTop: Spacing.sm,
+              paddingBottom: insets.bottom + Spacing.xl + 100,
+              marginBottom: -100,
+              paddingHorizontal: Spacing.xl,
             }}
-            onPress={(e) => e.stopPropagation()}
           >
-            {/* 핸들바 */}
-            <View
+            <View style={{
+              width: 36,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: Colors.neutral[200],
+              alignSelf: "center",
+              marginBottom: Spacing.xl,
+            }} />
+
+            <TouchableOpacity
+              activeOpacity={0.6}
+              onPress={() => handleFeedMenuAction("edit")}
               style={{
-                width: 36,
-                height: 4,
-                backgroundColor: Colors.neutral[300],
-                borderRadius: 2,
-                alignSelf: "center",
-                marginBottom: Spacing.lg,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: Spacing.md,
+                paddingVertical: 14,
               }}
-            />
+            >
+              <Edit3 size={20} color={Colors.neutral[600]} />
+              <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.neutral[900] }}>
+                수정
+              </Text>
+            </TouchableOpacity>
 
-            {/* 메뉴 옵션들 */}
-            <View style={{ paddingTop: Spacing.sm }}>
-              {/* 수정 */}
-              <TouchableOpacity
-                onPress={() => handleFeedMenuAction("edit")}
-                activeOpacity={0.7}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: Spacing.md,
-                  paddingHorizontal: Spacing.xl,
-                }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: Colors.neutral[100],
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <Edit3 size={20} color={Colors.neutral[700]} />
-                </View>
-                <Text
-                  style={{
-                    flex: 1,
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: "500",
-                    color: Colors.neutral[900],
-                    marginLeft: Spacing.md,
-                  }}
-                >
-                  수정
-                </Text>
-              </TouchableOpacity>
-
-              {/* 삭제 */}
-              <TouchableOpacity
-                onPress={() => handleFeedMenuAction("delete")}
-                activeOpacity={0.7}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: Spacing.md,
-                  paddingHorizontal: Spacing.xl,
-                }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: Colors.error.light,
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <Trash2 size={20} color={Colors.error.main} />
-                </View>
-                <Text
-                  style={{
-                    flex: 1,
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: "500",
-                    color: Colors.error.main,
-                    marginLeft: Spacing.md,
-                  }}
-                >
-                  삭제
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* 취소 버튼 */}
-            <View style={{ paddingHorizontal: Spacing.xl, paddingTop: Spacing.md }}>
-              <TouchableOpacity
-                onPress={() => setShowFeedMenuModal(false)}
-                activeOpacity={0.8}
-                style={{
-                  backgroundColor: Colors.neutral[100],
-                  borderRadius: BorderRadius.lg,
-                  paddingVertical: Spacing.md,
-                  alignItems: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: "600",
-                    color: Colors.neutral[700],
-                  }}
-                >
-                  취소
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
+            <TouchableOpacity
+              activeOpacity={0.6}
+              onPress={() => handleFeedMenuAction("delete")}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: Spacing.md,
+                paddingVertical: 14,
+              }}
+            >
+              <Trash2 size={20} color={Colors.error.main} />
+              <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.error.main }}>
+                삭제
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
       </Modal>
 
       {/* 초대 모달 */}
@@ -1849,8 +1615,8 @@ export default function GroupScreen() {
             style={{
               backgroundColor: "#FFFFFF",
               borderRadius: 24,
-              padding: 32,
-              marginHorizontal: 40,
+              padding: 24,
+              width: "78%",
               alignItems: "center",
               shadowColor: "#000",
               shadowOffset: { width: 0, height: 10 },
@@ -1863,25 +1629,25 @@ export default function GroupScreen() {
             {/* 성공 아이콘 */}
             <View
               style={{
-                width: 80,
-                height: 80,
-                borderRadius: 40,
+                width: 64,
+                height: 64,
+                borderRadius: 32,
                 backgroundColor: Colors.primary[50],
                 justifyContent: "center",
                 alignItems: "center",
-                marginBottom: 20,
+                marginBottom: 14,
               }}
             >
-              <PartyPopper size={40} color={Colors.primary[500]} />
+              <PartyPopper size={32} color={Colors.primary[500]} />
             </View>
 
             {/* 타이틀 */}
             <Text
               style={{
-                fontSize: 22,
+                fontSize: 18,
                 fontWeight: "800",
                 color: Colors.neutral[900],
-                marginBottom: 8,
+                marginBottom: 10,
               }}
             >
               그룹 생성 완료!
@@ -1893,16 +1659,16 @@ export default function GroupScreen() {
                 flexDirection: "row",
                 alignItems: "center",
                 backgroundColor: Colors.neutral[100],
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                borderRadius: 12,
-                marginBottom: 8,
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderRadius: 10,
+                marginBottom: 10,
               }}
             >
-              <Users size={18} color={Colors.primary[500]} />
+              <Users size={16} color={Colors.primary[500]} />
               <Text
                 style={{
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: "600",
                   color: Colors.neutral[800],
                   marginLeft: 8,
@@ -1915,11 +1681,10 @@ export default function GroupScreen() {
             {/* 설명 */}
             <Text
               style={{
-                fontSize: 14,
+                fontSize: 13,
                 color: Colors.neutral[500],
                 textAlign: "center",
-                lineHeight: 20,
-                marginTop: 8,
+                lineHeight: 19,
               }}
             >
               멤버를 초대하고 함께{"\n"}식단을 관리해보세요!
@@ -1931,19 +1696,19 @@ export default function GroupScreen() {
               activeOpacity={0.8}
               style={{
                 backgroundColor: Colors.primary[500],
-                paddingVertical: 14,
-                paddingHorizontal: 48,
-                borderRadius: 14,
-                marginTop: 24,
+                paddingVertical: 12,
+                paddingHorizontal: 40,
+                borderRadius: 12,
+                marginTop: 18,
                 flexDirection: "row",
                 alignItems: "center",
-                gap: 8,
+                gap: 6,
               }}
             >
-              <Check size={20} color="#FFFFFF" />
+              <Check size={17} color="#FFFFFF" />
               <Text
                 style={{
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: "700",
                   color: "#FFFFFF",
                 }}

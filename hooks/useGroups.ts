@@ -35,6 +35,16 @@ interface ApiGroup {
   createdAt: string;
 }
 
+interface ApiFeedRecipe {
+  id: number;
+  title: string;
+  cookingTime: number;
+  bookmarkCount: number;
+  mainImgUrl: string | null;
+  authorName: string | null;
+  authorProfileImgUrl: string | null;
+}
+
 interface ApiFeed {
   id: number;
   content: string;
@@ -43,8 +53,8 @@ interface ApiFeed {
   authorName: string;
   likes: number;
   likedByMe: boolean;
-  imageUrl: string | null; // 서버에서 제공하는 전체 CDN URL
-  recipeId: number | null; // NEW_RECIPE_ADDED 타입일 때 레시피 ID
+  imageUrl: string | null;
+  recipe: ApiFeedRecipe | null;
   createdAt: string;
 }
 
@@ -73,14 +83,6 @@ function mapApiGroupToGroup(apiGroup: ApiGroup): Group {
 }
 
 function mapApiFeedToFeedItem(apiFeed: ApiFeed): FeedItem {
-  // 디버깅용 로그
-  console.log('[Feed Image Debug]', {
-    feedId: apiFeed.id,
-    imageUrl: apiFeed.imageUrl,
-    feedType: apiFeed.feedType,
-    recipeId: apiFeed.recipeId,
-  });
-
   return {
     id: apiFeed.id.toString(),
     type: 'post',
@@ -93,7 +95,15 @@ function mapApiFeedToFeedItem(apiFeed: ApiFeed): FeedItem {
     comments: 0,
     time: formatRelativeTime(apiFeed.createdAt),
     isLiked: apiFeed.likedByMe,
-    recipeId: apiFeed.recipeId?.toString(),
+    recipe: apiFeed.recipe ? {
+      id: apiFeed.recipe.id.toString(),
+      title: apiFeed.recipe.title,
+      cookingTime: apiFeed.recipe.cookingTime,
+      bookmarkCount: apiFeed.recipe.bookmarkCount,
+      mainImgUrl: apiFeed.recipe.mainImgUrl,
+      authorName: apiFeed.recipe.authorName,
+      authorProfileImgUrl: apiFeed.recipe.authorProfileImgUrl,
+    } : undefined,
   };
 }
 

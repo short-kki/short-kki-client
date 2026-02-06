@@ -9,6 +9,7 @@ import {
 } from "@/hooks";
 import type { CurationRecipe, ShortsItem } from "@/data/mock";
 import { USE_MOCK, api } from "@/services/api";
+import { extractYoutubeId } from "@/utils/youtube";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -483,19 +484,22 @@ export default function ShortsScreen() {
 
   const curationShorts = useMemo<ShortsItem[]>(() => {
     return sections.flatMap((section) =>
-      section.recipes.map((recipe) => ({
-        id: recipe.id,
-        videoId: recipe.id,
-        videoUrl: `https://www.youtube.com/shorts/${recipe.id}`,
-        title: recipe.title,
-        author: recipe.author,
-        authorAvatar: recipe.author?.[0],
-        creatorName: recipe.creatorName,
-        thumbnail: recipe.thumbnail || getYoutubeThumbnail(recipe.id),
-        views: undefined,
-        tags: [],
-        bookmarks: recipe.bookmarks ?? 0,
-      }))
+      section.recipes.map((recipe) => {
+        const videoId = extractYoutubeId(recipe.sourceUrl ?? "") ?? recipe.id;
+        return {
+          id: recipe.id,
+          videoId,
+          videoUrl: recipe.sourceUrl || `https://www.youtube.com/shorts/${videoId}`,
+          title: recipe.title,
+          author: recipe.author,
+          authorAvatar: recipe.author?.[0],
+          creatorName: recipe.creatorName,
+          thumbnail: recipe.thumbnail || getYoutubeThumbnail(videoId),
+          views: undefined,
+          tags: [],
+          bookmarks: recipe.bookmarks ?? 0,
+        };
+      })
     );
   }, [sections]);
 
@@ -576,14 +580,12 @@ export default function ShortsScreen() {
     const index = SHORTS_DATA.findIndex(item => item.id === startId);
     if (index !== -1 && index < SHORTS_DATA.length) {
       setTimeout(() => {
-        if (index < SHORTS_DATA.length) {
-          flatListRef.current?.scrollToIndex({ index, animated: false });
-          setActiveIndex(index);
-        }
+        flatListRef.current?.scrollToOffset({ offset: index * itemHeight, animated: false });
+        setActiveIndex(index);
         hasScrolledRef.current = true;
       }, 100);
     }
-  }, [startId, SHORTS_DATA]);
+  }, [startId, SHORTS_DATA, itemHeight]);
 
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 50,
@@ -657,6 +659,7 @@ export default function ShortsScreen() {
   }, [toastOpacity, toastTranslate]);
 
   const handleViewRecipe = useCallback((recipeId: string) => {
+    console.log("[Shorts] handleViewRecipe called - recipeId:", recipeId, "type:", typeof recipeId);
     router.push(`/recipe/${recipeId}`);
   }, [router]);
 
@@ -886,6 +889,9 @@ export default function ShortsScreen() {
         removeClippedSubviews={false}
         snapToInterval={itemHeight}
         snapToAlignment="start"
+        onScrollToIndexFailed={(info) => {
+          flatListRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
+        }}
         onEndReached={() => {
           if (isCurationMode && hasNextCurationPage && !loadingMoreCuration) {
             fetchNextCurationPage();
