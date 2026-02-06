@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { ArrowLeft, Folder, BookOpen } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { useGroupRecipeBooksById } from "@/hooks";
@@ -19,7 +20,14 @@ export default function GroupRecipeBooksScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ groupId: string; groupName: string }>();
 
-  const { recipeBooks, loading, error } = useGroupRecipeBooksById(params.groupId);
+  const { recipeBooks, loading, error, refetch } = useGroupRecipeBooksById(params.groupId);
+
+  // 화면에 포커스될 때 데이터 새로고침
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
 
   const handleBookPress = (bookId: string) => {
     router.push({

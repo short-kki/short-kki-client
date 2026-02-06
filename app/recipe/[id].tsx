@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -34,6 +34,8 @@ import {
   BookOpen,
   Square,
   CheckSquare,
+  Volume2,
+  VolumeX,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import RecipeBookSelectModal from "@/components/RecipeBookSelectModal";
@@ -41,6 +43,8 @@ import { recipeApi, type RecipeResponse } from "@/services/recipeApi";
 import { API_BASE_URL } from "@/constants/oauth";
 import { api } from "@/services/api";
 import { useRecipeQueue, useGroups } from "@/hooks";
+import { YoutubeView, useYouTubePlayer, useYouTubeEvent, PlayerState } from "react-native-youtube-bridge";
+import { extractYoutubeId } from "@/utils/youtube";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -92,6 +96,65 @@ export default function RecipeDetailScreen() {
   const [isAddingToShoppingList, setIsAddingToShoppingList] = useState(false);
   const { addQueue } = useRecipeQueue();
   const { groups, loading: groupsLoading } = useGroups();
+
+  // 비디오 관련 상태
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [isVideoReady, setIsVideoReady] = useState(false);
+
+  // YouTube Video ID 추출
+  const videoId = recipe?.sourceUrl ? extractYoutubeId(recipe.sourceUrl) : null;
+
+  // YouTube Player 설정
+  const VIDEO_HEIGHT = SCREEN_WIDTH * 0.75;
+  const playerWidth = VIDEO_HEIGHT * (9 / 16); // 세로 영상이므로 9:16
+  const player = useYouTubePlayer(videoId || "", {
+    autoplay: false,
+    muted: isMuted,
+    controls: false,
+    playsinline: true,
+    rel: false,
+    loop: true,
+  });
+
+  // YouTube 이벤트 리스너
+  useYouTubeEvent(player, "ready", () => {
+    console.log("YouTube player ready");
+    setIsVideoReady(true);
+  });
+
+  useYouTubeEvent(player, "stateChange", (state) => {
+    console.log("Player state:", state);
+    if (state === PlayerState.PLAYING) {
+      setIsVideoPlaying(true);
+    } else if (state === PlayerState.PAUSED || state === PlayerState.ENDED) {
+      setIsVideoPlaying(false);
+    }
+    if (state === PlayerState.ENDED) {
+      player.seekTo(0);
+      player.play();
+    }
+  });
+
+  // 비디오 재생/일시정지 토글
+  const togglePlayPause = useCallback(() => {
+    if (isVideoPlaying) {
+      player.pause();
+    } else {
+      player.play();
+    }
+  }, [isVideoPlaying, player]);
+
+  // 음소거 토글
+  const toggleMute = useCallback(() => {
+    const newMuted = !isMuted;
+    setIsMuted(newMuted);
+    if (newMuted) {
+      player.mute();
+    } else {
+      player.unMute();
+    }
+  }, [isMuted, player]);
 
   // 데이터 로딩
   useEffect(() => {
@@ -387,6 +450,148 @@ export default function RecipeDetailScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Recipe Video or Image */}
+        <View style={{ width: SCREEN_WIDTH, height: VIDEO_HEIGHT, backgroundColor: Colors.neutral[900] }}>
+          {videoId ? (
+            <>
+              {/* YouTube Player */}
+              <View
+                style={{
+                  width: SCREEN_WIDTH,
+                  height: VIDEO_HEIGHT,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  overflow: "hidden",
+                }}
+              >
+                <YoutubeView
+                  player={player}
+                  width={playerWidth}
+                  height={VIDEO_HEIGHT}
+                  style={{ backgroundColor: "#000" }}
+                  webViewStyle={{ backgroundColor: "#000" }}
+                  webViewProps={{
+                    allowsInlineMediaPlayback: true,
+                    mediaPlaybackRequiresUserAction: false,
+                    scrollEnabled: false,
+                  }}
+                />
+              </View>
+
+              {/* 재생/일시정지 오버레이 */}
+              {!isVideoPlaying && (
+                <Pressable
+                  onPress={togglePlayPause}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    zIndex: 5,
+                  }}
+                >
+                  {/* 썸네일 배경 */}
+                  <Image
+                    source={{ uri: `https://i.ytimg.com/vi/${videoId}/hq720.jpg` }}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: SCREEN_WIDTH,
+                      height: VIDEO_HEIGHT,
+                    }}
+                    contentFit="cover"
+                  />
+                  {/* 어두운 오버레이 */}
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: "rgba(0,0,0,0.3)",
+                    }}
+                  />
+                  {/* 재생 버튼 */}
+                  <View
+                    style={{
+                      width: 64,
+                      height: 64,
+                      borderRadius: 32,
+                      backgroundColor: "rgba(0,0,0,0.6)",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Play size={32} color="#FFFFFF" fill="#FFFFFF" />
+                  </View>
+                </Pressable>
+              )}
+
+              {/* 음소거 토글 버튼 */}
+              {isVideoPlaying && (
+                <TouchableOpacity
+                  onPress={toggleMute}
+                  activeOpacity={0.8}
+                  style={{
+                    position: "absolute",
+                    bottom: 16,
+                    right: 16,
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: "rgba(0,0,0,0.6)",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    zIndex: 10,
+                  }}
+                >
+                  {isMuted ? (
+                    <VolumeX size={20} color="#FFFFFF" />
+                  ) : (
+                    <Volume2 size={20} color="#FFFFFF" />
+                  )}
+                </TouchableOpacity>
+              )}
+
+              {/* 일시정지 버튼 (재생 중일 때) */}
+              {isVideoPlaying && (
+                <TouchableOpacity
+                  onPress={togglePlayPause}
+                  activeOpacity={0.8}
+                  style={{
+                    position: "absolute",
+                    bottom: 16,
+                    left: 16,
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: "rgba(0,0,0,0.6)",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    zIndex: 10,
+                  }}
+                >
+                  <View style={{ width: 14, height: 14, flexDirection: "row", justifyContent: "space-between" }}>
+                    <View style={{ width: 4, height: 14, backgroundColor: "#FFFFFF", borderRadius: 1 }} />
+                    <View style={{ width: 4, height: 14, backgroundColor: "#FFFFFF", borderRadius: 1 }} />
+                  </View>
+                </TouchableOpacity>
+              )}
+            </>
+          ) : (
+            /* 이미지 폴백 (비디오 없을 때) */
+            <Image
+              source={{ uri: getImageUrl(recipe.mainImgUrl) }}
+              style={{ width: "100%", height: "100%" }}
+              contentFit="cover"
+            />
+          )}
+        </View>
 
         {/* Content Section */}
         <View style={{ padding: Spacing.xl }}>
@@ -691,9 +896,25 @@ export default function RecipeDetailScreen() {
       <RecipeBookSelectModal
         visible={showBookSelectModal}
         onClose={() => setShowBookSelectModal(false)}
-        onSelect={async (bookId, bookName) => {
+        onSelect={async (bookId, bookName, groupId, groupName) => {
           try {
+            // 레시피북에 레시피 추가
             await api.post(`/api/v1/recipebooks/${bookId}/recipes`, { recipeId: recipe.id });
+
+            // 그룹 레시피북인 경우 피드 생성
+            if (groupId) {
+              try {
+                await api.post(`/api/v1/groups/${groupId}/feeds`, {
+                  content: `"${recipe.title}" 레시피가 "${bookName}" 레시피북에 추가되었습니다.`,
+                  feedType: "NEW_RECIPE_ADDED",
+                });
+                console.log("[Feed] 레시피 추가 피드 생성 완료");
+              } catch (feedError) {
+                console.error("[Feed] 피드 생성 실패:", feedError);
+                // 피드 생성 실패해도 레시피 저장은 성공으로 처리
+              }
+            }
+
             setSavedBookName(bookName);
             setShowSaveSuccessModal(true);
             setIsBookmarked(true);

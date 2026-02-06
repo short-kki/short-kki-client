@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,8 +8,12 @@ import {
   TextInput,
   Alert,
   Switch,
+  ActivityIndicator,
+  Modal,
+  Animated,
 } from "react-native";
 import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
@@ -21,43 +25,23 @@ import {
   Bell,
   Trash2,
   ChevronRight,
+  Check,
+  ImagePlus,
+  X,
+  CheckCircle,
+  Sparkles,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
+import { useGroupDetail, useGroups } from "@/hooks";
+import { uploadImage, type ImagePickerAsset } from "@/services/fileUpload";
 
-// 더미 그룹 데이터
-const GROUP_DATA: Record<string, {
-  name: string;
-  description: string;
-  thumbnail: string | null;
-  isPrivate: boolean;
-  notificationsEnabled: boolean;
-  memberCount: number;
-}> = {
-  "1": {
-    name: "우리 가족 식단",
-    description: "가족들이 함께 레시피를 공유하는 그룹입니다.",
-    thumbnail: null,
-    isPrivate: true,
-    notificationsEnabled: true,
-    memberCount: 4,
-  },
-  "2": {
-    name: "자취생 요리 모임",
-    description: "자취생들의 간단하고 맛있는 요리 공유",
-    thumbnail: null,
-    isPrivate: false,
-    notificationsEnabled: true,
-    memberCount: 12,
-  },
-  "3": {
-    name: "다이어트 챌린지",
-    description: "함께 건강한 식단을 만들어가요!",
-    thumbnail: null,
-    isPrivate: false,
-    notificationsEnabled: false,
-    memberCount: 8,
-  },
-};
+// 그룹 타입 옵션
+const GROUP_TYPES = [
+  { value: 'COUPLE' as const, label: '커플' },
+  { value: 'FAMILY' as const, label: '가족' },
+  { value: 'FRIENDS' as const, label: '친구' },
+  { value: 'ETC' as const, label: '기타' },
+];
 
 export default function GroupEditScreen() {
   const insets = useSafeAreaInsets();
@@ -65,20 +49,55 @@ export default function GroupEditScreen() {
   const params = useLocalSearchParams<{ groupId: string }>();
 
   const groupId = params.groupId || "1";
-  const initialData = GROUP_DATA[groupId] || {
-    name: "",
-    description: "",
-    thumbnail: null,
-    isPrivate: false,
-    notificationsEnabled: true,
-    memberCount: 0,
-  };
+  const { group, loading, updateGroup } = useGroupDetail(groupId);
+  const { deleteGroup } = useGroups();
 
-  const [name, setName] = useState(initialData.name);
-  const [description, setDescription] = useState(initialData.description);
-  const [isPrivate, setIsPrivate] = useState(initialData.isPrivate);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(initialData.notificationsEnabled);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [groupType, setGroupType] = useState<'COUPLE' | 'FAMILY' | 'FRIENDS' | 'ETC'>('FAMILY');
+  const [thumbnailImgUrl, setThumbnailImgUrl] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<ImagePickerAsset | null>(null);
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [hasChanges, setHasChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [scaleAnim] = useState(new Animated.Value(0));
+  const [fadeAnim] = useState(new Animated.Value(0));
+
+  // 성공 모달 애니메이션
+  useEffect(() => {
+    if (showSuccessModal) {
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 6,
+          tension: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      scaleAnim.setValue(0);
+      fadeAnim.setValue(0);
+    }
+  }, [showSuccessModal]);
+
+  // 그룹 데이터 로드 시 상태 초기화
+  useEffect(() => {
+    if (group) {
+      setName(group.name);
+      setDescription(group.description || "");
+      setGroupType(group.groupType);
+      setThumbnailImgUrl(group.thumbnailImgUrl);
+    }
+  }, [group]);
 
   const handleNameChange = (text: string) => {
     setName(text);
@@ -87,6 +106,11 @@ export default function GroupEditScreen() {
 
   const handleDescriptionChange = (text: string) => {
     setDescription(text);
+    setHasChanges(true);
+  };
+
+  const handleGroupTypeChange = (type: 'COUPLE' | 'FAMILY' | 'FRIENDS' | 'ETC') => {
+    setGroupType(type);
     setHasChanges(true);
   };
 
@@ -100,15 +124,49 @@ export default function GroupEditScreen() {
     setHasChanges(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert("알림", "그룹 이름을 입력해주세요.");
       return;
     }
 
-    Alert.alert("저장 완료", "그룹 정보가 수정되었습니다.", [
-      { text: "확인", onPress: () => router.back() },
-    ]);
+    try {
+      setIsSaving(true);
+
+      let finalThumbnailUrl = thumbnailImgUrl;
+
+      // 새 이미지가 선택되었으면 업로드
+      if (selectedImage) {
+        setIsUploadingImage(true);
+        try {
+          const uploadedFile = await uploadImage(selectedImage, "FEED_IMG", "PUBLIC");
+          finalThumbnailUrl = uploadedFile.url;
+          console.log("[Group Edit] 썸네일 업로드 완료:", uploadedFile.url);
+        } catch (uploadError) {
+          console.error("이미지 업로드 실패:", uploadError);
+          Alert.alert("오류", "이미지 업로드에 실패했습니다.");
+          setIsUploadingImage(false);
+          setIsSaving(false);
+          return;
+        }
+        setIsUploadingImage(false);
+      }
+
+      const updateData = {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        thumbnailImgUrl: finalThumbnailUrl || undefined,
+        groupType,
+      };
+      console.log("[Group Edit] 그룹 수정 요청 데이터:", JSON.stringify(updateData, null, 2));
+      await updateGroup(updateData);
+      setShowSuccessModal(true);
+    } catch (error) {
+      console.error("그룹 수정 실패:", error);
+      Alert.alert("오류", "그룹 정보 수정에 실패했습니다.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDeleteGroup = () => {
@@ -120,22 +178,93 @@ export default function GroupEditScreen() {
         {
           text: "삭제",
           style: "destructive",
-          onPress: () => {
-            Alert.alert("삭제 완료", "그룹이 삭제되었습니다.", [
-              { text: "확인", onPress: () => router.replace("/(tabs)/group") },
-            ]);
+          onPress: async () => {
+            try {
+              await deleteGroup(groupId);
+              Alert.alert("삭제 완료", "그룹이 삭제되었습니다.", [
+                { text: "확인", onPress: () => router.replace("/(tabs)/group") },
+              ]);
+            } catch (error) {
+              console.error("그룹 삭제 실패:", error);
+              Alert.alert("오류", "그룹 삭제에 실패했습니다.");
+            }
           },
         },
       ]
     );
   };
 
+  // 갤러리에서 이미지 선택
+  const handlePickFromGallery = async () => {
+    setShowPhotoModal(false);
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("권한 필요", "갤러리 접근 권한이 필요합니다.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      const asset = result.assets[0];
+      setSelectedImage({
+        uri: asset.uri,
+        fileName: asset.fileName,
+        mimeType: asset.mimeType,
+        fileSize: asset.fileSize,
+        width: asset.width,
+        height: asset.height,
+      });
+      setHasChanges(true);
+    }
+  };
+
+  // 카메라로 촬영
+  const handleTakePhoto = async () => {
+    setShowPhotoModal(false);
+
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("권한 필요", "카메라 접근 권한이 필요합니다.");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      const asset = result.assets[0];
+      setSelectedImage({
+        uri: asset.uri,
+        fileName: asset.fileName,
+        mimeType: asset.mimeType,
+        fileSize: asset.fileSize,
+        width: asset.width,
+        height: asset.height,
+      });
+      setHasChanges(true);
+    }
+  };
+
+  // 사진 삭제
+  const handleRemovePhoto = () => {
+    setShowPhotoModal(false);
+    setSelectedImage(null);
+    setThumbnailImgUrl(null);
+    setHasChanges(true);
+  };
+
   const handleChangePhoto = () => {
-    Alert.alert("프로필 사진", "그룹 프로필 사진을 변경합니다.", [
-      { text: "취소", style: "cancel" },
-      { text: "카메라", onPress: () => {} },
-      { text: "앨범에서 선택", onPress: () => {} },
-    ]);
+    setShowPhotoModal(true);
   };
 
   const handleBack = () => {
@@ -153,6 +282,23 @@ export default function GroupEditScreen() {
       router.back();
     }
   };
+
+  // 로딩 중일 때
+  if (loading) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: Colors.neutral[50],
+          paddingTop: insets.top,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <ActivityIndicator size="large" color={Colors.primary[500]} />
+      </View>
+    );
+  }
 
   return (
     <View
@@ -196,22 +342,29 @@ export default function GroupEditScreen() {
         <TouchableOpacity
           onPress={handleSave}
           activeOpacity={0.7}
+          disabled={isSaving}
           style={{
-            backgroundColor: hasChanges ? Colors.primary[500] : Colors.neutral[200],
+            backgroundColor: hasChanges && !isSaving ? Colors.primary[500] : Colors.neutral[200],
             paddingHorizontal: 16,
             paddingVertical: 8,
             borderRadius: BorderRadius.full,
+            flexDirection: "row",
+            alignItems: "center",
           }}
         >
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: hasChanges ? "#FFF" : Colors.neutral[400],
-            }}
-          >
-            저장
-          </Text>
+          {isSaving ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "600",
+                color: hasChanges ? "#FFF" : Colors.neutral[400],
+              }}
+            >
+              저장
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -232,20 +385,35 @@ export default function GroupEditScreen() {
           <TouchableOpacity
             onPress={handleChangePhoto}
             activeOpacity={0.8}
+            disabled={isUploadingImage}
             style={{ position: "relative" }}
           >
-            <View
-              style={{
-                width: 100,
-                height: 100,
-                borderRadius: 50,
-                backgroundColor: Colors.primary[100],
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Users size={48} color={Colors.primary[500]} />
-            </View>
+            {selectedImage || thumbnailImgUrl ? (
+              // 선택된 이미지 또는 기존 썸네일 표시
+              <Image
+                source={{ uri: selectedImage?.uri || thumbnailImgUrl || "" }}
+                style={{
+                  width: 100,
+                  height: 100,
+                  borderRadius: 50,
+                }}
+                contentFit="cover"
+              />
+            ) : (
+              // 기본 아이콘 표시
+              <View
+                style={{
+                  width: 100,
+                  height: 100,
+                  borderRadius: 50,
+                  backgroundColor: Colors.primary[100],
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Users size={48} color={Colors.primary[500]} />
+              </View>
+            )}
             <View
               style={{
                 position: "absolute",
@@ -261,7 +429,11 @@ export default function GroupEditScreen() {
                 borderColor: Colors.neutral[0],
               }}
             >
-              <Camera size={16} color="#FFF" />
+              {isUploadingImage ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Camera size={16} color="#FFF" />
+              )}
             </View>
           </TouchableOpacity>
           <Text
@@ -272,7 +444,7 @@ export default function GroupEditScreen() {
               fontWeight: "500",
             }}
           >
-            사진 변경
+            {isUploadingImage ? "업로드 중..." : "사진 변경"}
           </Text>
         </View>
 
@@ -334,6 +506,8 @@ export default function GroupEditScreen() {
               style={{
                 paddingHorizontal: Spacing.xl,
                 paddingVertical: Spacing.md,
+                borderBottomWidth: 1,
+                borderBottomColor: Colors.neutral[100],
               }}
             >
               <Text
@@ -359,6 +533,55 @@ export default function GroupEditScreen() {
                 multiline
                 textAlignVertical="top"
               />
+            </View>
+
+            {/* 그룹 타입 */}
+            <View
+              style={{
+                paddingHorizontal: Spacing.xl,
+                paddingVertical: Spacing.md,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: Typography.fontSize.sm,
+                  color: Colors.neutral[500],
+                  marginBottom: Spacing.sm,
+                }}
+              >
+                그룹 타입
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {GROUP_TYPES.map((type) => (
+                  <TouchableOpacity
+                    key={type.value}
+                    onPress={() => handleGroupTypeChange(type.value)}
+                    activeOpacity={0.7}
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 8,
+                      borderRadius: BorderRadius.full,
+                      backgroundColor: groupType === type.value ? Colors.primary[500] : Colors.neutral[100],
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    {groupType === type.value && (
+                      <Check size={14} color="#FFF" />
+                    )}
+                    <Text
+                      style={{
+                        fontSize: Typography.fontSize.sm,
+                        fontWeight: groupType === type.value ? "600" : "400",
+                        color: groupType === type.value ? "#FFF" : Colors.neutral[700],
+                      }}
+                    >
+                      {type.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           </View>
         </View>
@@ -554,7 +777,7 @@ export default function GroupEditScreen() {
                   marginTop: 2,
                 }}
               >
-                {initialData.memberCount}명의 멤버
+                {group?.memberCount || 0}명의 멤버
               </Text>
             </View>
             <ChevronRight size={20} color={Colors.neutral[400]} />
@@ -626,6 +849,445 @@ export default function GroupEditScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* 사진 선택 바텀시트 모달 */}
+      <Modal visible={showPhotoModal} transparent animationType="slide">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            justifyContent: "flex-end",
+          }}
+          onPress={() => setShowPhotoModal(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: Colors.neutral[0],
+              borderTopLeftRadius: 28,
+              borderTopRightRadius: 28,
+              paddingBottom: insets.bottom + Spacing.lg,
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* 핸들바 */}
+            <View
+              style={{
+                width: 40,
+                height: 5,
+                backgroundColor: Colors.neutral[200],
+                borderRadius: 3,
+                alignSelf: "center",
+                marginTop: 12,
+                marginBottom: 20,
+              }}
+            />
+
+            {/* 현재 이미지 미리보기 */}
+            <View style={{ alignItems: "center", marginBottom: 24 }}>
+              {selectedImage || thumbnailImgUrl ? (
+                <View style={{ position: "relative" }}>
+                  <Image
+                    source={{ uri: selectedImage?.uri || thumbnailImgUrl || "" }}
+                    style={{
+                      width: 100,
+                      height: 100,
+                      borderRadius: 50,
+                      borderWidth: 3,
+                      borderColor: Colors.primary[100],
+                    }}
+                    contentFit="cover"
+                  />
+                  <View
+                    style={{
+                      position: "absolute",
+                      bottom: -4,
+                      right: -4,
+                      backgroundColor: Colors.primary[500],
+                      width: 32,
+                      height: 32,
+                      borderRadius: 16,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      borderWidth: 3,
+                      borderColor: Colors.neutral[0],
+                    }}
+                  >
+                    <Camera size={16} color="#FFF" />
+                  </View>
+                </View>
+              ) : (
+                <View
+                  style={{
+                    width: 100,
+                    height: 100,
+                    borderRadius: 50,
+                    backgroundColor: Colors.primary[50],
+                    justifyContent: "center",
+                    alignItems: "center",
+                    borderWidth: 3,
+                    borderColor: Colors.primary[100],
+                  }}
+                >
+                  <Users size={44} color={Colors.primary[400]} />
+                </View>
+              )}
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "700",
+                  color: Colors.neutral[900],
+                  marginTop: 16,
+                }}
+              >
+                프로필 사진 변경
+              </Text>
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: Colors.neutral[500],
+                  marginTop: 4,
+                }}
+              >
+                그룹을 대표하는 사진을 설정하세요
+              </Text>
+            </View>
+
+            {/* 옵션 카드들 */}
+            <View style={{ paddingHorizontal: 20, gap: 12 }}>
+              {/* 카메라 & 갤러리 가로 배치 */}
+              <View style={{ flexDirection: "row", gap: 12 }}>
+                {/* 카메라 */}
+                <TouchableOpacity
+                  onPress={handleTakePhoto}
+                  activeOpacity={0.8}
+                  style={{
+                    flex: 1,
+                    backgroundColor: Colors.primary[50],
+                    borderRadius: 16,
+                    padding: 20,
+                    alignItems: "center",
+                    borderWidth: 1,
+                    borderColor: Colors.primary[100],
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 28,
+                      backgroundColor: Colors.primary[500],
+                      justifyContent: "center",
+                      alignItems: "center",
+                      marginBottom: 12,
+                      shadowColor: Colors.primary[500],
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.3,
+                      shadowRadius: 8,
+                      elevation: 4,
+                    }}
+                  >
+                    <Camera size={28} color="#FFF" />
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      fontWeight: "700",
+                      color: Colors.neutral[900],
+                    }}
+                  >
+                    카메라
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: Colors.neutral[500],
+                      marginTop: 4,
+                    }}
+                  >
+                    사진 촬영
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 갤러리 */}
+                <TouchableOpacity
+                  onPress={handlePickFromGallery}
+                  activeOpacity={0.8}
+                  style={{
+                    flex: 1,
+                    backgroundColor: Colors.secondary[50],
+                    borderRadius: 16,
+                    padding: 20,
+                    alignItems: "center",
+                    borderWidth: 1,
+                    borderColor: Colors.secondary[100],
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 28,
+                      backgroundColor: Colors.secondary[500],
+                      justifyContent: "center",
+                      alignItems: "center",
+                      marginBottom: 12,
+                      shadowColor: Colors.secondary[500],
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.3,
+                      shadowRadius: 8,
+                      elevation: 4,
+                    }}
+                  >
+                    <ImagePlus size={28} color="#FFF" />
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      fontWeight: "700",
+                      color: Colors.neutral[900],
+                    }}
+                  >
+                    앨범
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: Colors.neutral[500],
+                      marginTop: 4,
+                    }}
+                  >
+                    사진 선택
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 사진 삭제 (이미지가 있을 때만 표시) */}
+              {(selectedImage || thumbnailImgUrl) && (
+                <TouchableOpacity
+                  onPress={handleRemovePhoto}
+                  activeOpacity={0.8}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: Colors.error.light,
+                    borderRadius: 16,
+                    paddingVertical: 16,
+                    gap: 8,
+                    borderWidth: 1,
+                    borderColor: "rgba(239,68,68,0.2)",
+                  }}
+                >
+                  <Trash2 size={20} color={Colors.error.main} />
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      fontWeight: "600",
+                      color: Colors.error.main,
+                    }}
+                  >
+                    현재 사진 삭제
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* 취소 버튼 */}
+              <TouchableOpacity
+                onPress={() => setShowPhotoModal(false)}
+                activeOpacity={0.8}
+                style={{
+                  backgroundColor: Colors.neutral[100],
+                  borderRadius: 16,
+                  paddingVertical: 16,
+                  alignItems: "center",
+                  marginTop: 4,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: Colors.neutral[600],
+                  }}
+                >
+                  취소
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 저장 성공 모달 */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="none"
+        statusBarTranslucent
+      >
+        <Animated.View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            justifyContent: "center",
+            alignItems: "center",
+            opacity: fadeAnim,
+          }}
+        >
+          <Animated.View
+            style={{
+              backgroundColor: Colors.neutral[0],
+              borderRadius: 28,
+              padding: 32,
+              marginHorizontal: 32,
+              alignItems: "center",
+              width: "85%",
+              maxWidth: 340,
+              transform: [{ scale: scaleAnim }],
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 20 },
+              shadowOpacity: 0.25,
+              shadowRadius: 30,
+              elevation: 20,
+            }}
+          >
+            {/* 스파클 장식 */}
+            <View style={{ position: "absolute", top: 24, right: 50 }}>
+              <Sparkles size={22} color={Colors.secondary[400]} />
+            </View>
+            <View style={{ position: "absolute", top: 60, left: 35 }}>
+              <Sparkles size={16} color={Colors.primary[300]} />
+            </View>
+
+            {/* 성공 아이콘 */}
+            <View
+              style={{
+                width: 88,
+                height: 88,
+                borderRadius: 44,
+                backgroundColor: Colors.success.light,
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: 24,
+              }}
+            >
+              <View
+                style={{
+                  width: 68,
+                  height: 68,
+                  borderRadius: 34,
+                  backgroundColor: Colors.success.main,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  shadowColor: Colors.success.main,
+                  shadowOffset: { width: 0, height: 6 },
+                  shadowOpacity: 0.4,
+                  shadowRadius: 12,
+                  elevation: 8,
+                }}
+              >
+                <CheckCircle size={40} color="#FFFFFF" strokeWidth={2.5} />
+              </View>
+            </View>
+
+            {/* 타이틀 */}
+            <Text
+              style={{
+                fontSize: 22,
+                fontWeight: "800",
+                color: Colors.neutral[900],
+                marginBottom: 8,
+              }}
+            >
+              저장 완료!
+            </Text>
+
+            {/* 그룹 이름 표시 */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: Colors.primary[50],
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+                borderRadius: 12,
+                marginBottom: 8,
+              }}
+            >
+              {selectedImage || thumbnailImgUrl ? (
+                <Image
+                  source={{ uri: selectedImage?.uri || thumbnailImgUrl || "" }}
+                  style={{ width: 24, height: 24, borderRadius: 12 }}
+                  contentFit="cover"
+                />
+              ) : (
+                <Users size={20} color={Colors.primary[500]} />
+              )}
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: "600",
+                  color: Colors.neutral[800],
+                  marginLeft: 10,
+                }}
+                numberOfLines={1}
+              >
+                {name}
+              </Text>
+            </View>
+
+            {/* 설명 */}
+            <Text
+              style={{
+                fontSize: 15,
+                color: Colors.neutral[500],
+                textAlign: "center",
+                lineHeight: 22,
+                marginTop: 8,
+              }}
+            >
+              그룹 정보가 성공적으로{"\n"}수정되었습니다
+            </Text>
+
+            {/* 확인 버튼 */}
+            <TouchableOpacity
+              onPress={() => {
+                setShowSuccessModal(false);
+                router.back();
+              }}
+              activeOpacity={0.8}
+              style={{
+                backgroundColor: Colors.primary[500],
+                paddingVertical: 16,
+                paddingHorizontal: 48,
+                borderRadius: 16,
+                marginTop: 28,
+                width: "100%",
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                shadowColor: Colors.primary[500],
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.35,
+                shadowRadius: 10,
+                elevation: 6,
+              }}
+            >
+              <Check size={22} color="#FFFFFF" strokeWidth={2.5} />
+              <Text
+                style={{
+                  fontSize: 17,
+                  fontWeight: "700",
+                  color: "#FFFFFF",
+                }}
+              >
+                확인
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
+      </Modal>
     </View>
   );
 }

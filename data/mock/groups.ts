@@ -13,6 +13,7 @@ export interface Group {
 export interface FeedPost {
   id: string;
   type: "post";
+  feedType?: "USER_CREATED" | "DAILY_MENU_NOTIFICATION" | "NEW_RECIPE_ADDED";
   user: string;
   userAvatar: string;
   content: string;
@@ -21,6 +22,7 @@ export interface FeedPost {
   comments: number;
   time: string;
   isLiked: boolean;
+  recipeId?: string; // NEW_RECIPE_ADDED 타입일 때 레시피 ID
 }
 
 export interface FeedRecipe {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -13,10 +13,10 @@ import {
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   Plus,
   MoreVertical,
-  BookOpen,
   Folder,
   ChevronRight,
   Edit3,
@@ -191,9 +191,17 @@ export default function RecipeBookScreen() {
   const params = useLocalSearchParams<{ groupId?: string; groupName?: string; _t?: string }>();
 
   // hooks에서 데이터 가져오기
-  const { recipeBooks: personalBooks, loading: personalLoading, createRecipeBook, removeRecipeBook, renameRecipeBook } = usePersonalRecipeBooks();
-  const { recipeBooks: groupBooks, loading: groupLoading } = useGroupRecipeBooks();
+  const { recipeBooks: personalBooks, loading: personalLoading, createRecipeBook, removeRecipeBook, renameRecipeBook, refetch: refetchPersonal } = usePersonalRecipeBooks();
+  const { recipeBooks: groupBooks, loading: groupLoading, refetch: refetchGroup } = useGroupRecipeBooks();
   const [isCreating, setIsCreating] = useState(false);
+
+  // 화면에 포커스될 때 데이터 새로고침
+  useFocusEffect(
+    useCallback(() => {
+      refetchPersonal();
+      refetchGroup();
+    }, [refetchPersonal, refetchGroup])
+  );
 
   // 그룹에서 진입한 경우 그룹 탭으로 시작
   const [activeTab, setActiveTab] = useState<"personal" | "group">(
@@ -331,19 +339,15 @@ export default function RecipeBookScreen() {
           paddingVertical: Spacing.md,
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <BookOpen size={24} color={Colors.primary[500]} />
-          <Text
-            style={{
-              fontSize: Typography.fontSize["2xl"],
-              fontWeight: "700",
-              color: Colors.neutral[900],
-              marginLeft: Spacing.sm,
-            }}
-          >
-            레시피북
-          </Text>
-        </View>
+        <Text
+          style={{
+            fontSize: Typography.fontSize["2xl"],
+            fontWeight: "700",
+            color: Colors.neutral[900],
+          }}
+        >
+          레시피북
+        </Text>
         {/* 레시피북 추가 버튼 - 개인 탭에서만 표시 */}
         {activeTab === "personal" && (
           <TouchableOpacity
