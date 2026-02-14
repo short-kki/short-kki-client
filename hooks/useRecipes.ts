@@ -2,7 +2,7 @@
  * 레시피/레시피북 관련 Hooks
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { USE_MOCK, api } from '@/services/api';
 import {
   MOCK_PERSONAL_RECIPE_BOOKS,
@@ -21,6 +21,13 @@ interface RecipeBookApiResponse {
   createdAt: string;
   recipeCount?: number; // 목록 조회 시 직접 제공될 수 있음
   recipes?: RecipeSummaryApiResponse[]; // 상세 조회 시에만 제공될 수 있음
+  pageInfo?: {
+    page: number;
+    size: number;
+    hasNext: boolean;
+    first: boolean;
+    last: boolean;
+  };
 }
 
 interface RecipeSummaryApiResponse {
@@ -107,7 +114,7 @@ export function usePersonalRecipeBooks() {
                 .map(r => r.mainImgUrl || r.thumbnailUrl!)
                 .slice(0, 3);
               // console.log(`[RecipeBook ${book.id}] 썸네일:`, thumbnails);
-              const recipeCount = recipes.length || book.recipeCount || 0;
+              const recipeCount = detailResponse.data.recipeCount ?? (recipes.length || book.recipeCount || 0);
 
               return {
                 id: String(book.id),
@@ -338,7 +345,7 @@ export function useGroupRecipeBooks() {
                       ?.filter(r => r.mainImgUrl || r.thumbnailUrl)
                       .map(r => r.mainImgUrl || r.thumbnailUrl!)
                       .slice(0, 3) || [];
-                    const recipeCount = detailResponse.data.recipes?.length ?? book.recipeCount ?? 0;
+                    const recipeCount = detailResponse.data.recipeCount ?? detailResponse.data.recipes?.length ?? book.recipeCount ?? 0;
 
                     return {
                       id: String(book.id),
@@ -398,39 +405,85 @@ export function useRecipeBookDetail(bookId?: string) {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
 
-  const fetchRecipeBookDetail = useCallback(async () => {
+  // 페이지네이션 상태
+  const pageRef = useRef(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const fetchRecipeBookDetail = useCallback(async (isLoadMore = false) => {
     if (!bookId) return;
 
     try {
-      setLoading(true);
+      if (isLoadMore) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
 
+      const targetPage = isLoadMore ? pageRef.current + 1 : 0;
+
       if (USE_MOCK) {
-        // Mock 데이터에서 레시피북 이름 찾기
+        // Mock 데이터 처리 (기존 로직 유지)
         const allBooks = [...MOCK_PERSONAL_RECIPE_BOOKS, ...MOCK_GROUP_RECIPE_BOOKS];
         const book = allBooks.find(b => b.id === bookId);
         setBookName(book?.name || '레시피북');
-        setRecipes(MOCK_RECIPE_BOOK_RECIPES[bookId] || []);
+        const mockRecipes = MOCK_RECIPE_BOOK_RECIPES[bookId] || [];
+
+        // Mock 페이지네이션 시뮬레이션
+        const pageSize = 12;
+        const start = targetPage * pageSize;
+        const end = start + pageSize;
+        const slicedRecipes = mockRecipes.slice(start, end);
+
+        if (isLoadMore) {
+          setRecipes(prev => [...prev, ...slicedRecipes]);
+        } else {
+          setRecipes(slicedRecipes);
+        }
+
+        pageRef.current = targetPage;
+        setHasMore(end < mockRecipes.length);
+
       } else {
-        const response = await api.get<BaseResponse<RecipeBookApiResponse>>(`/api/v1/recipebooks/${bookId}`);
-        // console.log('[RecipeBookDetail] API 응답:', JSON.stringify(response.data, null, 2));
-        // console.log('[RecipeBookDetail] recipes 배열:', response.data.recipes);
+        // API 호출
+        const response = await api.get<BaseResponse<RecipeBookApiResponse>>(`/api/v1/recipebooks/${bookId}?page=${targetPage}&size=12`);
+
         setBookName(response.data.title);
+        setTotalCount(response.data.recipeCount ?? 0);
         const mappedRecipes = (response.data.recipes || []).map(r => mapRecipeFromApi(r, bookId));
-        // console.log('[RecipeBookDetail] 변환된 레시피:', mappedRecipes);
-        setRecipes(mappedRecipes);
+
+        if (isLoadMore) {
+          setRecipes(prev => [...prev, ...mappedRecipes]);
+        } else {
+          setRecipes(mappedRecipes);
+        }
+
+        pageRef.current = targetPage;
+        // pageInfo가 있으면 사용, 없으면 데이터 개수로 추측
+        if (response.data.pageInfo) {
+          setHasMore(response.data.pageInfo.hasNext);
+        } else {
+          setHasMore(mappedRecipes.length === 12);
+        }
       }
     } catch (err) {
       setError(err as Error);
     } finally {
-      setLoading(false);
+      if (isLoadMore) {
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
     }
   }, [bookId]);
 
+  // 초기 로딩
   useEffect(() => {
-    fetchRecipeBookDetail();
-  }, [fetchRecipeBookDetail]);
+    fetchRecipeBookDetail(false);
+  }, [bookId]); // page는 의존성에서 제외 (fetch 함수 내부에서 관리)
 
 
   // 레시피북에 레시피 추가
@@ -448,7 +501,7 @@ export function useRecipeBookDetail(bookId?: string) {
           return false;
         }
         await api.post(`/api/v1/recipebooks/${bookId}/recipes`, { recipeId: numericId });
-        await fetchRecipeBookDetail(); // 목록 새로고침
+        await fetchRecipeBookDetail(false); // 목록 새로고침 (첫 페이지부터 다시 로드)
         return true;
       }
     } catch (err) {
@@ -504,15 +557,24 @@ export function useRecipeBookDetail(bookId?: string) {
     }
   }, [bookId]);
 
+  const loadMore = useCallback(() => {
+    if (!loading && !loadingMore && hasMore) {
+      fetchRecipeBookDetail(true);
+    }
+  }, [loading, loadingMore, hasMore, fetchRecipeBookDetail]);
+
   return {
     bookName,
     recipes,
     loading,
     error,
-    refetch: fetchRecipeBookDetail,
+    totalCount,
+    refetch: () => fetchRecipeBookDetail(false),
+    loadMore,
+    hasMore,
+    loadingMore,
     addRecipe,
     removeRecipe,
     moveRecipe,
   };
 }
-
