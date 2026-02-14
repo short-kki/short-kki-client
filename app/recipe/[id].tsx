@@ -114,6 +114,7 @@ export default function RecipeDetailScreen() {
   }, [id]);
 
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [savedBookId, setSavedBookId] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showGroupSelectModal, setShowGroupSelectModal] = useState(false);
   const [showIngredientSelectModal, setShowIngredientSelectModal] = useState(false);
@@ -294,8 +295,24 @@ export default function RecipeDetailScreen() {
     return `${formattedAmount}${unit}`;
   };
 
-  const openBookmarkSheet = useCallback(() => {
+  const openBookmarkSheet = useCallback(async () => {
     setShowBookmarkSheet(true);
+
+    // 서버에서 이미 저장된 레시피북 ID 목록 조회
+    if (recipe) {
+      try {
+        const response = await api.get<{ data: number[] }>(`/api/v1/recipebooks/recipes/${recipe.id}`);
+        const savedBookIds = response.data;
+        if (savedBookIds && savedBookIds.length > 0) {
+          setSavedBookId(String(savedBookIds[0]));
+        } else {
+          setSavedBookId(null);
+        }
+      } catch (err) {
+        console.error('[Bookmark] 저장된 레시피북 조회 실패:', err);
+      }
+    }
+
     Animated.parallel([
       Animated.timing(bookmarkOverlayOpacity, {
         toValue: 1,
@@ -309,7 +326,7 @@ export default function RecipeDetailScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [bookmarkOverlayOpacity, bookmarkSheetTranslateY]);
+  }, [recipe, bookmarkOverlayOpacity, bookmarkSheetTranslateY]);
 
   const closeBookmarkSheet = useCallback((onDone?: () => void) => {
     Animated.parallel([
@@ -333,33 +350,48 @@ export default function RecipeDetailScreen() {
     if (!recipe) return;
     const recipeBookId = Number(bookId);
 
-    try {
-      await api.post(`/api/v1/recipebooks/${recipeBookId}/recipes`, { recipeId: recipe.id });
+    const isAlreadySaved = savedBookId === bookId;
 
-      // 그룹 레시피북인 경우 피드 생성
-      if (groupId) {
-        try {
-          await api.post(`/api/v1/groups/${groupId}/feeds`, {
-            content: `"${recipe.title}" 레시피가 "${bookName}" 레시피북에 추가되었습니다.`,
-            feedType: "NEW_RECIPE_ADDED",
-          });
-        } catch (feedError) {
-          console.error("[Feed] 피드 생성 실패:", feedError);
-        }
+    if (isAlreadySaved) {
+      // 이미 저장된 북이면 해제
+      try {
+        await api.delete(`/api/v1/recipebooks/${recipeBookId}/recipes/${recipe.id}`);
+        setSavedBookId(null);
+        setIsBookmarked(false);
+        showToast(`"${bookName}"에서 삭제되었습니다.`, "danger");
+      } catch (error: any) {
+        showToast("삭제에 실패했습니다.", "danger");
       }
+    } else {
+      try {
+        await api.post(`/api/v1/recipebooks/${recipeBookId}/recipes`, { recipeId: recipe.id });
 
-      setIsBookmarked(true);
-      showToast(`"${bookName}"에 저장되었습니다.`, "success");
-    } catch (error: any) {
-      if (error.message && error.message.includes("이미 레시피북에 추가된")) {
-        showToast("이미 해당 레시피북에 저장되어 있습니다.", "danger");
-      } else {
-        showToast("레시피 저장에 실패했습니다.", "danger");
+        // 그룹 레시피북인 경우 피드 생성
+        if (groupId) {
+          try {
+            await api.post(`/api/v1/groups/${groupId}/feeds`, {
+              content: `"${recipe.title}" 레시피가 "${bookName}" 레시피북에 추가되었습니다.`,
+              feedType: "NEW_RECIPE_ADDED",
+            });
+          } catch (feedError) {
+            console.error("[Feed] 피드 생성 실패:", feedError);
+          }
+        }
+
+        setSavedBookId(bookId);
+        setIsBookmarked(true);
+        showToast(`"${bookName}"에 저장되었습니다.`, "success");
+      } catch (error: any) {
+        if (error.message && error.message.includes("이미 레시피북에 추가된")) {
+          showToast("이미 해당 레시피북에 저장되어 있습니다.", "danger");
+        } else {
+          showToast("레시피 저장에 실패했습니다.", "danger");
+        }
       }
     }
 
     closeBookmarkSheet();
-  }, [recipe, closeBookmarkSheet, showToast]);
+  }, [recipe, savedBookId, closeBookmarkSheet, showToast]);
 
   const handleAddToRecipeBook = () => {
     openBookmarkSheet();
@@ -1157,67 +1189,84 @@ export default function RecipeDetailScreen() {
             <ScrollView style={{ maxHeight: 200 }} contentContainerStyle={{ paddingHorizontal: 20 }}>
               {(bookmarkTab === "personal"
                 ? personalBooks.map((book) => ({
-                    id: String(book.id),
-                    name: book.name,
-                    recipeCount: book.recipeCount,
-                    isDefault: book.isDefault,
-                    groupName: undefined as string | undefined,
-                    groupId: undefined as string | undefined,
-                  }))
+                  id: String(book.id),
+                  name: book.name,
+                  recipeCount: book.recipeCount,
+                  isDefault: book.isDefault,
+                  groupName: undefined as string | undefined,
+                  groupId: undefined as string | undefined,
+                }))
                 : groupRecipeBooks.map((book) => ({
-                    id: String(book.id),
-                    name: book.name,
-                    recipeCount: book.recipeCount,
-                    isDefault: false,
-                    groupName: book.groupName,
-                    groupId: book.groupId ? String(book.groupId) : undefined,
-                  }))
-              ).map((book) => (
-                <TouchableOpacity
-                  key={book.id}
-                  onPress={() => handleSelectFolder(book.id, book.name, book.groupId)}
-                  activeOpacity={0.7}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingVertical: 14,
-                    borderBottomWidth: 1,
-                    borderBottomColor: Colors.neutral[100],
-                  }}
-                >
-                  <View
+                  id: String(book.id),
+                  name: book.name,
+                  recipeCount: book.recipeCount,
+                  isDefault: false,
+                  groupName: book.groupName,
+                  groupId: book.groupId ? String(book.groupId) : undefined,
+                }))
+              ).map((book) => {
+                const isSelected = savedBookId === book.id;
+                return (
+                  <TouchableOpacity
+                    key={book.id}
+                    onPress={() => handleSelectFolder(book.id, book.name, book.groupId)}
+                    activeOpacity={0.7}
                     style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 10,
-                      backgroundColor: Colors.neutral[100],
-                      justifyContent: "center",
+                      flexDirection: "row",
                       alignItems: "center",
-                      marginRight: 12,
+                      paddingVertical: 14,
+                      borderBottomWidth: 1,
+                      borderBottomColor: Colors.neutral[100],
                     }}
                   >
-                    <BookOpen size={22} color={Colors.neutral[500]} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text
+                    <View
                       style={{
-                        fontSize: 15,
-                        fontWeight: "600",
-                        color: Colors.neutral[900],
+                        width: 44,
+                        height: 44,
+                        borderRadius: 10,
+                        backgroundColor: isSelected ? Colors.primary[100] : Colors.neutral[100],
+                        justifyContent: "center",
+                        alignItems: "center",
+                        marginRight: 12,
                       }}
                     >
-                      {book.name}
-                      {book.isDefault && (
-                        <Text style={{ color: Colors.neutral[400], fontWeight: "400" }}> (기본)</Text>
-                      )}
-                    </Text>
-                    <Text style={{ fontSize: 13, color: Colors.neutral[500], marginTop: 2 }}>
-                      {book.groupName ? `${book.groupName} · ` : ""}
-                      레시피 {book.recipeCount}개
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                      <BookOpen size={22} color={isSelected ? Colors.primary[500] : Colors.neutral[500]} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontSize: 15,
+                          fontWeight: "600",
+                          color: Colors.neutral[900],
+                        }}
+                      >
+                        {book.name}
+                        {book.isDefault && (
+                          <Text style={{ color: Colors.neutral[400], fontWeight: "400" }}> (기본)</Text>
+                        )}
+                      </Text>
+                      <Text style={{ fontSize: 13, color: Colors.neutral[500], marginTop: 2 }}>
+                        {book.groupName ? `${book.groupName} · ` : ""}
+                        레시피 {book.recipeCount}개
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <View
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: 12,
+                          backgroundColor: Colors.primary[500],
+                          justifyContent: "center",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Check size={14} color="#FFF" strokeWidth={3} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
 
               {/* 새 레시피북 만들기 */}
               <TouchableOpacity

@@ -8,6 +8,7 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
+  FlatList,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -185,7 +186,18 @@ export default function RecipeBookDetailScreen() {
   const bookId = params.bookId || "default";
 
   // API에서 레시피북 상세 조회
-  const { bookName, recipes, loading, error, removeRecipe, moveRecipe } = useRecipeBookDetail(bookId);
+  const {
+    bookName,
+    recipes,
+    loading,
+    error,
+    totalCount,
+    removeRecipe,
+    moveRecipe,
+    loadMore,
+    hasMore,
+    loadingMore,
+  } = useRecipeBookDetail(bookId);
 
   const [showRecipeMenuModal, setShowRecipeMenuModal] = useState(false);
   const [showBookSelectModal, setShowBookSelectModal] = useState(false);
@@ -279,91 +291,101 @@ export default function RecipeBookDetailScreen() {
               marginTop: 2,
             }}
           >
-            {recipes.length}개의 레시피
+            {totalCount || recipes.length}개의 레시피
           </Text>
         </View>
       </View>
 
       {/* 레시피 그리드 */}
-      <ScrollView
-        showsVerticalScrollIndicator={true}
-        contentContainerStyle={{
-          paddingHorizontal: Spacing.xl,
-          paddingTop: Spacing.lg,
-          paddingBottom: Spacing.md,
-        }}
-      >
-        {loading ? (
-          <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
-            <ActivityIndicator size="large" color={Colors.primary[500]} />
-          </View>
-        ) : error ? (
-          <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
-            <Text style={{ color: Colors.error.main }}>데이터를 불러오는데 실패했습니다.</Text>
-          </View>
-        ) : recipes.length > 0 ? (
-          <View
-            style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              justifyContent: "space-between",
-            }}
-          >
-            {recipes.map((recipe) => (
-              <RecipeCard
-                key={recipe.id}
-                recipe={recipe}
-                onPress={() => handleRecipePress(recipe.id)}
-                onMenuPress={() => handleRecipeMenuPress(recipe)}
-              />
-            ))}
-          </View>
-        ) : (
-          <View
-            style={{
-              alignItems: "center",
-              paddingVertical: Spacing["4xl"],
-            }}
-          >
-            <ChefHat size={48} color={Colors.neutral[300]} />
-            <Text
+      {loading ? (
+        <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
+          <ActivityIndicator size="large" color={Colors.primary[500]} />
+        </View>
+      ) : error ? (
+        <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
+          <Text style={{ color: Colors.error.main }}>데이터를 불러오는데 실패했습니다.</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={recipes}
+          renderItem={({ item }) => (
+            <RecipeCard
+              recipe={item}
+              onPress={() => handleRecipePress(item.id)}
+              onMenuPress={() => handleRecipeMenuPress(item)}
+            />
+          )}
+          keyExtractor={(item) => item.id}
+          numColumns={2}
+          columnWrapperStyle={{
+            justifyContent: "space-between",
+            marginBottom: Spacing.md,
+          }}
+          contentContainerStyle={{
+            paddingHorizontal: Spacing.xl,
+            paddingTop: Spacing.lg,
+            paddingBottom: Spacing.md,
+          }}
+          onEndReached={() => {
+            if (hasMore) {
+              loadMore();
+            }
+          }}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={{ paddingVertical: Spacing.lg, alignItems: "center" }}>
+                <ActivityIndicator size="small" color={Colors.primary[500]} />
+              </View>
+            ) : null
+          }
+          ListEmptyComponent={
+            <View
               style={{
-                fontSize: Typography.fontSize.lg,
-                fontWeight: "600",
-                color: Colors.neutral[500],
-                marginTop: Spacing.md,
+                alignItems: "center",
+                paddingVertical: Spacing["4xl"],
               }}
             >
-              저장된 레시피가 없어요
-            </Text>
-            <Text
-              style={{
-                fontSize: Typography.fontSize.sm,
-                color: Colors.neutral[400],
-                marginTop: Spacing.xs,
-                textAlign: "center",
-              }}
-            >
-              마음에 드는 레시피를 저장해보세요
-            </Text>
-            <TouchableOpacity
-              onPress={() => router.push("/(tabs)")}
-              activeOpacity={0.8}
-              style={{
-                backgroundColor: Colors.primary[500],
-                paddingHorizontal: 24,
-                paddingVertical: 12,
-                borderRadius: BorderRadius.full,
-                marginTop: Spacing.lg,
-              }}
-            >
-              <Text style={{ color: "#FFF", fontWeight: "600" }}>
-                레시피 둘러보기
+              <ChefHat size={48} color={Colors.neutral[300]} />
+              <Text
+                style={{
+                  fontSize: Typography.fontSize.lg,
+                  fontWeight: "600",
+                  color: Colors.neutral[500],
+                  marginTop: Spacing.md,
+                }}
+              >
+                저장된 레시피가 없어요
               </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </ScrollView>
+              <Text
+                style={{
+                  fontSize: Typography.fontSize.sm,
+                  color: Colors.neutral[400],
+                  marginTop: Spacing.xs,
+                  textAlign: "center",
+                }}
+              >
+                마음에 드는 레시피를 저장해보세요
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.push("/(tabs)")}
+                activeOpacity={0.8}
+                style={{
+                  backgroundColor: Colors.primary[500],
+                  paddingHorizontal: 24,
+                  paddingVertical: 12,
+                  borderRadius: BorderRadius.full,
+                  marginTop: Spacing.lg,
+                }}
+              >
+                <Text style={{ color: "#FFF", fontWeight: "600" }}>
+                  레시피 둘러보기
+                </Text>
+              </TouchableOpacity>
+            </View>
+          }
+        />
+      )}
 
       {/* 레시피 메뉴 바텀시트 */}
       <Modal visible={showRecipeMenuModal} transparent animationType="slide">
