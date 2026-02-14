@@ -108,8 +108,11 @@ export const api = {
       body: JSON.stringify(data),
     }, requiresAuth),
 
-  delete: <T>(endpoint: string, requiresAuth: boolean = true) =>
-    fetchApi<T>(endpoint, { method: 'DELETE' }, requiresAuth),
+  delete: <T>(endpoint: string, data?: unknown, requiresAuth: boolean = true) =>
+    fetchApi<T>(endpoint, {
+      method: 'DELETE',
+      ...(data && { body: JSON.stringify(data) }),
+    }, requiresAuth),
 };
 
 export default api;
