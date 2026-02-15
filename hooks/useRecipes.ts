@@ -147,42 +147,9 @@ export function usePersonalRecipeBooks() {
       setLoading(true);
       setError(null);
 
-      // 1. 레시피북 목록 조회
       const response = await api.get<BaseResponse<RecipeBookApiResponse[] | RecipeBookListApiResponse>>('/api/v1/recipebooks');
       const { recipeBooks: books } = parseRecipeBookListResponse(response.data);
-
-      // 2. 각 레시피북의 상세 정보를 병렬로 조회하여 썸네일 가져오기
-      const booksWithThumbnails = await Promise.all(
-        books.map(async (book) => {
-          try {
-            const detailResponse = await api.get<BaseResponse<RecipeBookApiResponse | RecipeBookDetailApiResponse>>(
-              `/api/v1/recipebooks/${book.id}`
-            );
-            const { recipeBook: detailBook } = parseRecipeBookDetailResponse(detailResponse.data);
-            const recipes = detailBook.recipes || [];
-            const thumbnails = recipes
-              .filter(r => r.mainImgUrl || r.thumbnailUrl)
-              .map(r => normalizeImageUrl(r.mainImgUrl || r.thumbnailUrl))
-              .filter((url): url is string => !!url)
-              .slice(0, 3);
-            const recipeCount = detailBook.recipeCount ?? (recipes.length || book.recipeCount || 0);
-
-            return {
-              id: String(book.id),
-              name: book.title,
-              isDefault: book.isDefault,
-              recipeCount,
-              thumbnails,
-            };
-          } catch (err) {
-            console.error(`레시피북 ${book.id} 상세 조회 실패:`, err);
-            // 상세 조회 실패 시 기본 정보만 반환
-            return mapRecipeBookFromApi(book);
-          }
-        })
-      );
-
-      setRecipeBooks(booksWithThumbnails);
+      setRecipeBooks(books.map(mapRecipeBookFromApi));
     } catch (err) {
       setError(err as Error);
     } finally {
@@ -207,7 +174,7 @@ export function usePersonalRecipeBooks() {
     }
   }, [fetchRecipeBooks]);
 
-  // 로컬 상태에 레시피북 추가 (Mock용)
+  // 로컬 상태에 레시피북 추가
   const addRecipeBook = useCallback((recipeBook: RecipeBook) => {
     setRecipeBooks((prev) => [...prev, recipeBook]);
   }, []);
@@ -309,59 +276,18 @@ export function useGroupRecipeBooksById(groupId?: string) {
       const groupResponse = await api.get<BaseResponse<GroupSummaryApiResponse>>(`/api/v1/groups/${groupId}`);
       const groupThumbnail = normalizeImageUrl(groupResponse.data.thumbnailImgUrl);
 
-      // 1. 그룹 레시피북 목록 조회
       const response = await api.get<BaseResponse<RecipeBookApiResponse[] | RecipeBookListApiResponse>>(
         `/api/v1/recipebooks/groups/${groupId}`
       );
       const { recipeBooks: books } = parseRecipeBookListResponse(response.data);
-
-      // 2. 각 레시피북의 상세 정보를 병렬로 조회하여 썸네일 가져오기
-      const booksWithThumbnails = await Promise.all(
-        books.map(async (book) => {
-          try {
-            const detailResponse = await api.get<BaseResponse<RecipeBookApiResponse | RecipeBookDetailApiResponse>>(
-              `/api/v1/recipebooks/${book.id}`
-            );
-            const { recipeBook: detailBook } = parseRecipeBookDetailResponse(detailResponse.data);
-            // 상세 응답에서 recipes가 있으면 썸네일 추출 (mainImgUrl 우선)
-            const recipes = detailBook.recipes || [];
-            const thumbnails = recipes
-              .filter(r => r.mainImgUrl || r.thumbnailUrl)
-              .map(r => normalizeImageUrl(r.mainImgUrl || r.thumbnailUrl))
-              .filter((url): url is string => !!url)
-              .slice(0, 3);
-            const recipeCount = recipes.length || book.recipeCount || 0;
-
-            if (__DEV__) {
-              console.log(`[GroupRecipeBooks] book=${book.id} title=${book.title}`);
-              console.log("[GroupRecipeBooks] raw images:", recipes.map(r => r.mainImgUrl || r.thumbnailUrl));
-              console.log("[GroupRecipeBooks] normalized thumbnails:", thumbnails);
-            }
-
-            return {
-              id: String(book.id),
-              name: book.title,
-              isDefault: book.isDefault,
-              recipeCount,
-              thumbnails,
-              groupId: String(groupId),
-              groupName: groupResponse.data.name,
-              groupThumbnail,
-            };
-          } catch (err) {
-            console.error(`레시피북 ${book.id} 상세 조회 실패:`, err);
-            // 상세 조회 실패 시 기본 정보만 반환
-            return {
-              ...mapRecipeBookFromApi(book),
-              groupId: String(groupId),
-              groupName: groupResponse.data.name,
-              groupThumbnail,
-            };
-          }
-        })
+      setRecipeBooks(
+        books.map((book) => ({
+          ...mapRecipeBookFromApi(book),
+          groupId: String(groupId),
+          groupName: groupResponse.data.name,
+          groupThumbnail,
+        }))
       );
-
-      setRecipeBooks(booksWithThumbnails);
     } catch (err) {
       setError(err as Error);
     } finally {
@@ -403,54 +329,25 @@ export function useGroupRecipeBooks() {
         return;
       }
 
-      // 2. 각 그룹의 레시피북 조회
+      // 각 그룹의 레시피북 조회
       const allGroupBooks: RecipeBook[] = [];
 
       // 병렬로 요청 처리
       await Promise.all(
         myGroups.map(async (group) => {
           try {
-            const booksResponse = await api.get<BaseResponse<RecipeBookApiResponse[] | RecipeBookListApiResponse>>(`/api/v1/recipebooks/groups/${group.id}`);
+            const booksResponse = await api.get<BaseResponse<RecipeBookApiResponse[] | RecipeBookListApiResponse>>(
+              `/api/v1/recipebooks/groups/${group.id}`
+            );
             const { recipeBooks } = parseRecipeBookListResponse(booksResponse.data);
 
-            // 각 레시피북의 상세 정보를 조회하여 썸네일 가져오기
-            const booksWithThumbnails = await Promise.all(
-              recipeBooks.map(async (book) => {
-                try {
-                  const detailResponse = await api.get<BaseResponse<RecipeBookApiResponse | RecipeBookDetailApiResponse>>(
-                    `/api/v1/recipebooks/${book.id}`
-                  );
-                  const { recipeBook: detailBook } = parseRecipeBookDetailResponse(detailResponse.data);
-                  const thumbnails = detailBook.recipes
-                    ?.filter(r => r.mainImgUrl || r.thumbnailUrl)
-                    .map(r => normalizeImageUrl(r.mainImgUrl || r.thumbnailUrl))
-                    .filter((url): url is string => !!url)
-                    .slice(0, 3) || [];
-                  const recipeCount = detailBook.recipeCount ?? detailBook.recipes?.length ?? book.recipeCount ?? 0;
-
-                  return {
-                    id: String(book.id),
-                    name: book.title,
-                    isDefault: book.isDefault,
-                    recipeCount,
-                    thumbnails,
-                    groupId: String(group.id),
-                    groupName: group.name,
-                    groupThumbnail: normalizeImageUrl(group.thumbnailImgUrl),
-                  };
-                } catch (err) {
-                  console.error(`레시피북 ${book.id} 상세 조회 실패:`, err);
-                  return {
-                    ...mapRecipeBookFromApi(book),
-                    groupId: String(group.id),
-                    groupName: group.name,
-                    groupThumbnail: normalizeImageUrl(group.thumbnailImgUrl),
-                  };
-                }
-              })
-            );
-
-            allGroupBooks.push(...booksWithThumbnails);
+            const booksMapped = recipeBooks.map((book) => ({
+              ...mapRecipeBookFromApi(book),
+              groupId: String(group.id),
+              groupName: group.name,
+              groupThumbnail: normalizeImageUrl(group.thumbnailImgUrl),
+            }));
+            allGroupBooks.push(...booksMapped);
           } catch (err) {
             console.error(`Group ${group.id} recipe books fetch failed:`, err);
             // 개별 그룹 조회 실패해도 전체 실패로 처리하지 않음
