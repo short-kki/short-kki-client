@@ -12,6 +12,7 @@ import {
   Animated,
   Easing,
 } from "react-native";
+import DraggableFlatList, { ScaleDecorator, type RenderItemParams } from "react-native-draggable-flatlist";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -25,6 +26,7 @@ import {
   Trash2,
   Lock,
   Users,
+  GripVertical,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows, ComponentSizes } from "@/constants/design-system";
 import { usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
@@ -49,15 +51,22 @@ function RecipeBookCard({
   onPress,
   onMenuPress,
   onGroupPress,
+  draggable = false,
+  onDrag,
+  dragging = false,
 }: {
   book: RecipeBook;
   onPress: () => void;
   onMenuPress: () => void;
   onGroupPress?: () => void;
+  draggable?: boolean;
+  onDrag?: () => void;
+  dragging?: boolean;
 }) {
   return (
     <TouchableOpacity
       onPress={onPress}
+      disabled={dragging}
       activeOpacity={0.8}
       style={{
         backgroundColor: Colors.neutral[0],
@@ -176,6 +185,21 @@ function RecipeBookCard({
           </View>
         </View>
 
+        {draggable && (
+          <TouchableOpacity
+            onLongPress={onDrag}
+            delayLongPress={120}
+            style={{
+              padding: Spacing.sm,
+              marginRight: 2,
+              opacity: dragging ? 1 : 0.75,
+            }}
+            activeOpacity={0.8}
+          >
+            <GripVertical size={18} color={Colors.neutral[400]} />
+          </TouchableOpacity>
+        )}
+
         {/* 메뉴 버튼 */}
         <TouchableOpacity
           onPress={(e) => {
@@ -202,7 +226,15 @@ export default function RecipeBookScreen() {
   }>();
 
   // hooks에서 데이터 가져오기
-  const { recipeBooks: personalBooks, loading: personalLoading, createRecipeBook, removeRecipeBook, renameRecipeBook, refetch: refetchPersonal } = usePersonalRecipeBooks();
+  const {
+    recipeBooks: personalBooks,
+    loading: personalLoading,
+    createRecipeBook,
+    removeRecipeBook,
+    renameRecipeBook,
+    reorderRecipeBooks,
+    refetch: refetchPersonal,
+  } = usePersonalRecipeBooks();
   const { recipeBooks: groupBooks, loading: groupLoading, refetch: refetchGroup } = useGroupRecipeBooks();
   const [isCreating, setIsCreating] = useState(false);
 
@@ -267,6 +299,14 @@ export default function RecipeBookScreen() {
   const [deleteTargetBook, setDeleteTargetBook] = useState<RecipeBook | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeletingBook, setIsDeletingBook] = useState(false);
+  const [mutablePersonalBooks, setMutablePersonalBooks] = useState<RecipeBook[]>([]);
+  const isReorderingRef = useRef(false);
+
+  const fixedPersonalBooks = personalBooks.filter((book) => book.isDefault);
+
+  useEffect(() => {
+    setMutablePersonalBooks(personalBooks.filter((book) => !book.isDefault));
+  }, [personalBooks]);
 
   // params가 변경될 때 필터 업데이트 (_t 타임스탬프로 매번 새로운 네비게이션 감지)
   useEffect(() => {
@@ -276,17 +316,17 @@ export default function RecipeBookScreen() {
     }
   }, [params.groupId, params._t]);
 
-  const handleRecipeBookPress = (bookId: string) => {
+  const handleRecipeBookPress = useCallback((bookId: string) => {
     router.push({
       pathname: "/recipe-book-detail",
       params: { bookId },
     });
-  };
+  }, [router]);
 
-  const handleMenuPress = (book: RecipeBook) => {
+  const handleMenuPress = useCallback((book: RecipeBook) => {
     setSelectedBook(book);
     openMenuSheet();
-  };
+  }, [openMenuSheet]);
 
   const handleMenuAction = (action: "edit" | "delete" | "share") => {
     if (!selectedBook) return;
@@ -368,6 +408,37 @@ export default function RecipeBookScreen() {
       Alert.alert("오류", "레시피북 이름 변경에 실패했습니다.");
     }
   };
+
+  const handlePersonalBooksReorder = useCallback(async (reorderedBooks: RecipeBook[]) => {
+    if (isReorderingRef.current) return;
+
+    setMutablePersonalBooks(reorderedBooks);
+    isReorderingRef.current = true;
+
+    const success = await reorderRecipeBooks(reorderedBooks.map((book) => book.id));
+    isReorderingRef.current = false;
+
+    if (!success) {
+      Alert.alert("오류", "레시피북 순서 변경에 실패했습니다.");
+      refetchPersonal();
+    }
+  }, [refetchPersonal, reorderRecipeBooks]);
+
+  const renderReorderableBook = useCallback(
+    ({ item, drag, isActive }: RenderItemParams<RecipeBook>) => (
+      <ScaleDecorator activeScale={1.01}>
+        <RecipeBookCard
+          book={item}
+          onPress={() => handleRecipeBookPress(item.id)}
+          onMenuPress={() => handleMenuPress(item)}
+          draggable
+          dragging={isActive}
+          onDrag={drag}
+        />
+      </ScaleDecorator>
+    ),
+    [handleMenuPress, handleRecipeBookPress]
+  );
 
   return (
     <View
@@ -458,63 +529,93 @@ export default function RecipeBookScreen() {
       </View>
 
       {/* 레시피북 목록 */}
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingHorizontal: Spacing.xl,
-          paddingBottom: Spacing["2xl"],
-        }}
-      >
-        {activeTab === "personal" ? (
-          <>
-            {/* 로딩 상태 */}
-            {personalLoading && (
-              <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
-                <ActivityIndicator size="large" color={Colors.primary[500]} />
-              </View>
-            )}
-
-            {!personalLoading && personalBooks.map((book) => (
-              <RecipeBookCard
-                key={book.id}
-                book={book}
-                onPress={() => handleRecipeBookPress(book.id)}
-                onMenuPress={() => handleMenuPress(book)}
-              />
-            ))}
-
-            {!personalLoading && personalBooks.length === 0 && (
-              <View
-                style={{
-                  alignItems: "center",
-                  paddingVertical: Spacing["4xl"],
-                }}
-              >
-                <Folder size={48} color={Colors.neutral[300]} />
-                <Text
-                  style={{
-                    fontSize: Typography.fontSize.md,
-                    fontWeight: Typography.fontWeight.semiBold,
-                    color: Colors.neutral[500],
-                    marginTop: Spacing.base,
-                  }}
-                >
-                  레시피북이 없어요
-                </Text>
-                <Text
-                  style={{
-                    fontSize: Typography.fontSize.sm,
-                    color: Colors.neutral[400],
-                    marginTop: Spacing.sm,
-                    textAlign: "center",
-                  }}
-                >
-                  + 버튼을 눌러 새 레시피북을 만들어보세요
-                </Text>
-              </View>
-            )}
-          </>
+      {activeTab === "personal" ? (
+        personalLoading ? (
+          <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
+            <ActivityIndicator size="large" color={Colors.primary[500]} />
+          </View>
         ) : (
+          <DraggableFlatList
+            data={mutablePersonalBooks}
+            keyExtractor={(item) => item.id}
+            renderItem={renderReorderableBook}
+            onDragEnd={({ data }) => {
+              void handlePersonalBooksReorder(data);
+            }}
+            activationDistance={8}
+            dragItemOverflow
+            contentContainerStyle={{
+              paddingHorizontal: Spacing.xl,
+              paddingBottom: Spacing["2xl"],
+            }}
+            ListHeaderComponent={(
+              <View>
+                {fixedPersonalBooks.map((book) => (
+                  <RecipeBookCard
+                    key={book.id}
+                    book={book}
+                    onPress={() => handleRecipeBookPress(book.id)}
+                    onMenuPress={() => handleMenuPress(book)}
+                  />
+                ))}
+              </View>
+            )}
+            ListFooterComponent={(
+              <View>
+                {personalBooks.length === 0 && (
+                  <View
+                    style={{
+                      alignItems: "center",
+                      paddingVertical: Spacing["4xl"],
+                    }}
+                  >
+                    <Folder size={48} color={Colors.neutral[300]} />
+                    <Text
+                      style={{
+                        fontSize: Typography.fontSize.md,
+                        fontWeight: Typography.fontWeight.semiBold,
+                        color: Colors.neutral[500],
+                        marginTop: Spacing.base,
+                      }}
+                    >
+                      레시피북이 없어요
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: Typography.fontSize.sm,
+                        color: Colors.neutral[400],
+                        marginTop: Spacing.sm,
+                        textAlign: "center",
+                      }}
+                    >
+                      + 버튼을 눌러 새 레시피북을 만들어보세요
+                    </Text>
+                  </View>
+                )}
+                {mutablePersonalBooks.length > 1 && (
+                  <Text
+                    style={{
+                      marginTop: Spacing.sm,
+                      color: Colors.neutral[500],
+                      fontSize: Typography.fontSize.xs,
+                      textAlign: "center",
+                    }}
+                  >
+                    핸들을 길게 누르고 위아래로 이동해 순서를 변경할 수 있어요
+                  </Text>
+                )}
+              </View>
+            )}
+          />
+        )
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingHorizontal: Spacing.xl,
+            paddingBottom: Spacing["2xl"],
+          }}
+        >
           <>
             {/* 특정 그룹 필터링 중일 때 헤더 표시 */}
             {filterGroupId && params.groupName && (
@@ -729,8 +830,8 @@ export default function RecipeBookScreen() {
               });
             })()}
           </>
-        )}
-      </ScrollView>
+        </ScrollView>
+      )}
 
       {/* 레시피북 생성 모달 */}
       <Modal visible={showCreateModal} transparent animationType="fade">

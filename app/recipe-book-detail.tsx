@@ -2,11 +2,9 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   Pressable,
   Modal,
-  Alert,
   ActivityIndicator,
   FlatList,
 } from "react-native";
@@ -23,12 +21,11 @@ import {
   FolderInput,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
-import { useRecipeBookDetail, usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
+import { useRecipeBookDetail } from "@/hooks";
 import RecipeBookSelectModal from "@/components/RecipeBookSelectModal";
 import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
 import ConfirmActionModal from "@/components/ui/ConfirmActionModal";
 
-import { API_BASE_URL } from "@/constants/oauth";
 
 // 숫자 축약 포맷 (1000 → 1k, 1200 → 1.2k, 1000000 → 1M)
 const formatCount = (count: number): string => {
@@ -41,14 +38,13 @@ const formatCount = (count: number): string => {
   return m % 1 === 0 ? `${m}M` : `${m.toFixed(1)}M`;
 };
 
-// 이미지 URL 처리 헬퍼 함수
-const getImageUrl = (url?: string) => {
-  if (!url) return "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200";
-  if (url.startsWith("http")) return url;
-  if (url.startsWith("data:")) return url;
-  // 상대 경로인 경우 API URL 추가
-  return `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
-};
+type RecipeSortType = "RECENT" | "OLDEST" | "BOOKMARK_DESC";
+
+const SORT_OPTIONS: { value: RecipeSortType; label: string }[] = [
+  { value: "RECENT", label: "최근순" },
+  { value: "OLDEST", label: "오래된순" },
+  { value: "BOOKMARK_DESC", label: "북마크순" },
+];
 
 // 레시피 카드 컴포넌트
 function RecipeCard({
@@ -185,6 +181,7 @@ export default function RecipeBookDetailScreen() {
   const params = useLocalSearchParams<{ bookId: string; groupId?: string; groupName?: string }>();
 
   const bookId = params.bookId || "default";
+  const [sortType, setSortType] = useState<RecipeSortType>("RECENT");
 
   // API에서 레시피북 상세 조회
   const {
@@ -198,7 +195,7 @@ export default function RecipeBookDetailScreen() {
     loadMore,
     hasMore,
     loadingMore,
-  } = useRecipeBookDetail(bookId);
+  } = useRecipeBookDetail(bookId, sortType);
 
   const [showRecipeMenuModal, setShowRecipeMenuModal] = useState(false);
   const [showBookSelectModal, setShowBookSelectModal] = useState(false);
@@ -296,6 +293,34 @@ export default function RecipeBookDetailScreen() {
           >
             {totalCount || recipes.length}개의 레시피
           </Text>
+          <View style={{ flexDirection: "row", marginTop: 10, gap: 8 }}>
+            {SORT_OPTIONS.map((option) => {
+              const isSelected = sortType === option.value;
+              return (
+                <TouchableOpacity
+                  key={option.value}
+                  onPress={() => setSortType(option.value)}
+                  activeOpacity={0.8}
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    borderRadius: BorderRadius.full,
+                    backgroundColor: isSelected ? Colors.primary[500] : Colors.neutral[100],
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: "600",
+                      color: isSelected ? "#FFF" : Colors.neutral[600],
+                    }}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
       </View>
 
