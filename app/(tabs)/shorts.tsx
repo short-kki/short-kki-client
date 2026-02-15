@@ -519,7 +519,7 @@ export default function ShortsScreen() {
   const bookmarkSheetTranslateY = useRef(new Animated.Value(400)).current;
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [bookmarkTab, setBookmarkTab] = useState<"personal" | "group">("personal");
-  const [bookmarkedVideos, setBookmarkedVideos] = useState<Record<string, { bookId: string; count: number }>>({});
+  const [ownedBookIdsByVideo, setOwnedBookIdsByVideo] = useState<Record<string, string[]>>({});
   const [bookmarkCounts, setBookmarkCounts] = useState<Record<string, number>>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastVariant, setToastVariant] = useState<"success" | "danger">("success");
@@ -537,11 +537,15 @@ export default function ShortsScreen() {
   }, []);
 
   useEffect(() => {
-    const initial: Record<string, number> = {};
-    SHORTS_DATA.forEach((item) => {
-      initial[item.id] = item.bookmarks ?? 0;
+    setBookmarkCounts((prev) => {
+      const next = { ...prev };
+      SHORTS_DATA.forEach((item) => {
+        if (next[item.id] == null) {
+          next[item.id] = item.bookmarks ?? 0;
+        }
+      });
+      return next;
     });
-    setBookmarkCounts(initial);
   }, [SHORTS_DATA]);
 
   const recipeBooks = useMemo(() => {
@@ -686,26 +690,40 @@ export default function ShortsScreen() {
     );
   }, []);
 
+  const syncVideoBookmarkState = useCallback(async (videoId: string) => {
+    if (USE_MOCK) return;
+
+    const recipeId = Number(videoId);
+    if (!Number.isFinite(recipeId)) {
+      return;
+    }
+
+    try {
+      const [ownedRes, recipeRes] = await Promise.all([
+        api.get<{ data: number[] }>(`/api/v1/recipebooks/recipes/${recipeId}`),
+        api.get<{ data: { bookmarkCount: number; ownedRecipeBookIds?: number[] } }>(`/api/v1/recipes/${recipeId}`),
+      ]);
+
+      const ownedBookIds = (ownedRes.data || []).map((id) => String(id));
+      setOwnedBookIdsByVideo((prev) => ({
+        ...prev,
+        [videoId]: ownedBookIds,
+      }));
+      setBookmarkCounts((prev) => ({
+        ...prev,
+        [videoId]: recipeRes.data?.bookmarkCount ?? prev[videoId] ?? 0,
+      }));
+    } catch (err) {
+      console.error("[Bookmark] 숏츠 북마크 상태 동기화 실패:", err);
+    }
+  }, []);
+
   // 북마크 시트 열기 (페이드 오버레이 + 슬라이드업)
   const openBookmarkSheet = useCallback(async (videoId: string) => {
     setSelectedVideoId(videoId);
     setShowBookmarkSheet(true);
 
-    // 서버에서 이미 저장된 레시피북 ID 목록 조회
-    if (!USE_MOCK) {
-      try {
-        const response = await api.get<{ data: number[] }>(`/api/v1/recipebooks/recipes/${videoId}`);
-        const savedBookIds = response.data;
-        if (savedBookIds && savedBookIds.length > 0) {
-          setBookmarkedVideos(prev => ({
-            ...prev,
-            [videoId]: { bookId: String(savedBookIds[0]), count: savedBookIds.length },
-          }));
-        }
-      } catch (err) {
-        console.error('[Bookmark] 저장된 레시피북 조회 실패:', err);
-      }
-    }
+    await syncVideoBookmarkState(videoId);
 
     Animated.parallel([
       Animated.timing(bookmarkOverlayOpacity, {
@@ -720,7 +738,7 @@ export default function ShortsScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [bookmarkOverlayOpacity, bookmarkSheetTranslateY]);
+  }, [bookmarkOverlayOpacity, bookmarkSheetTranslateY, syncVideoBookmarkState]);
 
   // 북마크 시트 닫기
   const closeBookmarkSheet = useCallback((onDone?: () => void) => {
@@ -745,7 +763,8 @@ export default function ShortsScreen() {
   const handleSelectFolder = useCallback(async (bookId: string, bookName: string) => {
     if (!selectedVideoId) return;
 
-    const isAlreadySaved = bookmarkedVideos[selectedVideoId]?.bookId === bookId;
+    const ownedBookIds = ownedBookIdsByVideo[selectedVideoId] || [];
+    const isAlreadySaved = ownedBookIds.includes(bookId);
     const recipeId = Number(selectedVideoId);
     const recipeBookId = Number(bookId);
 
@@ -772,18 +791,21 @@ export default function ShortsScreen() {
         }
       }
 
-      setBookmarkedVideos(prev => {
-        const { [selectedVideoId]: _, ...rest } = prev;
-        return rest;
-      });
-      setBookmarkCounts(prev => ({
+      setOwnedBookIdsByVideo((prev) => ({
         ...prev,
-        [selectedVideoId]: Math.max(0, (prev[selectedVideoId] || 0) - 1),
+        [selectedVideoId]: (prev[selectedVideoId] || []).filter((id) => id !== bookId),
       }));
+      if (USE_MOCK) {
+        setBookmarkCounts((prev) => ({
+          ...prev,
+          [selectedVideoId]: Math.max(0, (prev[selectedVideoId] || 0) - 1),
+        }));
+      }
+      await syncVideoBookmarkState(selectedVideoId);
       showToast(`"${bookName}"에서 삭제되었습니다.`, "danger");
     } else {
       // 새로 저장
-      const wasBookmarked = !!bookmarkedVideos[selectedVideoId];
+      const wasOwned = ownedBookIds.length > 0;
       if (!USE_MOCK) {
         try {
           await api.post(`/api/v1/recipebooks/${recipeBookId}/recipes`, {
@@ -796,21 +818,24 @@ export default function ShortsScreen() {
         }
       }
 
-      setBookmarkedVideos(prev => ({
+      setOwnedBookIdsByVideo((prev) => ({
         ...prev,
-        [selectedVideoId]: { bookId, count: prev[selectedVideoId]?.count || 0 },
+        [selectedVideoId]: (prev[selectedVideoId] || []).includes(bookId)
+          ? (prev[selectedVideoId] || [])
+          : [...(prev[selectedVideoId] || []), bookId],
       }));
-      if (!wasBookmarked) {
-        setBookmarkCounts(prev => ({
+      if (USE_MOCK && !wasOwned) {
+        setBookmarkCounts((prev) => ({
           ...prev,
           [selectedVideoId]: (prev[selectedVideoId] || 0) + 1,
         }));
       }
+      await syncVideoBookmarkState(selectedVideoId);
       showToast(`"${bookName}"에 저장되었습니다.`, "success");
     }
 
     closeBookmarkSheet();
-  }, [selectedVideoId, bookmarkedVideos, closeBookmarkSheet, showToast]);
+  }, [selectedVideoId, ownedBookIdsByVideo, closeBookmarkSheet, showToast, syncVideoBookmarkState]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: ShortsItem; index: number }) => (
@@ -823,11 +848,11 @@ export default function ShortsScreen() {
         onViewRecipe={() => handleViewRecipe(item.id)}
         onAddToMealPlan={() => handleAddToMealPlan(item.id, item.title)}
         onBookmarkPress={() => openBookmarkSheet(item.id)}
-        isBookmarked={!!bookmarkedVideos[item.id]}
+        isBookmarked={(ownedBookIdsByVideo[item.id] || []).length > 0}
         bookmarkCount={bookmarkCounts[item.id] ?? item.bookmarks ?? 0}
       />
     ),
-    [activeIndex, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, bookmarkedVideos, bookmarkCounts]
+    [activeIndex, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, ownedBookIdsByVideo, bookmarkCounts]
   );
 
   const keyExtractor = useCallback((item: ShortsItem) => item.id, []);
@@ -1051,7 +1076,9 @@ export default function ShortsScreen() {
             {/* 폴더 목록 */}
             <ScrollView style={{ maxHeight: 150 }} contentContainerStyle={{ paddingHorizontal: 20 }}>
               {(bookmarkTab === "personal" ? recipeBooks.personal : recipeBooks.group).map((book) => {
-                const isSelected = selectedVideoId && bookmarkedVideos[selectedVideoId]?.bookId === book.id;
+                const isSelected = selectedVideoId
+                  ? (ownedBookIdsByVideo[selectedVideoId] || []).includes(book.id)
+                  : false;
                 return (
                   <TouchableOpacity
                     key={book.id}
