@@ -301,6 +301,7 @@ export default function RecipeBookScreen() {
   const [isDeletingBook, setIsDeletingBook] = useState(false);
   const [mutablePersonalBooks, setMutablePersonalBooks] = useState<RecipeBook[]>([]);
   const isReorderingRef = useRef(false);
+  const listBottomPadding = insets.bottom + ComponentSizes.tabBar.height + Spacing.lg;
 
   const fixedPersonalBooks = personalBooks.filter((book) => book.isDefault);
 
@@ -546,7 +547,7 @@ export default function RecipeBookScreen() {
             dragItemOverflow
             contentContainerStyle={{
               paddingHorizontal: Spacing.xl,
-              paddingBottom: Spacing["2xl"],
+              paddingBottom: listBottomPadding,
             }}
             ListHeaderComponent={(
               <View>
@@ -613,7 +614,7 @@ export default function RecipeBookScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
             paddingHorizontal: Spacing.xl,
-            paddingBottom: Spacing["2xl"],
+            paddingBottom: listBottomPadding,
           }}
         >
           <>

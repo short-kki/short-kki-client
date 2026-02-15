@@ -19,6 +19,8 @@ import {
   ChefHat,
   Trash2,
   FolderInput,
+  ChevronDown,
+  Check,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { useRecipeBookDetail } from "@/hooks";
@@ -182,6 +184,7 @@ export default function RecipeBookDetailScreen() {
 
   const bookId = params.bookId || "default";
   const [sortType, setSortType] = useState<RecipeSortType>("RECENT");
+  const [showSortModal, setShowSortModal] = useState(false);
 
   // API에서 레시피북 상세 조회
   const {
@@ -248,78 +251,96 @@ export default function RecipeBookDetailScreen() {
     }
   };
 
+  const currentSortLabel = SORT_OPTIONS.find((option) => option.value === sortType)?.label ?? "최근순";
+
   return (
     <View
       style={{
         flex: 1,
         backgroundColor: Colors.neutral[50],
-        paddingTop: insets.top,
       }}
     >
       {/* 헤더 */}
       <View
         style={{
-          flexDirection: "row",
-          alignItems: "center",
-          paddingHorizontal: 16,
-          paddingVertical: 12,
+          backgroundColor: Colors.neutral[0],
+          paddingTop: insets.top,
           borderBottomWidth: 1,
           borderBottomColor: Colors.neutral[100],
-          backgroundColor: Colors.neutral[0],
         }}
       >
-        <Pressable
-          onPress={() => router.back()}
-          style={{ padding: 8, marginRight: 8 }}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "flex-start",
+            paddingHorizontal: 16,
+            paddingTop: 10,
+            paddingBottom: 10,
+          }}
         >
-          <ArrowLeft size={24} color={Colors.neutral[900]} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text
+          <Pressable
+            onPress={() => router.back()}
             style={{
-              fontSize: 20,
-              fontWeight: "700",
-              color: Colors.neutral[900],
-            }}
-          >
-            {bookName || "레시피북"}
-          </Text>
-          <Text
-            style={{
-              fontSize: 13,
-              color: Colors.neutral[500],
+              width: 40,
+              height: 40,
+              justifyContent: "center",
+              alignItems: "center",
+              marginRight: 8,
               marginTop: 2,
             }}
           >
-            {totalCount || recipes.length}개의 레시피
-          </Text>
-          <View style={{ flexDirection: "row", marginTop: 10, gap: 8 }}>
-            {SORT_OPTIONS.map((option) => {
-              const isSelected = sortType === option.value;
-              return (
-                <TouchableOpacity
-                  key={option.value}
-                  onPress={() => setSortType(option.value)}
-                  activeOpacity={0.8}
+            <ArrowLeft size={24} color={Colors.neutral[900]} />
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                fontSize: 20,
+                fontWeight: "700",
+                color: Colors.neutral[900],
+              }}
+            >
+              {bookName || "레시피북"}
+            </Text>
+            <View
+              style={{
+                marginTop: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: Colors.neutral[500],
+                }}
+              >
+                {totalCount || recipes.length}개의 레시피
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowSortModal(true)}
+                activeOpacity={0.8}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: Colors.neutral[100],
+                  borderRadius: BorderRadius.full,
+                  paddingVertical: 6,
+                  paddingHorizontal: 10,
+                }}
+              >
+                <Text
                   style={{
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    borderRadius: BorderRadius.full,
-                    backgroundColor: isSelected ? Colors.primary[500] : Colors.neutral[100],
+                    fontSize: 12,
+                    fontWeight: "600",
+                    color: Colors.neutral[700],
                   }}
                 >
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "600",
-                      color: isSelected ? "#FFF" : Colors.neutral[600],
-                    }}
-                  >
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                  정렬: {currentSortLabel}
+                </Text>
+                <ChevronDown size={14} color={Colors.neutral[500]} style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
@@ -414,6 +435,82 @@ export default function RecipeBookDetailScreen() {
           }
         />
       )}
+
+      {/* 레시피 메뉴 바텀시트 */}
+      <Modal visible={showSortModal} transparent animationType="fade">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.35)",
+            justifyContent: "flex-end",
+          }}
+          onPress={() => setShowSortModal(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: Colors.neutral[0],
+              borderTopLeftRadius: BorderRadius.xl,
+              borderTopRightRadius: BorderRadius.xl,
+              paddingTop: Spacing.md,
+              paddingBottom: insets.bottom + Spacing.lg,
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View
+              style={{
+                width: 36,
+                height: 4,
+                backgroundColor: Colors.neutral[300],
+                borderRadius: 2,
+                alignSelf: "center",
+                marginBottom: Spacing.md,
+              }}
+            />
+            <Text
+              style={{
+                fontSize: Typography.fontSize.base,
+                fontWeight: "700",
+                color: Colors.neutral[900],
+                paddingHorizontal: Spacing.xl,
+                paddingBottom: Spacing.sm,
+              }}
+            >
+              정렬 기준
+            </Text>
+            {SORT_OPTIONS.map((option) => {
+              const isSelected = sortType === option.value;
+              return (
+                <TouchableOpacity
+                  key={option.value}
+                  onPress={() => {
+                    setSortType(option.value);
+                    setShowSortModal(false);
+                  }}
+                  activeOpacity={0.8}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingVertical: Spacing.md,
+                    paddingHorizontal: Spacing.xl,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: Typography.fontSize.base,
+                      color: isSelected ? Colors.primary[600] : Colors.neutral[800],
+                      fontWeight: isSelected ? "700" : "500",
+                    }}
+                  >
+                    {option.label}
+                  </Text>
+                  {isSelected ? <Check size={18} color={Colors.primary[600]} /> : null}
+                </TouchableOpacity>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* 레시피 메뉴 바텀시트 */}
       <Modal visible={showRecipeMenuModal} transparent animationType="slide">

@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import {
   ArrowLeft,
@@ -103,6 +103,7 @@ const MEAL_TYPE_OPTIONS: { value: MealType; label: string }[] = [
 export default function RecipeCreateManualScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ returnTab?: string }>();
 
   // Basic Info
   const [title, setTitle] = useState("");
@@ -423,7 +424,20 @@ export default function RecipeCreateManualScreen() {
             backgroundColor: Colors.neutral[0],
           }}
         >
-          <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
+          <TouchableOpacity
+            onPress={() => {
+              if (params.returnTab) {
+                const targetPath = params.returnTab === "index" ? "/(tabs)" : `/(tabs)/${params.returnTab}`;
+                router.replace({
+                  pathname: targetPath as any,
+                  params: { openAddMenu: String(Date.now()) },
+                });
+                return;
+              }
+              router.back();
+            }}
+            style={{ padding: 4 }}
+          >
             <ArrowLeft size={24} color={Colors.neutral[900]} />
           </TouchableOpacity>
           <Text

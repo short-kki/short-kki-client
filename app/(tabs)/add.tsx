@@ -26,7 +26,7 @@ import {
   ChevronRight,
   Play,
 } from "lucide-react-native";
-import { Colors, Spacing } from "@/constants/design-system";
+import { Colors } from "@/constants/design-system";
 import { api, USE_MOCK } from "@/services/api";
 import { Toast, useToast } from "@/components/ui";
 
@@ -133,7 +133,7 @@ const parseRecipeFromUrl = async (url: string): Promise<ParsedRecipe | null> => 
 export default function AddRecipeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ mode?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; returnTab?: string }>();
 
   const [mode, setMode] = useState<"select" | "url">(params.mode === "url" ? "url" : "select");
   const [url, setUrl] = useState("");
@@ -213,9 +213,15 @@ export default function AddRecipeScreen() {
   };
 
   const handleBack = () => {
-    setMode("select");
-    setUrl("");
-    setParsedRecipe(null);
+    if (params.returnTab) {
+      const targetPath = params.returnTab === "index" ? "/(tabs)" : `/(tabs)/${params.returnTab}`;
+      router.replace({
+        pathname: targetPath as any,
+        params: { openAddMenu: String(Date.now()) },
+      });
+      return;
+    }
+    router.back();
   };
 
   return (
