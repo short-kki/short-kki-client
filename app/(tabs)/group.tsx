@@ -72,6 +72,7 @@ export default function GroupScreen() {
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const { feeds, toggleLike, deleteFeed, refetch: refetchFeeds } = useGroupFeeds(selectedGroup?.id);
   const { members } = useGroupMembers(selectedGroup?.id);
+  const appliedRouteTargetRef = useRef<string | null>(null);
 
   // 그룹 탭을 다시 누르면 그룹 목록으로 돌아가기
   const navigation = useNavigation();
@@ -100,11 +101,17 @@ export default function GroupScreen() {
 
   // params로 groupId가 전달되면 해당 그룹을 자동 선택
   useEffect(() => {
-    if (params.groupId && groups.length > 0) {
-      const target = groups.find(g => String(g.id) === String(params.groupId));
-      if (target) {
-        setSelectedGroup(target);
-      }
+    if (!params.groupId || groups.length === 0) return;
+
+    const routeTargetKey = `${params.groupId}:${params._t ?? ""}`;
+    if (appliedRouteTargetRef.current === routeTargetKey) {
+      return;
+    }
+
+    const target = groups.find(g => String(g.id) === String(params.groupId));
+    if (target) {
+      setSelectedGroup(target);
+      appliedRouteTargetRef.current = routeTargetKey;
     }
   }, [params.groupId, params._t, groups]);
 
