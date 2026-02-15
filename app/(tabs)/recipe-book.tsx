@@ -40,6 +40,7 @@ interface RecipeBook {
   createdAt?: string;
   groupId?: string;
   groupName?: string;
+  groupThumbnail?: string | null;
 }
 
 // 레시피북 카드 컴포넌트
@@ -583,12 +584,13 @@ export default function RecipeBookScreen() {
                 if (!acc[groupId]) {
                   acc[groupId] = {
                     groupName: book.groupName || "",
+                    groupThumbnail: book.groupThumbnail || null,
                     books: [],
                   };
                 }
                 acc[groupId].books.push(book);
                 return acc;
-              }, {} as Record<string, { groupName: string; books: RecipeBook[] }>);
+              }, {} as Record<string, { groupName: string; groupThumbnail: string | null; books: RecipeBook[] }>);
 
               const groupIds = Object.keys(groupedBooks);
 
@@ -662,19 +664,32 @@ export default function RecipeBookScreen() {
                           paddingVertical: Spacing.sm,
                         }}
                       >
-                        <View
-                          style={{
-                            width: ComponentSizes.avatar.sm,
-                            height: ComponentSizes.avatar.sm,
-                            borderRadius: ComponentSizes.avatar.sm / 2,
-                            backgroundColor: Colors.primary[100],
-                            justifyContent: "center",
-                            alignItems: "center",
-                            marginRight: Spacing.sm,
-                          }}
-                        >
-                          <Users size={16} color={Colors.primary[600]} />
-                        </View>
+                        {group.groupThumbnail ? (
+                          <Image
+                            source={{ uri: group.groupThumbnail }}
+                            style={{
+                              width: ComponentSizes.avatar.sm,
+                              height: ComponentSizes.avatar.sm,
+                              borderRadius: ComponentSizes.avatar.sm / 2,
+                              marginRight: Spacing.sm,
+                            }}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View
+                            style={{
+                              width: ComponentSizes.avatar.sm,
+                              height: ComponentSizes.avatar.sm,
+                              borderRadius: ComponentSizes.avatar.sm / 2,
+                              backgroundColor: Colors.primary[100],
+                              justifyContent: "center",
+                              alignItems: "center",
+                              marginRight: Spacing.sm,
+                            }}
+                          >
+                            <Users size={16} color={Colors.primary[600]} />
+                          </View>
+                        )}
                         <Text
                           style={{
                             fontSize: Typography.fontSize.md,

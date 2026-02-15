@@ -33,6 +33,7 @@ import {
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/design-system";
 import { recipeApi, type RecipeCreateRequest } from "@/services/recipeApi";
 import { api } from "@/services/api";
+import SuccessResultModal from "@/components/ui/SuccessResultModal";
 
 // ============================================================================
 // TYPES
@@ -126,6 +127,8 @@ export default function RecipeCreateManualScreen() {
 
   // UI State
   const [isSaving, setIsSaving] = useState(false);
+  const [showSaveSuccessModal, setShowSaveSuccessModal] = useState(false);
+  const [savedRecipeTitle, setSavedRecipeTitle] = useState("");
 
   // 재료 검색 관련 State
   const [apiIngredients, setApiIngredients] = useState<ApiIngredient[]>([]);
@@ -316,13 +319,8 @@ export default function RecipeCreateManualScreen() {
       };
 
       await recipeApi.create(request);
-
-      Alert.alert("저장 완료", `"${title}" 레시피가 저장되었습니다.`, [
-        {
-          text: "확인",
-          onPress: () => router.push("/(tabs)/recipe-book"),
-        },
-      ]);
+      setSavedRecipeTitle(title.trim());
+      setShowSaveSuccessModal(true);
     } catch (error: any) {
       console.error("Recipe create error:", error);
       const errorMessage = error?.message?.toLowerCase() || "";
@@ -336,12 +334,8 @@ export default function RecipeCreateManualScreen() {
         error?.message?.includes("409")
       ) {
         console.log("Duplicate recipe - treating as success");
-        Alert.alert("저장 완료", `"${title}" 레시피가 저장되었습니다.`, [
-          {
-            text: "확인",
-            onPress: () => router.push("/(tabs)/recipe-book"),
-          },
-        ]);
+        setSavedRecipeTitle(title.trim());
+        setShowSaveSuccessModal(true);
         return;
       }
 
@@ -931,6 +925,18 @@ export default function RecipeCreateManualScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <SuccessResultModal
+        visible={showSaveSuccessModal}
+        title="레시피 저장 완료!"
+        description={savedRecipeTitle ? `"${savedRecipeTitle}" 레시피가 저장되었습니다.` : undefined}
+        confirmText="레시피북으로 이동"
+        onClose={() => setShowSaveSuccessModal(false)}
+        onConfirm={() => {
+          setShowSaveSuccessModal(false);
+          router.push("/(tabs)/recipe-book");
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

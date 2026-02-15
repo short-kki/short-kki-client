@@ -10,6 +10,7 @@ export interface RecipeBook {
   thumbnails: string[];
   groupId?: string;
   groupName?: string;
+  groupThumbnail?: string | null;
 }
 
 export interface Recipe {

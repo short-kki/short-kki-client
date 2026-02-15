@@ -14,6 +14,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { ArrowLeft, Folder, BookOpen } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { useGroupRecipeBooksById } from "@/hooks";
+import { API_BASE_URL } from "@/constants/oauth";
 
 export default function GroupRecipeBooksScreen() {
   const insets = useSafeAreaInsets();
@@ -21,6 +22,13 @@ export default function GroupRecipeBooksScreen() {
   const params = useLocalSearchParams<{ groupId: string; groupName: string }>();
 
   const { recipeBooks, loading, error, refetch } = useGroupRecipeBooksById(params.groupId);
+
+  const getImageUrl = (url?: string) => {
+    if (!url) return undefined;
+    if (url.startsWith("http")) return url;
+    if (url.startsWith("data:")) return url;
+    return `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+  };
 
   // 화면에 포커스될 때 데이터 새로고침
   useFocusEffect(
@@ -126,7 +134,7 @@ export default function GroupRecipeBooksScreen() {
                   <>
                     <View style={{ flex: 1, marginRight: 2 }}>
                       <Image
-                        source={{ uri: book.thumbnails[0] }}
+                        source={{ uri: getImageUrl(book.thumbnails[0]) }}
                         style={{ width: "100%", height: "100%" }}
                         contentFit="cover"
                       />
@@ -135,7 +143,7 @@ export default function GroupRecipeBooksScreen() {
                       {book.thumbnails.slice(1, 3).map((thumb, index) => (
                         <View key={index} style={{ flex: 1 }}>
                           <Image
-                            source={{ uri: thumb }}
+                            source={{ uri: getImageUrl(thumb) }}
                             style={{ width: "100%", height: "100%" }}
                             contentFit="cover"
                           />

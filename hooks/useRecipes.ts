@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { USE_MOCK, api } from '@/services/api';
+import { API_BASE_URL } from '@/constants/oauth';
 import {
   MOCK_PERSONAL_RECIPE_BOOKS,
   MOCK_GROUP_RECIPE_BOOKS,
@@ -47,6 +48,19 @@ interface BaseResponse<T> {
   code?: string;
 }
 
+interface GroupSummaryApiResponse {
+  id: number;
+  name: string;
+  thumbnailImgUrl?: string | null;
+}
+
+function normalizeImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith('http')) return url;
+  if (url.startsWith('data:')) return url;
+  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 // 백엔드 응답을 프론트엔드 타입으로 변환
 function mapRecipeBookFromApi(apiResponse: RecipeBookApiResponse): RecipeBook {
   // console.log('[RecipeBook API] 응답:', JSON.stringify(apiResponse, null, 2));
@@ -58,14 +72,17 @@ function mapRecipeBookFromApi(apiResponse: RecipeBookApiResponse): RecipeBook {
     recipeCount: apiResponse.recipeCount ?? apiResponse.recipes?.length ?? 0,
     thumbnails: apiResponse.recipes
       ?.filter(r => r.mainImgUrl || r.thumbnailUrl)
-      .map(r => r.mainImgUrl || r.thumbnailUrl!)
+      .map(r => normalizeImageUrl(r.mainImgUrl || r.thumbnailUrl))
+      .filter((url): url is string => !!url)
       .slice(0, 3) || [],
   };
 }
 
 function mapRecipeFromApi(apiResponse: RecipeSummaryApiResponse, bookId: string): Recipe {
   // mainImgUrl 또는 thumbnailUrl 중 존재하는 것 사용
-  const thumbnail = apiResponse.mainImgUrl || apiResponse.thumbnailUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200';
+  const thumbnail =
+    normalizeImageUrl(apiResponse.mainImgUrl || apiResponse.thumbnailUrl) ||
+    'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200';
   return {
     id: String(apiResponse.id),
     title: apiResponse.title,
@@ -111,7 +128,8 @@ export function usePersonalRecipeBooks() {
               // console.log(`[RecipeBook ${book.id}] recipes 개수:`, recipes.length);
               const thumbnails = recipes
                 .filter(r => r.mainImgUrl || r.thumbnailUrl)
-                .map(r => r.mainImgUrl || r.thumbnailUrl!)
+                .map(r => normalizeImageUrl(r.mainImgUrl || r.thumbnailUrl))
+                .filter((url): url is string => !!url)
                 .slice(0, 3);
               // console.log(`[RecipeBook ${book.id}] 썸네일:`, thumbnails);
               const recipeCount = detailResponse.data.recipeCount ?? (recipes.length || book.recipeCount || 0);
@@ -243,6 +261,9 @@ export function useGroupRecipeBooksById(groupId?: string) {
         const filtered = MOCK_GROUP_RECIPE_BOOKS.filter(b => b.groupId === groupId);
         setRecipeBooks(filtered);
       } else {
+        const groupResponse = await api.get<BaseResponse<GroupSummaryApiResponse>>(`/api/v1/groups/${groupId}`);
+        const groupThumbnail = normalizeImageUrl(groupResponse.data.thumbnailImgUrl);
+
         // 1. 그룹 레시피북 목록 조회
         const response = await api.get<BaseResponse<RecipeBookApiResponse[]>>(
           `/api/v1/recipebooks/groups/${groupId}`
@@ -260,9 +281,16 @@ export function useGroupRecipeBooksById(groupId?: string) {
               const recipes = detailResponse.data.recipes || [];
               const thumbnails = recipes
                 .filter(r => r.mainImgUrl || r.thumbnailUrl)
-                .map(r => r.mainImgUrl || r.thumbnailUrl!)
+                .map(r => normalizeImageUrl(r.mainImgUrl || r.thumbnailUrl))
+                .filter((url): url is string => !!url)
                 .slice(0, 3);
               const recipeCount = recipes.length || book.recipeCount || 0;
+
+              if (__DEV__) {
+                console.log(`[GroupRecipeBooks] book=${book.id} title=${book.title}`);
+                console.log("[GroupRecipeBooks] raw images:", recipes.map(r => r.mainImgUrl || r.thumbnailUrl));
+                console.log("[GroupRecipeBooks] normalized thumbnails:", thumbnails);
+              }
 
               return {
                 id: String(book.id),
@@ -270,11 +298,19 @@ export function useGroupRecipeBooksById(groupId?: string) {
                 isDefault: book.isDefault,
                 recipeCount,
                 thumbnails,
+                groupId: String(groupId),
+                groupName: groupResponse.data.name,
+                groupThumbnail,
               };
             } catch (err) {
               console.error(`레시피북 ${book.id} 상세 조회 실패:`, err);
               // 상세 조회 실패 시 기본 정보만 반환
-              return mapRecipeBookFromApi(book);
+              return {
+                ...mapRecipeBookFromApi(book),
+                groupId: String(groupId),
+                groupName: groupResponse.data.name,
+                groupThumbnail,
+              };
             }
           })
         );
@@ -317,7 +353,7 @@ export function useGroupRecipeBooks() {
         setRecipeBooks(MOCK_GROUP_RECIPE_BOOKS);
       } else {
         // 1. 내 그룹 목록 조회
-        const groupsResponse = await api.get<BaseResponse<{ id: number; name: string }[]>>('/api/v1/groups/my');
+        const groupsResponse = await api.get<BaseResponse<GroupSummaryApiResponse[]>>('/api/v1/groups/my');
         const myGroups = groupsResponse.data;
 
         if (!myGroups || myGroups.length === 0) {
@@ -343,7 +379,8 @@ export function useGroupRecipeBooks() {
                     );
                     const thumbnails = detailResponse.data.recipes
                       ?.filter(r => r.mainImgUrl || r.thumbnailUrl)
-                      .map(r => r.mainImgUrl || r.thumbnailUrl!)
+                      .map(r => normalizeImageUrl(r.mainImgUrl || r.thumbnailUrl))
+                      .filter((url): url is string => !!url)
                       .slice(0, 3) || [];
                     const recipeCount = detailResponse.data.recipeCount ?? detailResponse.data.recipes?.length ?? book.recipeCount ?? 0;
 
@@ -355,6 +392,7 @@ export function useGroupRecipeBooks() {
                       thumbnails,
                       groupId: String(group.id),
                       groupName: group.name,
+                      groupThumbnail: normalizeImageUrl(group.thumbnailImgUrl),
                     };
                   } catch (err) {
                     console.error(`레시피북 ${book.id} 상세 조회 실패:`, err);
@@ -362,6 +400,7 @@ export function useGroupRecipeBooks() {
                       ...mapRecipeBookFromApi(book),
                       groupId: String(group.id),
                       groupName: group.name,
+                      groupThumbnail: normalizeImageUrl(group.thumbnailImgUrl),
                     };
                   }
                 })
