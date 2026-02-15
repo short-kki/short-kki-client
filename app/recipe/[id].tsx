@@ -42,6 +42,7 @@ import { recipeApi, type RecipeResponse } from "@/services/recipeApi";
 import { API_BASE_URL } from "@/constants/oauth";
 import { api } from "@/services/api";
 import { useRecipeQueue, useGroups, usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
+import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
 import { YoutubeView, useYouTubePlayer, useYouTubeEvent, PlayerState } from "react-native-youtube-bridge";
 import { extractYoutubeId } from "@/utils/youtube";
 
@@ -134,66 +135,8 @@ export default function RecipeDetailScreen() {
   const bookmarkOverlayOpacity = useRef(new Animated.Value(0)).current;
   const bookmarkSheetTranslateY = useRef(new Animated.Value(400)).current;
 
-  // 토스트 관련 상태
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [toastVariant, setToastVariant] = useState<"success" | "danger">("success");
-  const [toastId, setToastId] = useState(0);
-  const toastOpacity = useRef(new Animated.Value(0)).current;
-  const toastTranslate = useRef(new Animated.Value(8)).current;
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (toastTimer.current) {
-        clearTimeout(toastTimer.current);
-      }
-    };
-  }, []);
-
-  const showToast = useCallback((message: string, variant: "success" | "danger" = "success") => {
-    setToastId((prev) => prev + 1);
-    setToastVariant(variant);
-    setToastMessage(message);
-    toastOpacity.stopAnimation();
-    toastTranslate.stopAnimation();
-    toastOpacity.setValue(0);
-    toastTranslate.setValue(8);
-
-    Animated.parallel([
-      Animated.timing(toastOpacity, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(toastTranslate, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    if (toastTimer.current) {
-      clearTimeout(toastTimer.current);
-    }
-    toastTimer.current = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(toastOpacity, {
-          toValue: 0,
-          duration: 260,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(toastTranslate, {
-          toValue: 8,
-          duration: 260,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setToastMessage(null);
-      });
-    }, 1400);
-  }, [toastOpacity, toastTranslate]);
+  const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } =
+    useFeedbackToast(1600);
 
   // 비디오 관련 상태
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
@@ -1843,61 +1786,13 @@ export default function RecipeDetailScreen() {
         </Pressable>
       </Modal>
 
-      {/* 토스트 메시지 */}
-      {toastMessage && (
-        <Animated.View
-          key={toastId}
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            left: 20,
-            right: 20,
-            bottom: insets.bottom + 80,
-            alignItems: "center",
-            transform: [{ translateY: toastTranslate }],
-            opacity: toastOpacity,
-            zIndex: 200,
-          }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-              backgroundColor: Colors.neutral[0],
-              borderRadius: 16,
-              overflow: "hidden",
-              paddingVertical: 12,
-              paddingHorizontal: 14,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.15,
-              shadowRadius: 12,
-              elevation: 8,
-            }}
-          >
-            <View
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 14,
-                backgroundColor: toastVariant === "success" ? Colors.success.light : Colors.error.light,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              {toastVariant === "success" ? (
-                <Check size={16} color={Colors.success.main} strokeWidth={3} />
-              ) : (
-                <X size={16} color={Colors.error.main} strokeWidth={3} />
-              )}
-            </View>
-            <Text style={{ color: Colors.neutral[900], fontSize: 13, fontWeight: "600", flex: 1 }}>
-              {toastMessage}
-            </Text>
-          </View>
-        </Animated.View>
-      )}
+      <FeedbackToast
+        message={toastMessage}
+        variant={toastVariant}
+        opacity={toastOpacity}
+        translate={toastTranslate}
+        bottomOffset={80}
+      />
 
       {/* 장보기 추가 로딩 */}
       {isAddingToShoppingList && (

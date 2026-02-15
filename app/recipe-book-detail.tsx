@@ -26,6 +26,7 @@ import {
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { useRecipeBookDetail, usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
 import RecipeBookSelectModal from "@/components/RecipeBookSelectModal";
+import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
 
 import { API_BASE_URL } from "@/constants/oauth";
 
@@ -202,6 +203,8 @@ export default function RecipeBookDetailScreen() {
   const [showRecipeMenuModal, setShowRecipeMenuModal] = useState(false);
   const [showBookSelectModal, setShowBookSelectModal] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<any>(null);
+  const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } =
+    useFeedbackToast(1600);
 
   const handleRecipePress = (recipeId: string) => {
     router.push(`/recipe/${recipeId}`);
@@ -232,9 +235,9 @@ export default function RecipeBookDetailScreen() {
                 text: "삭제", style: "destructive", onPress: async () => {
                   const success = await removeRecipe(selectedRecipe.id);
                   if (success) {
-                    Alert.alert("완료", "레시피가 삭제되었습니다.");
+                    showToast("레시피북에서 삭제했어요.", "success");
                   } else {
-                    Alert.alert("오류", "레시피 삭제에 실패했습니다.");
+                    showToast("레시피 삭제에 실패했어요.", "danger");
                   }
                 }
               },
@@ -590,14 +593,21 @@ export default function RecipeBookDetailScreen() {
           if (selectedRecipe) {
             const success = await moveRecipe(selectedRecipe.id, bookId);
             if (success) {
-              Alert.alert("완료", `"${bookName}"(으)로 이동되었습니다.`);
+              showToast(`"${bookName}"(으)로 이동했어요.`, "success");
             } else {
-              Alert.alert("오류", "레시피 이동에 실패했습니다.");
+              showToast("레시피 이동에 실패했어요.", "danger");
             }
           }
         }}
         currentBookId={bookId}
         title="이동할 레시피북"
+      />
+      <FeedbackToast
+        message={toastMessage}
+        variant={toastVariant}
+        opacity={toastOpacity}
+        translate={toastTranslate}
+        bottomOffset={72}
       />
     </View>
   );
