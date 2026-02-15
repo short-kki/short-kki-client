@@ -80,6 +80,7 @@ export default function RecipeDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [servings, setServings] = useState(1);
+  const [ownedBookIds, setOwnedBookIds] = useState<string[]>([]);
 
   // 데이터 로딩 - 가장 먼저 실행되도록 배치
   useEffect(() => {
@@ -98,10 +99,10 @@ export default function RecipeDetailScreen() {
     console.log("[RecipeDetail] Calling GET /api/v1/recipes/" + id);
     recipeApi.getById(id).then((data) => {
       if (cancelled) return;
-      console.log("[RecipeDetail] API OK - title:", data?.title, "steps:", data?.steps?.length, "ingredients:", data?.ingredients?.length);
+      console.log("[RecipeDetail] API OK - title:", data?.title);
       setRecipe(data);
       setServings(data.servingSize);
-      setIsBookmarked(false);
+      setOwnedBookIds((data.ownedRecipeBookIds || []).map((bookId) => String(bookId)));
       setLoading(false);
     }).catch((err: any) => {
       if (cancelled) return;
@@ -113,8 +114,6 @@ export default function RecipeDetailScreen() {
     return () => { cancelled = true; };
   }, [id]);
 
-  const [isBookmarked, setIsBookmarked] = useState(false);
-  const [savedBookId, setSavedBookId] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showGroupSelectModal, setShowGroupSelectModal] = useState(false);
   const [showIngredientSelectModal, setShowIngredientSelectModal] = useState(false);
@@ -256,16 +255,12 @@ export default function RecipeDetailScreen() {
   }, [isMuted, player]);
 
   // 데이터 로딩은 컴포넌트 상단 useEffect에서 처리
-
-  const toggleBookmark = () => {
-    // API 연결 필요 (북마크 추가/취소)
-    // 현재는 UI 상태만 변경
-    setIsBookmarked(!isBookmarked);
-    if (recipe) {
-      // 실제로는 서버 상태를 다시 불러오거나 해야 함
-      // 여기서는 간단히 로컬 카운트만 조절하는 흉내 (실제 반영은 안됨)
-    }
-  };
+  const refreshRecipeState = useCallback(async () => {
+    if (!recipe) return;
+    const latest = await recipeApi.getById(recipe.id);
+    setRecipe(latest);
+    setOwnedBookIds((latest.ownedRecipeBookIds || []).map((bookId) => String(bookId)));
+  }, [recipe]);
 
   const adjustServings = (delta: number) => {
     const newServings = Math.max(1, servings + delta);
@@ -303,11 +298,7 @@ export default function RecipeDetailScreen() {
       try {
         const response = await api.get<{ data: number[] }>(`/api/v1/recipebooks/recipes/${recipe.id}`);
         const savedBookIds = response.data;
-        if (savedBookIds && savedBookIds.length > 0) {
-          setSavedBookId(String(savedBookIds[0]));
-        } else {
-          setSavedBookId(null);
-        }
+        setOwnedBookIds((savedBookIds || []).map((bookId) => String(bookId)));
       } catch (err) {
         console.error('[Bookmark] 저장된 레시피북 조회 실패:', err);
       }
@@ -346,18 +337,18 @@ export default function RecipeDetailScreen() {
     });
   }, [bookmarkOverlayOpacity, bookmarkSheetTranslateY]);
 
-  const handleSelectFolder = useCallback(async (bookId: string, bookName: string, groupId?: string) => {
+  const handleSelectFolder = useCallback(async (bookId: string, bookName: string) => {
     if (!recipe) return;
     const recipeBookId = Number(bookId);
 
-    const isAlreadySaved = savedBookId === bookId;
+    const isAlreadySaved = ownedBookIds.includes(bookId);
 
     if (isAlreadySaved) {
       // 이미 저장된 북이면 해제
       try {
         await api.delete(`/api/v1/recipebooks/${recipeBookId}/recipes/${recipe.id}`);
-        setSavedBookId(null);
-        setIsBookmarked(false);
+        setOwnedBookIds((prev) => prev.filter((id) => id !== bookId));
+        await refreshRecipeState();
         showToast(`"${bookName}"에서 삭제되었습니다.`, "danger");
       } catch (error: any) {
         showToast("삭제에 실패했습니다.", "danger");
@@ -365,9 +356,8 @@ export default function RecipeDetailScreen() {
     } else {
       try {
         await api.post(`/api/v1/recipebooks/${recipeBookId}/recipes`, { recipeId: recipe.id });
-
-        setSavedBookId(bookId);
-        setIsBookmarked(true);
+        setOwnedBookIds((prev) => (prev.includes(bookId) ? prev : [...prev, bookId]));
+        await refreshRecipeState();
         showToast(`"${bookName}"에 저장되었습니다.`, "success");
       } catch (error: any) {
         if (error.message && error.message.includes("이미 레시피북에 추가된")) {
@@ -379,7 +369,7 @@ export default function RecipeDetailScreen() {
     }
 
     closeBookmarkSheet();
-  }, [recipe, savedBookId, closeBookmarkSheet, showToast]);
+  }, [recipe, ownedBookIds, closeBookmarkSheet, showToast, refreshRecipeState]);
 
   const handleAddToRecipeBook = () => {
     openBookmarkSheet();
@@ -497,6 +487,8 @@ export default function RecipeDetailScreen() {
       </View>
     );
   }
+
+  const isOwned = ownedBookIds.length > 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[50] }}>
@@ -796,27 +788,27 @@ export default function RecipeDetailScreen() {
                 </View>
               </View>
             </View>
-            <Pressable onPress={toggleBookmark} style={{ alignItems: "center" }}>
+            <View style={{ alignItems: "center" }}>
               <View
                 style={{
                   width: 48,
                   height: 48,
                   borderRadius: 24,
-                  backgroundColor: isBookmarked ? Colors.primary[50] : Colors.neutral[100],
+                  backgroundColor: isOwned ? Colors.primary[50] : Colors.neutral[100],
                   justifyContent: "center",
                   alignItems: "center",
                 }}
               >
                 <Bookmark
                   size={24}
-                  color={isBookmarked ? Colors.primary[500] : Colors.neutral[400]}
-                  fill={isBookmarked ? Colors.primary[500] : "transparent"}
+                  color={isOwned ? Colors.primary[500] : Colors.neutral[400]}
+                  fill={isOwned ? Colors.primary[500] : "transparent"}
                 />
               </View>
               <Text style={{ fontSize: 11, color: Colors.neutral[500], marginTop: 4 }}>
-                {formatCount(recipe.bookmarkCount + (isBookmarked ? 1 : 0))}
+                {formatCount(recipe.bookmarkCount)}
               </Text>
-            </Pressable>
+            </View>
           </View>
 
           {/* Description */}
@@ -1193,11 +1185,11 @@ export default function RecipeDetailScreen() {
                   groupId: book.groupId ? String(book.groupId) : undefined,
                 }))
               ).map((book) => {
-                const isSelected = savedBookId === book.id;
+                const isSelected = ownedBookIds.includes(book.id);
                 return (
                   <TouchableOpacity
                     key={book.id}
-                    onPress={() => handleSelectFolder(book.id, book.name, book.groupId)}
+                    onPress={() => handleSelectFolder(book.id, book.name)}
                     activeOpacity={0.7}
                     style={{
                       flexDirection: "row",
