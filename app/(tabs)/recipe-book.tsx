@@ -405,7 +405,7 @@ export default function RecipeBookScreen() {
             }}
           >
             <Plus size={18} color="#FFF" />
-            <Text style={{ color: "#FFF", fontWeight: Typography.fontWeight.semiBold, fontSize: Typography.fontSize.sm }}>
+            <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 14 }}>
               추가
             </Text>
           </TouchableOpacity>
