@@ -366,18 +366,6 @@ export default function RecipeDetailScreen() {
       try {
         await api.post(`/api/v1/recipebooks/${recipeBookId}/recipes`, { recipeId: recipe.id });
 
-        // 그룹 레시피북인 경우 피드 생성
-        if (groupId) {
-          try {
-            await api.post(`/api/v1/groups/${groupId}/feeds`, {
-              content: `"${recipe.title}" 레시피가 "${bookName}" 레시피북에 추가되었습니다.`,
-              feedType: "NEW_RECIPE_ADDED",
-            });
-          } catch (feedError) {
-            console.error("[Feed] 피드 생성 실패:", feedError);
-          }
-        }
-
         setSavedBookId(bookId);
         setIsBookmarked(true);
         showToast(`"${bookName}"에 저장되었습니다.`, "success");
@@ -1056,7 +1044,7 @@ export default function RecipeDetailScreen() {
         >
           <ShoppingCart size={20} color="#FFFFFF" />
           <Text style={{ fontSize: 14, fontWeight: "600", color: "#FFFFFF" }}>
-            장보기
+            장볼거리
           </Text>
         </TouchableOpacity>
       </View>
