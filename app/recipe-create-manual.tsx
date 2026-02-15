@@ -33,6 +33,7 @@ import {
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/design-system";
 import { recipeApi, type RecipeCreateRequest } from "@/services/recipeApi";
 import { api } from "@/services/api";
+import { uploadImage, type ImagePickerAsset } from "@/services/fileUpload";
 import SuccessResultModal from "@/components/ui/SuccessResultModal";
 
 // ============================================================================
@@ -109,6 +110,7 @@ export default function RecipeCreateManualScreen() {
   const [cookingTime, setCookingTime] = useState("");
   const [servings, setServings] = useState("2");
   const [thumbnail, setThumbnail] = useState<string | null>(null);
+  const [thumbnailAsset, setThumbnailAsset] = useState<ImagePickerAsset | null>(null);
 
   // Category Info
   const [difficulty, setDifficulty] = useState<Difficulty>("BEGINNER");
@@ -261,7 +263,16 @@ export default function RecipeCreateManualScreen() {
     });
 
     if (!result.canceled) {
-      setThumbnail(result.assets[0].uri);
+      const asset = result.assets[0];
+      setThumbnail(asset.uri);
+      setThumbnailAsset({
+        uri: asset.uri,
+        fileName: asset.fileName,
+        mimeType: asset.mimeType,
+        fileSize: asset.fileSize,
+        width: asset.width,
+        height: asset.height,
+      });
     }
   };
 
@@ -294,12 +305,19 @@ export default function RecipeCreateManualScreen() {
     setIsSaving(true);
 
     try {
+      let mainImgFileId: number | undefined;
+      if (thumbnailAsset) {
+        const uploadedFile = await uploadImage(thumbnailAsset, "RECIPE_IMG", "PUBLIC");
+        mainImgFileId = uploadedFile.fileId;
+      }
+
       const request: RecipeCreateRequest = {
         basicInfo: {
           title: title.trim(),
           description: description.trim() || undefined,
           servingSize: servingsNum,
           cookingTime: cookingTimeNum,
+          mainImgFileId,
         },
         categoryInfo: {
           cuisineType,
@@ -454,7 +472,10 @@ export default function RecipeCreateManualScreen() {
                     contentFit="cover"
                   />
                   <TouchableOpacity
-                    onPress={() => setThumbnail(null)}
+                    onPress={() => {
+                      setThumbnail(null);
+                      setThumbnailAsset(null);
+                    }}
                     style={{
                       position: "absolute",
                       top: 8,
