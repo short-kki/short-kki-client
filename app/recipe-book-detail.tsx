@@ -21,12 +21,12 @@ import {
   ChefHat,
   Trash2,
   FolderInput,
-  Share2,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { useRecipeBookDetail, usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
 import RecipeBookSelectModal from "@/components/RecipeBookSelectModal";
 import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
+import ConfirmActionModal from "@/components/ui/ConfirmActionModal";
 
 import { API_BASE_URL } from "@/constants/oauth";
 
@@ -202,6 +202,8 @@ export default function RecipeBookDetailScreen() {
 
   const [showRecipeMenuModal, setShowRecipeMenuModal] = useState(false);
   const [showBookSelectModal, setShowBookSelectModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [isDeletingRecipe, setIsDeletingRecipe] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<any>(null);
   const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } =
     useFeedbackToast(1600);
@@ -215,7 +217,7 @@ export default function RecipeBookDetailScreen() {
     setShowRecipeMenuModal(true);
   };
 
-  const handleRecipeMenuAction = (action: "move" | "delete" | "share") => {
+  const handleRecipeMenuAction = (action: "move" | "delete") => {
     if (!selectedRecipe) return;
 
     setShowRecipeMenuModal(false);
@@ -226,29 +228,27 @@ export default function RecipeBookDetailScreen() {
           setShowBookSelectModal(true);
           break;
         case "delete":
-          Alert.alert(
-            "레시피 삭제",
-            `"${selectedRecipe.title}"을(를) 레시피북에서 삭제하시겠습니까?`,
-            [
-              { text: "취소", style: "cancel" },
-              {
-                text: "삭제", style: "destructive", onPress: async () => {
-                  const success = await removeRecipe(selectedRecipe.id);
-                  if (success) {
-                    showToast("레시피북에서 삭제했어요.", "success");
-                  } else {
-                    showToast("레시피 삭제에 실패했어요.", "danger");
-                  }
-                }
-              },
-            ]
-          );
-          break;
-        case "share":
-          Alert.alert("공유", "공유 기능은 준비 중입니다.");
+          setShowDeleteConfirmModal(true);
           break;
       }
     }, 200);
+  };
+
+  const handleDeleteRecipe = async () => {
+    if (!selectedRecipe || isDeletingRecipe) return;
+
+    setIsDeletingRecipe(true);
+    try {
+      const success = await removeRecipe(selectedRecipe.id);
+      if (success) {
+        setShowDeleteConfirmModal(false);
+        showToast("레시피북에서 삭제했어요.", "success");
+      } else {
+        showToast("레시피 삭제에 실패했어요.", "danger");
+      }
+    } finally {
+      setIsDeletingRecipe(false);
+    }
   };
 
   return (
@@ -507,42 +507,6 @@ export default function RecipeBookDetailScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {/* 공유 */}
-              <TouchableOpacity
-                onPress={() => handleRecipeMenuAction("share")}
-                activeOpacity={0.7}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: Spacing.md,
-                  paddingHorizontal: Spacing.xl,
-                }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: Colors.info.light,
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <Share2 size={20} color={Colors.info.main} />
-                </View>
-                <Text
-                  style={{
-                    flex: 1,
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: "500",
-                    color: Colors.neutral[900],
-                    marginLeft: Spacing.md,
-                  }}
-                >
-                  공유하기
-                </Text>
-              </TouchableOpacity>
-
               {/* 삭제 */}
               <TouchableOpacity
                 onPress={() => handleRecipeMenuAction("delete")}
@@ -601,6 +565,20 @@ export default function RecipeBookDetailScreen() {
         }}
         currentBookId={bookId}
         title="이동할 레시피북"
+      />
+      <ConfirmActionModal
+        visible={showDeleteConfirmModal}
+        title="레시피를 삭제할까요?"
+        description="이 레시피북에서만 제거되며, 다른 레시피북에는 그대로 유지됩니다."
+        targetName={selectedRecipe?.title}
+        targetMeta={selectedRecipe ? `· 북마크 ${formatCount(selectedRecipe.likes || 0)}` : undefined}
+        targetIcon={<ChefHat size={18} color={Colors.neutral[600]} />}
+        loading={isDeletingRecipe}
+        onClose={() => {
+          if (isDeletingRecipe) return;
+          setShowDeleteConfirmModal(false);
+        }}
+        onConfirm={handleDeleteRecipe}
       />
       <FeedbackToast
         message={toastMessage}

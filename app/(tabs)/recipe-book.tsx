@@ -28,6 +28,7 @@ import {
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows, ComponentSizes } from "@/constants/design-system";
 import { usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
+import ConfirmActionModal from "@/components/ui/ConfirmActionModal";
 
 // 레시피북 데이터 타입 (hooks에서 가져온 타입과 호환)
 interface RecipeBook {
@@ -193,7 +194,11 @@ function RecipeBookCard({
 export default function RecipeBookScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ groupId?: string; groupName?: string; _t?: string }>();
+  const params = useLocalSearchParams<{
+    groupId?: string;
+    groupName?: string;
+    _t?: string;
+  }>();
 
   // hooks에서 데이터 가져오기
   const { recipeBooks: personalBooks, loading: personalLoading, createRecipeBook, removeRecipeBook, renameRecipeBook, refetch: refetchPersonal } = usePersonalRecipeBooks();
@@ -258,6 +263,9 @@ export default function RecipeBookScreen() {
   const [editingBook, setEditingBook] = useState<RecipeBook | null>(null);
   const [editBookName, setEditBookName] = useState("");
   const [selectedBook, setSelectedBook] = useState<RecipeBook | null>(null);
+  const [deleteTargetBook, setDeleteTargetBook] = useState<RecipeBook | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeletingBook, setIsDeletingBook] = useState(false);
 
   // params가 변경될 때 필터 업데이트 (_t 타임스탬프로 매번 새로운 네비게이션 감지)
   useEffect(() => {
@@ -290,7 +298,8 @@ export default function RecipeBookScreen() {
           setShowEditModal(true);
           break;
         case "delete":
-          confirmDelete(selectedBook);
+          setDeleteTargetBook(selectedBook);
+          setShowDeleteModal(true);
           break;
         case "share":
           Alert.alert("공유", "공유 기능은 준비 중입니다.");
@@ -299,25 +308,22 @@ export default function RecipeBookScreen() {
     });
   };
 
-  const confirmDelete = (book: RecipeBook) => {
-    Alert.alert(
-      "레시피북 삭제",
-      `"${book.name}"을(를) 삭제하시겠습니까?\n저장된 레시피는 기본 레시피북으로 이동됩니다.`,
-      [
-        { text: "취소", style: "cancel" },
-        {
-          text: "삭제",
-          style: "destructive",
-          onPress: async () => {
-            const success = await removeRecipeBook(book.id);
-            if (!success) {
-              Alert.alert("오류", "레시피북 삭제에 실패했습니다.");
-            }
-          },
-        },
-      ]
-    );
-  };
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTargetBook || isDeletingBook) return;
+
+    setIsDeletingBook(true);
+    try {
+      const success = await removeRecipeBook(deleteTargetBook.id);
+      if (success) {
+        setShowDeleteModal(false);
+        setDeleteTargetBook(null);
+      } else {
+        Alert.alert("오류", "레시피북 삭제에 실패했습니다.");
+      }
+    } finally {
+      setIsDeletingBook(false);
+    }
+  }, [deleteTargetBook, isDeletingBook, removeRecipeBook]);
 
   const handleCreateBook = async () => {
     if (!newBookName.trim()) {
@@ -643,7 +649,10 @@ export default function RecipeBookScreen() {
                       <TouchableOpacity
                         onPress={() => router.push({
                           pathname: "/(tabs)/group",
-                          params: { groupId, _t: Date.now().toString() },
+                          params: {
+                            groupId,
+                            _t: Date.now().toString(),
+                          },
                         })}
                         activeOpacity={0.7}
                         style={{
@@ -691,7 +700,10 @@ export default function RecipeBookScreen() {
                           if (book.groupId) {
                             router.push({
                               pathname: "/(tabs)/group",
-                              params: { groupId: book.groupId, _t: Date.now().toString() },
+                              params: {
+                                groupId: book.groupId,
+                                _t: Date.now().toString(),
+                              },
                             });
                           }
                         }}
@@ -1024,6 +1036,22 @@ export default function RecipeBookScreen() {
           </Animated.View>
         </View>
       </Modal>
+
+      <ConfirmActionModal
+        visible={showDeleteModal}
+        title="레시피북을 삭제할까요?"
+        description="삭제된 레시피북의 레시피는 기본 레시피북으로 이동됩니다."
+        targetName={deleteTargetBook?.name}
+        targetMeta={deleteTargetBook ? `· 레시피 ${deleteTargetBook.recipeCount}개` : undefined}
+        targetIcon={<Folder size={18} color={Colors.neutral[600]} />}
+        loading={isDeletingBook}
+        onClose={() => {
+          if (isDeletingBook) return;
+          setShowDeleteModal(false);
+          setDeleteTargetBook(null);
+        }}
+        onConfirm={confirmDelete}
+      />
     </View>
   );
 }
