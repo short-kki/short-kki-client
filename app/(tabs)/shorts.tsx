@@ -700,11 +700,15 @@ export default function ShortsScreen() {
 
     try {
       const [ownedRes, recipeRes] = await Promise.all([
-        api.get<{ data: number[] }>(`/api/v1/recipebooks/recipes/${recipeId}`),
+        api.get<{ data: number[] | { recipeBookIds?: number[] } }>(`/api/v1/recipebooks/recipes/${recipeId}`),
         api.get<{ data: { bookmarkCount: number; ownedRecipeBookIds?: number[] } }>(`/api/v1/recipes/${recipeId}`),
       ]);
 
-      const ownedBookIds = (ownedRes.data || []).map((id) => String(id));
+      const ownedPayload = ownedRes.data;
+      const ownedRaw = Array.isArray(ownedPayload)
+        ? ownedPayload
+        : (ownedPayload?.recipeBookIds ?? []);
+      const ownedBookIds = ownedRaw.map((id) => String(id));
       setOwnedBookIdsByVideo((prev) => ({
         ...prev,
         [videoId]: ownedBookIds,

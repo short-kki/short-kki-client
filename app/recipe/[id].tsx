@@ -239,8 +239,11 @@ export default function RecipeDetailScreen() {
     // 서버에서 이미 저장된 레시피북 ID 목록 조회
     if (recipe) {
       try {
-        const response = await api.get<{ data: number[] }>(`/api/v1/recipebooks/recipes/${recipe.id}`);
-        const savedBookIds = response.data;
+        const response = await api.get<{ data: number[] | { recipeBookIds?: number[] } }>(
+          `/api/v1/recipebooks/recipes/${recipe.id}`
+        );
+        const payload = response.data;
+        const savedBookIds = Array.isArray(payload) ? payload : (payload?.recipeBookIds ?? []);
         setOwnedBookIds((savedBookIds || []).map((bookId) => String(bookId)));
       } catch (err) {
         console.error('[Bookmark] 저장된 레시피북 조회 실패:', err);
