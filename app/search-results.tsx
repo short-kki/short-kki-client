@@ -354,15 +354,12 @@ export default function SearchResultsScreen() {
     [isCurationMode, curationData.shorts]
   );
 
-  // 큐레이션 카드 프레스 핸들러
+  // 큐레이션 카드 프레스 핸들러 → 레시피 상세 화면으로 이동
   const handleCurationItemPress = useCallback(
     (item: SearchRecipeItem) => {
-      router.push({
-        pathname: "/curation-shorts",
-        params: { startIndex: String(item.id), curationId: params.curationId },
-      } as any);
+      router.push(`/recipe/${item.id}`);
     },
-    [router, params.curationId]
+    [router]
   );
 
   // ─── 검색 모드 로직 (큐레이션과 분리) ───

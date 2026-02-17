@@ -101,8 +101,12 @@ interface CurationV2Recipe {
   bookmarkCount: number;
   sourceUrl?: string;
   mainImgUrl?: string;
+  recipeSource?: string;
   authorName?: string;
+  authorProfileImgUrl?: string;
+  platform?: string;
   creatorName?: string;
+  creatorProfileImgUrl?: string;
 }
 
 interface CurationV2Item {
@@ -161,6 +165,7 @@ const mapRecipeToCurationRecipe = (recipe: CurationV2Recipe): CurationRecipe => 
     thumbnail: recipe.mainImgUrl || getYoutubeThumbnail(videoId),
     duration: "0:00",
     author: recipe.authorName || recipe.creatorName || "작성자",
+    authorProfileImgUrl: recipe.authorProfileImgUrl,
     creatorName: recipe.creatorName,
     bookmarks: recipe.bookmarkCount,
     sourceUrl: recipe.sourceUrl,
@@ -176,6 +181,7 @@ const mapRecipeToTopItem = (recipe: CurationV2Recipe): TopRecipeItem => {
     title: recipe.title,
     author: recipe.authorName || recipe.creatorName || "작성자",
     authorAvatar: recipe.authorName?.[0],
+    authorProfileImgUrl: recipe.authorProfileImgUrl,
     creatorName: recipe.creatorName,
     thumbnail: recipe.mainImgUrl || getYoutubeThumbnail(videoId),
     views: undefined,
@@ -193,6 +199,7 @@ const mapCurationRecipeToShortsItem = (recipe: CurationRecipe): ShortsItem => {
     title: recipe.title,
     author: recipe.author,
     authorAvatar: recipe.author?.[0],
+    authorProfileImgUrl: recipe.authorProfileImgUrl,
     creatorName: recipe.creatorName,
     thumbnail: recipe.thumbnail || getYoutubeThumbnail(videoId),
     views: undefined,
@@ -247,6 +254,7 @@ const mapSearchRecipeToTopItem = (recipe: SearchRecipeItem): TopRecipeItem => {
     title: recipe.title,
     author: recipe.authorName || recipe.creatorName || '작성자',
     authorAvatar: (recipe.authorName || recipe.creatorName)?.[0],
+    authorProfileImgUrl: recipe.authorProfileImgUrl ?? undefined,
     creatorName: recipe.creatorName ?? undefined,
     thumbnail: recipe.mainImgUrl || getYoutubeThumbnail(videoId),
     views: undefined,
@@ -263,6 +271,7 @@ const mapSearchRecipeToCurationRecipe = (recipe: SearchRecipeItem): CurationReci
     thumbnail: recipe.mainImgUrl || getYoutubeThumbnail(videoId),
     duration: '0:00',
     author: recipe.authorName || recipe.creatorName || '작성자',
+    authorProfileImgUrl: recipe.authorProfileImgUrl ?? undefined,
     creatorName: recipe.creatorName ?? undefined,
     bookmarks: recipe.bookmarkCount,
     sourceUrl: recipe.sourceUrl ?? undefined,
@@ -279,6 +288,9 @@ export function useRecommendedCurations() {
   const [error, setError] = useState<Error | null>(null);
   const fetchingPagesRef = useRef<Set<number>>(new Set());
   const fetchedPagesRef = useRef<Set<number>>(new Set());
+  const pageInfoRef = useRef<CurationV2PageInfo | null>(null);
+  const loadingMoreRef = useRef(false);
+  const callCountRef = useRef(0);
 
   // TOP 레시피: search API에서 가져오기
   const fetchTopRecipes = useCallback(async () => {
@@ -298,11 +310,12 @@ export function useRecommendedCurations() {
     }
 
     try {
-      const response = await api.get<ApiResponse<HomeSearchResponse>>(
-        `/api/v2/recipes/search?page=0&size=${DEFAULT_PAGE_SIZE}`
-      );
+      const url = `/api/v2/recipes/search?page=0&size=${DEFAULT_PAGE_SIZE}`;
+      console.log(`[Curation] TOP 요청: ${url}`);
+      const response = await api.get<ApiResponse<HomeSearchResponse>>(url);
       const data = response.data;
       const searchResults = data?.searchResult ?? [];
+      console.log(`[Curation] TOP 응답: ${searchResults.length}건`, searchResults.map(r => r.title));
       setTopRecipes(searchResults.map(mapSearchRecipeToTopItem));
       setTopCuration(
         searchResults.length > 0
@@ -314,7 +327,7 @@ export function useRecommendedCurations() {
           : null
       );
     } catch (err) {
-      console.error('[HomeSearch] top recipes fetch error:', err);
+      console.error('[Curation] TOP 에러:', err);
     }
   }, []);
 
@@ -326,37 +339,39 @@ export function useRecommendedCurations() {
       if (page === 0) {
         setSections(MOCK_CURATION_SECTIONS);
       }
-      setPageInfo({
+      const info = {
         page: 0,
         size: DEFAULT_PAGE_SIZE,
         hasNext: false,
         first: true,
         last: true,
-      });
+      };
+      setPageInfo(info);
+      pageInfoRef.current = info;
       fetchingPagesRef.current.delete(page);
       fetchedPagesRef.current.add(page);
       return;
     }
 
     try {
-      const response = await api.get<ApiResponse<CurationV2Response>>(
-        `/api/v2/recipes/curations/recommended?page=${page}&size=${DEFAULT_PAGE_SIZE}`
-      );
-
+      const url = `/api/v2/recipes/curations/recommended?page=${page}&size=${DEFAULT_PAGE_SIZE}`;
+      console.log(`[Curation] 추천 요청: page=${page}`);
+      const response = await api.get<ApiResponse<CurationV2Response>>(url);
       const data = response.data;
       const curations = data?.curations ?? [];
+      const filtered = curations.filter((curation) => curation.recipes && curation.recipes.length > 0);
+      console.log(`[Curation] 추천 응답: ${curations.length}건 (유효 ${filtered.length}건)`, curations.map(c => `"${c.title}"(${c.recipes?.length ?? 0}개)`));
 
       if (page === 0) {
-        setSections(curations
-          .filter((curation) => curation.recipes && curation.recipes.length > 0)
-          .map((curation) => ({
+        const mapped = filtered.map((curation) => ({
             id: String(curation.curationId),
             title: curation.title,
             description: curation.description,
             mealTypes: curation.mealTypes,
             cuisineTypes: curation.cuisineTypes,
             recipes: (curation.recipes ?? []).map(mapRecipeToCurationRecipe),
-          })));
+          }));
+        setSections(mapped);
       } else {
         setSections((prev) => {
           const next = curations
@@ -375,18 +390,19 @@ export function useRecommendedCurations() {
       }
 
       if (data?.pageInfo) {
-        setPageInfo({
-          ...data.pageInfo,
-          page,
-        });
+        const info = { ...data.pageInfo, page };
+        setPageInfo(info);
+        pageInfoRef.current = info;
       } else {
-        setPageInfo({
+        const info = {
           page,
           size: DEFAULT_PAGE_SIZE,
           hasNext: false,
           first: page === 0,
           last: true,
-        });
+        };
+        setPageInfo(info);
+        pageInfoRef.current = info;
       }
       fetchedPagesRef.current.add(page);
     } finally {
@@ -395,11 +411,15 @@ export function useRecommendedCurations() {
   }, []);
 
   const fetchInitial = useCallback(async () => {
+    callCountRef.current += 1;
+    console.log(`[Curation] === fetchInitial 호출 #${callCountRef.current} ===`);
     try {
       setLoading(true);
       setError(null);
       fetchingPagesRef.current.clear();
       fetchedPagesRef.current.clear();
+      pageInfoRef.current = null;
+      loadingMoreRef.current = false;
       await Promise.all([fetchTopRecipes(), fetchPage(0)]);
     } catch (err) {
       setError(err as Error);
@@ -410,10 +430,14 @@ export function useRecommendedCurations() {
 
   // 새로고침용
   const refetch = useCallback(async () => {
+    callCountRef.current += 1;
+    console.log(`[Curation] === refetch 호출 #${callCountRef.current} ===`);
     try {
       setError(null);
       fetchingPagesRef.current.clear();
       fetchedPagesRef.current.clear();
+      pageInfoRef.current = null;
+      loadingMoreRef.current = false;
       await Promise.all([fetchTopRecipes(), fetchPage(0)]);
     } catch (err) {
       setError(err as Error);
@@ -421,17 +445,19 @@ export function useRecommendedCurations() {
   }, [fetchTopRecipes, fetchPage]);
 
   const fetchNextPage = useCallback(async () => {
-    if (loadingMore) return;
-    if (!pageInfo?.hasNext) return;
+    if (loadingMoreRef.current) return;
+    if (!pageInfoRef.current?.hasNext) return;
     try {
+      loadingMoreRef.current = true;
       setLoadingMore(true);
-      await fetchPage(pageInfo.page + 1);
+      await fetchPage(pageInfoRef.current.page + 1);
     } catch (err) {
       setError(err as Error);
     } finally {
+      loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [fetchPage, loadingMore, pageInfo]);
+  }, [fetchPage]);
 
   useEffect(() => {
     fetchInitial();
