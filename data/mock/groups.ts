@@ -5,7 +5,6 @@
 export interface Group {
   id: string;
   name: string;
-  description?: string | null;
   memberCount: number;
   thumbnail: string | null;
   lastActivity: string;
@@ -29,7 +28,6 @@ export interface FeedPost {
   userAvatar: string;
   content: string;
   images: string[];
-  imageFileId?: number | null;
   likes: number;
   comments: number;
   time: string;

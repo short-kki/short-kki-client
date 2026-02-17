@@ -2,11 +2,12 @@ import React, { useState } from "react";
 import {
   View,
   Text,
+  ScrollView,
   TouchableOpacity,
   Pressable,
   Modal,
+  Alert,
   ActivityIndicator,
-  FlatList,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,15 +20,13 @@ import {
   ChefHat,
   Trash2,
   FolderInput,
-  ChevronDown,
-  Check,
+  Share2,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
-import { useRecipeBookDetail } from "@/hooks";
+import { useRecipeBookDetail, usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
 import RecipeBookSelectModal from "@/components/RecipeBookSelectModal";
-import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
-import ConfirmActionModal from "@/components/ui/ConfirmActionModal";
 
+import { API_BASE_URL } from "@/constants/oauth";
 
 // 숫자 축약 포맷 (1000 → 1k, 1200 → 1.2k, 1000000 → 1M)
 const formatCount = (count: number): string => {
@@ -40,13 +39,14 @@ const formatCount = (count: number): string => {
   return m % 1 === 0 ? `${m}M` : `${m.toFixed(1)}M`;
 };
 
-type RecipeSortType = "RECENT" | "OLDEST" | "BOOKMARK_DESC";
-
-const SORT_OPTIONS: { value: RecipeSortType; label: string }[] = [
-  { value: "RECENT", label: "최근순" },
-  { value: "OLDEST", label: "오래된순" },
-  { value: "BOOKMARK_DESC", label: "북마크순" },
-];
+// 이미지 URL 처리 헬퍼 함수
+const getImageUrl = (url?: string) => {
+  if (!url) return "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200";
+  if (url.startsWith("http")) return url;
+  if (url.startsWith("data:")) return url;
+  // 상대 경로인 경우 API URL 추가
+  return `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+};
 
 // 레시피 카드 컴포넌트
 function RecipeCard({
@@ -183,30 +183,13 @@ export default function RecipeBookDetailScreen() {
   const params = useLocalSearchParams<{ bookId: string; groupId?: string; groupName?: string }>();
 
   const bookId = params.bookId || "default";
-  const [sortType, setSortType] = useState<RecipeSortType>("RECENT");
-  const [showSortModal, setShowSortModal] = useState(false);
 
   // API에서 레시피북 상세 조회
-  const {
-    bookName,
-    recipes,
-    loading,
-    error,
-    totalCount,
-    removeRecipe,
-    moveRecipe,
-    loadMore,
-    hasMore,
-    loadingMore,
-  } = useRecipeBookDetail(bookId, sortType);
+  const { bookName, recipes, loading, error, removeRecipe, moveRecipe } = useRecipeBookDetail(bookId);
 
   const [showRecipeMenuModal, setShowRecipeMenuModal] = useState(false);
   const [showBookSelectModal, setShowBookSelectModal] = useState(false);
-  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
-  const [isDeletingRecipe, setIsDeletingRecipe] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<any>(null);
-  const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } =
-    useFeedbackToast(1600);
 
   const handleRecipePress = (recipeId: string) => {
     router.push(`/recipe/${recipeId}`);
@@ -217,7 +200,7 @@ export default function RecipeBookDetailScreen() {
     setShowRecipeMenuModal(true);
   };
 
-  const handleRecipeMenuAction = (action: "move" | "delete") => {
+  const handleRecipeMenuAction = (action: "move" | "delete" | "share") => {
     if (!selectedRecipe) return;
 
     setShowRecipeMenuModal(false);
@@ -228,289 +211,159 @@ export default function RecipeBookDetailScreen() {
           setShowBookSelectModal(true);
           break;
         case "delete":
-          setShowDeleteConfirmModal(true);
+          Alert.alert(
+            "레시피 삭제",
+            `"${selectedRecipe.title}"을(를) 레시피북에서 삭제하시겠습니까?`,
+            [
+              { text: "취소", style: "cancel" },
+              {
+                text: "삭제", style: "destructive", onPress: async () => {
+                  const success = await removeRecipe(selectedRecipe.id);
+                  if (success) {
+                    Alert.alert("완료", "레시피가 삭제되었습니다.");
+                  } else {
+                    Alert.alert("오류", "레시피 삭제에 실패했습니다.");
+                  }
+                }
+              },
+            ]
+          );
+          break;
+        case "share":
+          Alert.alert("공유", "공유 기능은 준비 중입니다.");
           break;
       }
     }, 200);
   };
-
-  const handleDeleteRecipe = async () => {
-    if (!selectedRecipe || isDeletingRecipe) return;
-
-    setIsDeletingRecipe(true);
-    try {
-      const success = await removeRecipe(selectedRecipe.id);
-      if (success) {
-        setShowDeleteConfirmModal(false);
-        showToast("레시피북에서 삭제했어요.", "success");
-      } else {
-        showToast("레시피 삭제에 실패했어요.", "danger");
-      }
-    } finally {
-      setIsDeletingRecipe(false);
-    }
-  };
-
-  const currentSortLabel = SORT_OPTIONS.find((option) => option.value === sortType)?.label ?? "최근순";
 
   return (
     <View
       style={{
         flex: 1,
         backgroundColor: Colors.neutral[50],
+        paddingTop: insets.top,
       }}
     >
       {/* 헤더 */}
       <View
         style={{
-          backgroundColor: Colors.neutral[0],
-          paddingTop: insets.top,
+          flexDirection: "row",
+          alignItems: "center",
+          paddingHorizontal: 16,
+          paddingVertical: 12,
           borderBottomWidth: 1,
           borderBottomColor: Colors.neutral[100],
+          backgroundColor: Colors.neutral[0],
         }}
       >
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "flex-start",
-            paddingHorizontal: 16,
-            paddingTop: 10,
-            paddingBottom: 10,
-          }}
+        <Pressable
+          onPress={() => router.back()}
+          style={{ padding: 8, marginRight: 8 }}
         >
-          <Pressable
-            onPress={() => router.back()}
+          <ArrowLeft size={24} color={Colors.neutral[900]} />
+        </Pressable>
+        <View style={{ flex: 1 }}>
+          <Text
             style={{
-              width: 40,
-              height: 40,
-              justifyContent: "center",
-              alignItems: "center",
-              marginRight: 8,
+              fontSize: 20,
+              fontWeight: "700",
+              color: Colors.neutral[900],
+            }}
+          >
+            {bookName || "레시피북"}
+          </Text>
+          <Text
+            style={{
+              fontSize: 13,
+              color: Colors.neutral[500],
               marginTop: 2,
             }}
           >
-            <ArrowLeft size={24} color={Colors.neutral[900]} />
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text
-              style={{
-                fontSize: 20,
-                fontWeight: "700",
-                color: Colors.neutral[900],
-              }}
-            >
-              {bookName || "레시피북"}
-            </Text>
-            <View
-              style={{
-                marginTop: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 13,
-                  color: Colors.neutral[500],
-                }}
-              >
-                {totalCount || recipes.length}개의 레시피
-              </Text>
-              <TouchableOpacity
-                onPress={() => setShowSortModal(true)}
-                activeOpacity={0.8}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  backgroundColor: Colors.neutral[100],
-                  borderRadius: BorderRadius.full,
-                  paddingVertical: 6,
-                  paddingHorizontal: 10,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "600",
-                    color: Colors.neutral[700],
-                  }}
-                >
-                  정렬: {currentSortLabel}
-                </Text>
-                <ChevronDown size={14} color={Colors.neutral[500]} style={{ marginLeft: 4 }} />
-              </TouchableOpacity>
-            </View>
-          </View>
+            {recipes.length}개의 레시피
+          </Text>
         </View>
       </View>
 
       {/* 레시피 그리드 */}
-      {loading ? (
-        <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
-          <ActivityIndicator size="large" color={Colors.primary[500]} />
-        </View>
-      ) : error ? (
-        <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
-          <Text style={{ color: Colors.error.main }}>데이터를 불러오는데 실패했습니다.</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={recipes}
-          renderItem={({ item }) => (
-            <RecipeCard
-              recipe={item}
-              onPress={() => handleRecipePress(item.id)}
-              onMenuPress={() => handleRecipeMenuPress(item)}
-            />
-          )}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          columnWrapperStyle={{
-            justifyContent: "space-between",
-            marginBottom: Spacing.md,
-          }}
-          contentContainerStyle={{
-            paddingHorizontal: Spacing.xl,
-            paddingTop: Spacing.lg,
-            paddingBottom: Spacing.md,
-          }}
-          onEndReached={() => {
-            if (hasMore) {
-              loadMore();
-            }
-          }}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={
-            loadingMore ? (
-              <View style={{ paddingVertical: Spacing.lg, alignItems: "center" }}>
-                <ActivityIndicator size="small" color={Colors.primary[500]} />
-              </View>
-            ) : null
-          }
-          ListEmptyComponent={
-            <View
-              style={{
-                alignItems: "center",
-                paddingVertical: Spacing["4xl"],
-              }}
-            >
-              <ChefHat size={48} color={Colors.neutral[300]} />
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.lg,
-                  fontWeight: "600",
-                  color: Colors.neutral[500],
-                  marginTop: Spacing.md,
-                }}
-              >
-                저장된 레시피가 없어요
-              </Text>
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.sm,
-                  color: Colors.neutral[400],
-                  marginTop: Spacing.xs,
-                  textAlign: "center",
-                }}
-              >
-                마음에 드는 레시피를 저장해보세요
-              </Text>
-              <TouchableOpacity
-                onPress={() => router.push("/(tabs)")}
-                activeOpacity={0.8}
-                style={{
-                  backgroundColor: Colors.primary[500],
-                  paddingHorizontal: 24,
-                  paddingVertical: 12,
-                  borderRadius: BorderRadius.full,
-                  marginTop: Spacing.lg,
-                }}
-              >
-                <Text style={{ color: "#FFF", fontWeight: "600" }}>
-                  레시피 둘러보기
-                </Text>
-              </TouchableOpacity>
-            </View>
-          }
-        />
-      )}
-
-      {/* 레시피 메뉴 바텀시트 */}
-      <Modal visible={showSortModal} transparent animationType="fade">
-        <Pressable
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.35)",
-            justifyContent: "flex-end",
-          }}
-          onPress={() => setShowSortModal(false)}
-        >
-          <Pressable
+      <ScrollView
+        showsVerticalScrollIndicator={true}
+        contentContainerStyle={{
+          paddingHorizontal: Spacing.xl,
+          paddingTop: Spacing.lg,
+          paddingBottom: Spacing.md,
+        }}
+      >
+        {loading ? (
+          <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
+            <ActivityIndicator size="large" color={Colors.primary[500]} />
+          </View>
+        ) : error ? (
+          <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
+            <Text style={{ color: Colors.error.main }}>데이터를 불러오는데 실패했습니다.</Text>
+          </View>
+        ) : recipes.length > 0 ? (
+          <View
             style={{
-              backgroundColor: Colors.neutral[0],
-              borderTopLeftRadius: BorderRadius.xl,
-              borderTopRightRadius: BorderRadius.xl,
-              paddingTop: Spacing.md,
-              paddingBottom: insets.bottom + Spacing.lg,
+              flexDirection: "row",
+              flexWrap: "wrap",
+              justifyContent: "space-between",
             }}
-            onPress={(e) => e.stopPropagation()}
           >
-            <View
-              style={{
-                width: 36,
-                height: 4,
-                backgroundColor: Colors.neutral[300],
-                borderRadius: 2,
-                alignSelf: "center",
-                marginBottom: Spacing.md,
-              }}
-            />
+            {recipes.map((recipe) => (
+              <RecipeCard
+                key={recipe.id}
+                recipe={recipe}
+                onPress={() => handleRecipePress(recipe.id)}
+                onMenuPress={() => handleRecipeMenuPress(recipe)}
+              />
+            ))}
+          </View>
+        ) : (
+          <View
+            style={{
+              alignItems: "center",
+              paddingVertical: Spacing["4xl"],
+            }}
+          >
+            <ChefHat size={48} color={Colors.neutral[300]} />
             <Text
               style={{
-                fontSize: Typography.fontSize.base,
-                fontWeight: "700",
-                color: Colors.neutral[900],
-                paddingHorizontal: Spacing.xl,
-                paddingBottom: Spacing.sm,
+                fontSize: Typography.fontSize.lg,
+                fontWeight: "600",
+                color: Colors.neutral[500],
+                marginTop: Spacing.md,
               }}
             >
-              정렬 기준
+              저장된 레시피가 없어요
             </Text>
-            {SORT_OPTIONS.map((option) => {
-              const isSelected = sortType === option.value;
-              return (
-                <TouchableOpacity
-                  key={option.value}
-                  onPress={() => {
-                    setSortType(option.value);
-                    setShowSortModal(false);
-                  }}
-                  activeOpacity={0.8}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    paddingVertical: Spacing.md,
-                    paddingHorizontal: Spacing.xl,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: Typography.fontSize.base,
-                      color: isSelected ? Colors.primary[600] : Colors.neutral[800],
-                      fontWeight: isSelected ? "700" : "500",
-                    }}
-                  >
-                    {option.label}
-                  </Text>
-                  {isSelected ? <Check size={18} color={Colors.primary[600]} /> : null}
-                </TouchableOpacity>
-              );
-            })}
-          </Pressable>
-        </Pressable>
-      </Modal>
+            <Text
+              style={{
+                fontSize: Typography.fontSize.sm,
+                color: Colors.neutral[400],
+                marginTop: Spacing.xs,
+                textAlign: "center",
+              }}
+            >
+              마음에 드는 레시피를 저장해보세요
+            </Text>
+            <TouchableOpacity
+              onPress={() => router.push("/(tabs)")}
+              activeOpacity={0.8}
+              style={{
+                backgroundColor: Colors.primary[500],
+                paddingHorizontal: 24,
+                paddingVertical: 12,
+                borderRadius: BorderRadius.full,
+                marginTop: Spacing.lg,
+              }}
+            >
+              <Text style={{ color: "#FFF", fontWeight: "600" }}>
+                레시피 둘러보기
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </ScrollView>
 
       {/* 레시피 메뉴 바텀시트 */}
       <Modal visible={showRecipeMenuModal} transparent animationType="slide">
@@ -629,6 +482,42 @@ export default function RecipeBookDetailScreen() {
                 </Text>
               </TouchableOpacity>
 
+              {/* 공유 */}
+              <TouchableOpacity
+                onPress={() => handleRecipeMenuAction("share")}
+                activeOpacity={0.7}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingVertical: Spacing.md,
+                  paddingHorizontal: Spacing.xl,
+                }}
+              >
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: Colors.info.light,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Share2 size={20} color={Colors.info.main} />
+                </View>
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "500",
+                    color: Colors.neutral[900],
+                    marginLeft: Spacing.md,
+                  }}
+                >
+                  공유하기
+                </Text>
+              </TouchableOpacity>
+
               {/* 삭제 */}
               <TouchableOpacity
                 onPress={() => handleRecipeMenuAction("delete")}
@@ -679,35 +568,14 @@ export default function RecipeBookDetailScreen() {
           if (selectedRecipe) {
             const success = await moveRecipe(selectedRecipe.id, bookId);
             if (success) {
-              showToast(`"${bookName}"(으)로 이동했어요.`, "success");
+              Alert.alert("완료", `"${bookName}"(으)로 이동되었습니다.`);
             } else {
-              showToast("레시피 이동에 실패했어요.", "danger");
+              Alert.alert("오류", "레시피 이동에 실패했습니다.");
             }
           }
         }}
         currentBookId={bookId}
         title="이동할 레시피북"
-      />
-      <ConfirmActionModal
-        visible={showDeleteConfirmModal}
-        title="레시피를 삭제할까요?"
-        description="이 레시피북에서만 제거되며, 다른 레시피북에는 그대로 유지됩니다."
-        targetName={selectedRecipe?.title}
-        targetMeta={selectedRecipe ? `· 북마크 ${formatCount(selectedRecipe.likes || 0)}` : undefined}
-        targetIcon={<ChefHat size={18} color={Colors.neutral[600]} />}
-        loading={isDeletingRecipe}
-        onClose={() => {
-          if (isDeletingRecipe) return;
-          setShowDeleteConfirmModal(false);
-        }}
-        onConfirm={handleDeleteRecipe}
-      />
-      <FeedbackToast
-        message={toastMessage}
-        variant={toastVariant}
-        opacity={toastOpacity}
-        translate={toastTranslate}
-        bottomOffset={72}
       />
     </View>
   );

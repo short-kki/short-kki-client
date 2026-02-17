@@ -43,6 +43,9 @@ export {
 
 // 레시피 관련
 export {
+  MOCK_PERSONAL_RECIPE_BOOKS,
+  MOCK_GROUP_RECIPE_BOOKS,
+  MOCK_RECIPE_BOOK_RECIPES,
   MOCK_SHOPPING_ITEMS,
   type RecipeBook,
   type Recipe,

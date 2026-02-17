@@ -26,8 +26,8 @@ import {
   ChevronRight,
   Play,
 } from "lucide-react-native";
-import { Colors } from "@/constants/design-system";
-import { api, ApiError, USE_MOCK } from "@/services/api";
+import { Colors, Spacing } from "@/constants/design-system";
+import { api, USE_MOCK } from "@/services/api";
 import { Toast, useToast } from "@/components/ui";
 
 // API 응답 타입
@@ -66,10 +66,6 @@ interface ApiImportResponse {
   sourceUrl: string;
   preview: ApiImportPreview;
   message: string;
-}
-
-interface DuplicateErrorData {
-  recipeId?: number;
 }
 
 interface ParsedRecipe {
@@ -134,17 +130,10 @@ const parseRecipeFromUrl = async (url: string): Promise<ParsedRecipe | null> => 
   };
 };
 
-const extractDuplicateRecipeId = (err: unknown): number | null => {
-  const apiError = err as ApiError;
-  const data = apiError?.data as DuplicateErrorData | undefined;
-  const recipeId = data?.recipeId;
-  return typeof recipeId === "number" ? recipeId : null;
-};
-
 export default function AddRecipeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ mode?: string; returnTab?: string }>();
+  const params = useLocalSearchParams<{ mode?: string }>();
 
   const [mode, setMode] = useState<"select" | "url">(params.mode === "url" ? "url" : "select");
   const [url, setUrl] = useState("");
@@ -194,21 +183,19 @@ export default function AddRecipeScreen() {
       setParsedRecipe(null);
       setMode("select");
       router.replace("/(tabs)");
-    } catch (err: unknown) {
-      const apiError = err as ApiError;
-      const isDuplicateSourceError =
-        (apiError?.status === 409 && apiError?.code === "SOURCE_003") ||
-        apiError?.message?.toLowerCase().includes("source_003") === true;
+    } catch (err: any) {
+      const errorMessage = err?.message?.toLowerCase() || "";
 
-      // 중복 외부 레시피면 기존 레시피 상세로 이동
-      if (isDuplicateSourceError) {
-        const recipeId = extractDuplicateRecipeId(apiError);
-        if (recipeId !== null) {
-          showToast("이미 등록된 레시피로 이동합니다");
-          router.push(`/recipe/${recipeId}`);
-          return;
-        }
-
+      // 중복 레시피 에러는 토스트만 표시하고 현재 화면 유지
+      if (
+        errorMessage.includes("duplicate") ||
+        errorMessage.includes("중복") ||
+        errorMessage.includes("already") ||
+        errorMessage.includes("이미 등록") ||
+        errorMessage.includes("conflict") ||
+        errorMessage.includes("409") ||
+        errorMessage.includes("source_003")
+      ) {
         showToast("이미 등록된 레시피입니다");
         return;
       }
@@ -226,15 +213,9 @@ export default function AddRecipeScreen() {
   };
 
   const handleBack = () => {
-    if (params.returnTab) {
-      const targetPath = params.returnTab === "index" ? "/(tabs)" : `/(tabs)/${params.returnTab}`;
-      router.replace({
-        pathname: targetPath as any,
-        params: { openAddMenu: String(Date.now()) },
-      });
-      return;
-    }
-    router.back();
+    setMode("select");
+    setUrl("");
+    setParsedRecipe(null);
   };
 
   return (

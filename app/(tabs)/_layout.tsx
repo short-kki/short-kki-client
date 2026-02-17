@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from "react";
-import { Tabs, useLocalSearchParams, useRouter, useSegments } from "expo-router";
+import { useState, useRef, useCallback } from "react";
+import { Tabs, useRouter } from "expo-router";
 import { View, Pressable, Text, TouchableOpacity, Animated, Easing } from "react-native";
 import { Home, CalendarDays, Plus, BookOpen, Users, Globe, PenLine, ChevronRight } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,10 +9,6 @@ export default function TabLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const segments = useSegments();
-  const { openAddMenu } = useLocalSearchParams<{ openAddMenu?: string }>();
-  const lastHandledOpenAddMenuRef = useRef<string | null>(null);
-  const currentTab = typeof segments[1] === "string" ? segments[1] : "index";
 
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(300)).current;
@@ -53,26 +49,16 @@ export default function TabLayout() {
   }, [overlayOpacity, sheetTranslateY]);
 
   const handleUrlImport = useCallback(() => {
-    const returnTab = currentTab;
     closeMenu(() => {
-      router.push({ pathname: "/(tabs)/add", params: { mode: "url", returnTab } });
+      router.push({ pathname: "/(tabs)/add", params: { mode: "url" } });
     });
-  }, [closeMenu, currentTab, router]);
+  }, [closeMenu, router]);
 
   const handleManualCreate = useCallback(() => {
-    const returnTab = currentTab;
     closeMenu(() => {
-      router.push({ pathname: "/recipe-create-manual", params: { returnTab } });
+      router.push("/recipe-create-manual");
     });
-  }, [closeMenu, currentTab, router]);
-
-  useEffect(() => {
-    if (!openAddMenu) return;
-    const token = String(openAddMenu);
-    if (lastHandledOpenAddMenuRef.current === token) return;
-    lastHandledOpenAddMenuRef.current = token;
-    openMenu();
-  }, [openAddMenu, openMenu]);
+  }, [closeMenu, router]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -133,7 +119,6 @@ export default function TabLayout() {
           name="add"
           options={{
             title: "",
-            tabBarStyle: { display: "none" },
             tabBarIcon: () => (
               <View
                 style={{

@@ -74,8 +74,6 @@ export interface RecipeResponse {
   creatorName?: string;
   creatorProfileImgUrl?: string;
   bookmarkCount: number;
-  ownedRecipeBookIds?: number[];
-  ownedRecipeBookCount?: number;
   ingredients: {
     name: string;
     unit: string;

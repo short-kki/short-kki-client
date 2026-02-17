@@ -53,7 +53,6 @@ interface ApiFeed {
   authorName: string;
   likes: number;
   likedByMe: boolean;
-  imageFileId: number | null;
   imageUrl: string | null;
   recipe: ApiFeedRecipe | null;
   createdAt: string;
@@ -77,7 +76,6 @@ function mapApiGroupToGroup(apiGroup: ApiGroup): Group {
   return {
     id: apiGroup.id.toString(),
     name: apiGroup.name,
-    description: apiGroup.description,
     memberCount: apiGroup.memberCount || 0,
     thumbnail: apiGroup.thumbnailImgUrl,
     lastActivity: formatRelativeTime(apiGroup.createdAt),
@@ -93,7 +91,6 @@ function mapApiFeedToFeedItem(apiFeed: ApiFeed): FeedItem {
     userAvatar: apiFeed.authorName.substring(0, 1),
     content: apiFeed.content,
     images: apiFeed.imageUrl ? [apiFeed.imageUrl] : [],
-    imageFileId: apiFeed.imageFileId,
     likes: apiFeed.likes || 0,
     comments: 0,
     time: formatRelativeTime(apiFeed.createdAt),

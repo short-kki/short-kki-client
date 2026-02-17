@@ -20,7 +20,6 @@ import {
   Bell,
   ChevronRight,
   Bookmark,
-  User,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows, SemanticColors } from "@/constants/design-system";
 import { useRecommendedCurations } from "@/hooks";
@@ -717,57 +716,44 @@ export default function HomeScreen() {
           style={{
             flexDirection: "row",
             alignItems: "center",
-            paddingHorizontal: Spacing.lg,
+            paddingHorizontal: Spacing.xl,
             paddingVertical: Spacing.sm,
-            gap: Spacing.md,
           }}
         >
-          {/* 로고 */}
           <Image
             source={require("@/assets/images/icon_resized.png")}
             style={{ width: logoSize, height: logoSize }}
             contentFit="contain"
           />
-
-          {/* 검색 바 (가운데 정렬) */}
+          <View style={{ flex: 1 }} />
           <Pressable
             style={{
-              flex: 1,
-              flexDirection: "row",
-              alignItems: "center",
+              paddingVertical: 8,
+              paddingHorizontal: 10,
+              borderRadius: BorderRadius.full,
               backgroundColor: Colors.neutral[100],
-              borderRadius: BorderRadius.xl,
-              paddingHorizontal: Spacing.md,
-              paddingVertical: 10,
-              gap: Spacing.sm,
+              marginRight: 6,
             }}
             onPress={() => {
               console.log("Search pressed");
               router.push("/search");
             }}
           >
-            <Search size={18} color={Colors.neutral[400]} />
-            <Text style={{ fontSize: 14, color: Colors.neutral[400] }}>
-              레시피 검색
-            </Text>
+            <Search size={24} color={Colors.neutral[700]} />
           </Pressable>
-
-          {/* 알림 아이콘 */}
           <Pressable
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
+              paddingVertical: 8,
+              paddingHorizontal: 10,
+              borderRadius: BorderRadius.full,
               backgroundColor: Colors.neutral[100],
-              justifyContent: "center",
-              alignItems: "center",
             }}
             onPress={() => {
               console.log("Notifications pressed");
               router.push("/notifications");
             }}
           >
-            <Bell size={22} color={Colors.neutral[600]} />
+            <Bell size={24} color={Colors.neutral[700]} />
             {/* Notification badge */}
             <View
               style={{
@@ -780,24 +766,6 @@ export default function HomeScreen() {
                 backgroundColor: Colors.primary[500],
               }}
             />
-          </Pressable>
-
-          {/* 프로필 아이콘 */}
-          <Pressable
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              backgroundColor: Colors.neutral[100],
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-            onPress={() => {
-              console.log("Profile pressed");
-              router.push("/profile-edit");
-            }}
-          >
-            <User size={22} color={Colors.neutral[600]} />
           </Pressable>
         </View>
         <View style={{ height: FILTER_BAR_HEIGHT }}>
