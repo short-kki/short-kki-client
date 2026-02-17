@@ -5,7 +5,7 @@
  * USE_MOCK을 false로 변경하면 자동으로 API 호출로 전환됩니다.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { USE_MOCK, api } from '@/services/api';
 import {
   MOCK_CALENDAR_PERSONALS,
@@ -90,10 +90,26 @@ export function useRecipeCalendar(startDate: string, endDate: string) {
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const cachedRange = useRef<{ startDate: string; endDate: string } | null>(null);
 
-  const fetchCalendar = useCallback(async () => {
+  const fetchCalendar = useCallback(async (options?: { silent?: boolean; force?: boolean }) => {
+    const { silent = false, force = false } = options ?? {};
+
+    // force 시 캐시 초기화
+    if (force) {
+      cachedRange.current = null;
+    }
+
+    // 캐시된 범위의 부분집합이면 fetch 스킵
+    if (!force && cachedRange.current) {
+      if (startDate >= cachedRange.current.startDate && endDate <= cachedRange.current.endDate) {
+        return;
+      }
+    }
+
     try {
-      setLoading(true);
+      // 첫 로드만 loading 표시, 이후 누적 fetch는 silent
+      if (!silent && !cachedRange.current) setLoading(true);
       setError(null);
 
       if (USE_MOCK) {
@@ -105,8 +121,34 @@ export function useRecipeCalendar(startDate: string, endDate: string) {
           (m) => m.scheduledDate >= startDate && m.scheduledDate <= endDate
         );
 
-        setPersonalMeals(groupByDate(filteredPersonals));
-        setGroupMealsByGroup(groupByGroupAndDate(filteredGroups));
+        const newPersonalByDate = groupByDate(filteredPersonals);
+        const newGroupByGroupDate = groupByGroupAndDate(filteredGroups);
+
+        if (force) {
+          setPersonalMeals(newPersonalByDate);
+          setGroupMealsByGroup(newGroupByGroupDate);
+        } else {
+          setPersonalMeals(prev => {
+            const kept: Record<string, CalendarMeal[]> = {};
+            for (const [date, meals] of Object.entries(prev)) {
+              if (date < startDate || date > endDate) kept[date] = meals;
+            }
+            return { ...kept, ...newPersonalByDate };
+          });
+          setGroupMealsByGroup(prev => {
+            const result: Record<string, Record<string, CalendarMeal[]>> = {};
+            for (const [gId, dateMap] of Object.entries(prev)) {
+              result[gId] = {};
+              for (const [date, meals] of Object.entries(dateMap)) {
+                if (date < startDate || date > endDate) result[gId][date] = meals;
+              }
+            }
+            for (const [gId, dateMap] of Object.entries(newGroupByGroupDate)) {
+              result[gId] = { ...(result[gId] || {}), ...dateMap };
+            }
+            return result;
+          });
+        }
       } else {
         // 실제 API 호출: GET /api/v1/calendar/recipes?startDate=...&endDate=...
         console.log(`[Calendar API] 요청: startDate=${startDate}, endDate=${endDate}`);
@@ -120,7 +162,7 @@ export function useRecipeCalendar(startDate: string, endDate: string) {
         // personalCalendars 처리
         const personalCalendars = response.data?.personalCalendars || [];
         console.log(`[Calendar API] 개인 캘린더: ${personalCalendars.length}개`);
-        setPersonalMeals(groupByDate(personalCalendars));
+        const newPersonalByDate = groupByDate(personalCalendars);
 
         // groupCalendars 처리: 그룹별로 묶인 구조를 풀어서 groupId → 날짜별 맵으로 변환
         const groupCalendars = response.data?.groupCalendars || [];
@@ -145,12 +187,47 @@ export function useRecipeCalendar(startDate: string, endDate: string) {
           }
         }
         console.log(`[Calendar API] 총 그룹 식단: ${groupMealsFlattened.length}개`);
-        setGroupMealsByGroup(groupByGroupAndDate(groupMealsFlattened));
+        const newGroupByGroupDate = groupByGroupAndDate(groupMealsFlattened);
+
+        // force면 교체, 아니면 병합 (fetch 범위 내 날짜는 새 데이터로, 범위 밖은 보존)
+        if (force) {
+          setPersonalMeals(newPersonalByDate);
+          setGroupMealsByGroup(newGroupByGroupDate);
+        } else {
+          setPersonalMeals(prev => {
+            const kept: Record<string, CalendarMeal[]> = {};
+            for (const [date, meals] of Object.entries(prev)) {
+              if (date < startDate || date > endDate) kept[date] = meals;
+            }
+            return { ...kept, ...newPersonalByDate };
+          });
+          setGroupMealsByGroup(prev => {
+            const result: Record<string, Record<string, CalendarMeal[]>> = {};
+            for (const [gId, dateMap] of Object.entries(prev)) {
+              result[gId] = {};
+              for (const [date, meals] of Object.entries(dateMap)) {
+                if (date < startDate || date > endDate) result[gId][date] = meals;
+              }
+            }
+            for (const [gId, dateMap] of Object.entries(newGroupByGroupDate)) {
+              result[gId] = { ...(result[gId] || {}), ...dateMap };
+            }
+            return result;
+          });
+        }
       }
+
+      // cachedRange를 누적 합집합으로 확장
+      cachedRange.current = cachedRange.current
+        ? {
+            startDate: startDate < cachedRange.current.startDate ? startDate : cachedRange.current.startDate,
+            endDate: endDate > cachedRange.current.endDate ? endDate : cachedRange.current.endDate,
+          }
+        : { startDate, endDate };
     } catch (err) {
       setError(err as Error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [startDate, endDate]);
 
@@ -191,10 +268,12 @@ export function useRecipeQueue() {
   const [queues, setQueues] = useState<RecipeQueue[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const initialLoadDone = useRef(false);
 
-  const fetchQueue = useCallback(async () => {
+  const fetchQueue = useCallback(async (options?: { silent?: boolean }) => {
+    const { silent = false } = options ?? {};
     try {
-      setLoading(true);
+      if (!silent && !initialLoadDone.current) setLoading(true);
       setError(null);
 
       if (USE_MOCK) {
@@ -205,6 +284,7 @@ export function useRecipeQueue() {
         );
         setQueues(response.data.recipeQueues);
       }
+      initialLoadDone.current = true;
     } catch (err) {
       setError(err as Error);
     } finally {
