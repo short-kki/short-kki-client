@@ -1000,7 +1000,6 @@ export default function RecipeBookDetailScreen() {
         variant={toastVariant}
         opacity={toastOpacity}
         translate={toastTranslate}
-        bottomOffset={72}
       />
     </View>
   );

@@ -2139,7 +2139,6 @@ export default function RecipeDetailScreen() {
         variant={toastVariant}
         opacity={toastOpacity}
         translate={toastTranslate}
-        bottomOffset={80}
       />
 
       {/* 장보기 추가 로딩 */}

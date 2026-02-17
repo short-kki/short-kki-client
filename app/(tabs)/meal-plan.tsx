@@ -48,6 +48,7 @@ import { Colors, Spacing, BorderRadius, Typography } from "@/constants/design-sy
 import { useRecipeCalendar, useRecipeQueue } from "@/hooks";
 import type { CalendarMeal } from "@/data/mock";
 import ConfirmActionModal from "@/components/ui/ConfirmActionModal";
+import { FeedbackToast, useFeedbackToast, truncateTitle } from "@/components/ui/FeedbackToast";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -288,6 +289,7 @@ export default function MealPlanScreen() {
     | null
   >(null);
   const [showGroupDeleteConfirm, setShowGroupDeleteConfirm] = useState(false);
+  const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } = useFeedbackToast();
 
   // 조회 기간 계산: 항상 월 단위로 fetch → 같은 월 내 주간 이동 시 refetch 없음
   const dateRange = useMemo(() => {
@@ -611,6 +613,7 @@ export default function MealPlanScreen() {
     }
     setDraggedRecipe(null);
     setDropTarget(null);
+    showToast(`"${truncateTitle(recipe.title)}" 식단이 추가되었습니다`);
 
     // API 호출: 대기열에서 캘린더로 추가
     try {
@@ -1635,12 +1638,17 @@ export default function MealPlanScreen() {
                   return;
                 }
 
+                // 삭제 전 레시피명 저장
+                const meal = selectedMeals.find(m => String(m.id) === menuTarget.mealId);
+                const recipeName = meal?.recipeTitle ?? "레시피";
+
                 LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                 setLocalMeals(prev => ({
                   ...prev,
                   [selectedDate]: (prev[selectedDate] || []).filter(m => String(m.id) !== menuTarget.mealId),
                 }));
                 closeMealMenu();
+                showToast(`"${truncateTitle(recipeName)}" 식단이 삭제되었습니다`);
 
                 const mealIdNum = parseInt(menuTarget.mealId);
                 if (Number.isNaN(mealIdNum) || mealIdNum < 0) {
@@ -1683,6 +1691,11 @@ export default function MealPlanScreen() {
         onConfirm={async () => {
           if (!menuTarget || menuTarget.source !== "group") return;
 
+          // 삭제 전 레시피명 저장
+          const group = groupSections.find(g => g.groupId === menuTarget.groupId);
+          const meal = group?.meals[selectedDate]?.find(m => String(m.id) === menuTarget.mealId);
+          const recipeName = meal?.recipeTitle ?? "레시피";
+
           LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
           setLocalGroupMeals(prev => {
             const groupMeals = prev[menuTarget.groupId] || {};
@@ -1695,6 +1708,7 @@ export default function MealPlanScreen() {
             };
           });
           setShowGroupDeleteConfirm(false);
+          showToast(`"${truncateTitle(recipeName)}" 식단이 삭제되었습니다`);
 
           const mealIdNum = parseInt(menuTarget.mealId);
           setMenuTarget(null);
@@ -1707,6 +1721,14 @@ export default function MealPlanScreen() {
             refetchCalendar({ force: true });
           }
         }}
+      />
+
+      <FeedbackToast
+        message={toastMessage}
+        variant={toastVariant}
+        opacity={toastOpacity}
+        translate={toastTranslate}
+        aboveTabBar
       />
     </View>
   );

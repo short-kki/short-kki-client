@@ -77,7 +77,9 @@ export function useFeedbackToast(duration: number = 1500): FeedbackToastState {
           easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
         }),
-      ]).start(() => setToastMessage(null));
+      ]).start();
+      // 애니메이션 콜백이 호출되지 않는 경우를 대비해 타이머로 확실히 제거
+      setTimeout(() => setToastMessage(null), 300);
     }, duration);
   }, [duration, toastOpacity, toastTranslate]);
 
@@ -95,7 +97,10 @@ interface FeedbackToastProps {
   variant: FeedbackToastVariant;
   opacity: Animated.Value;
   translate: Animated.Value;
+  /** 기본 위치 위에 추가할 간격 (default: 12) */
   bottomOffset?: number;
+  /** 탭바가 보이는 화면에서 true — 부모 View가 이미 탭바 영역을 제외하므로 offset만 적용 */
+  aboveTabBar?: boolean;
 }
 
 export function FeedbackToast({
@@ -103,7 +108,8 @@ export function FeedbackToast({
   variant,
   opacity,
   translate,
-  bottomOffset = 88,
+  bottomOffset = 12,
+  aboveTabBar = false,
 }: FeedbackToastProps) {
   const insets = useSafeAreaInsets();
 
@@ -112,6 +118,11 @@ export function FeedbackToast({
   }
 
   const isSuccess = variant === "success";
+  // 탭바 화면: 부모 View 하단 = 탭바 상단이므로 offset만 적용
+  // 비탭바 화면: safe area를 고려해야 함
+  const bottom = aboveTabBar
+    ? bottomOffset
+    : insets.bottom + bottomOffset;
 
   return (
     <Animated.View
@@ -120,7 +131,7 @@ export function FeedbackToast({
         position: "absolute",
         left: Spacing.lg,
         right: Spacing.lg,
-        bottom: insets.bottom + bottomOffset,
+        bottom,
         zIndex: 300,
         opacity,
         transform: [{ translateY: translate }],
@@ -131,7 +142,7 @@ export function FeedbackToast({
           flexDirection: "row",
           alignItems: "center",
           gap: 10,
-          backgroundColor: Colors.neutral[0],
+          backgroundColor: "rgba(0,0,0,0.8)",
           borderRadius: 16,
           overflow: "hidden",
           paddingVertical: 12,
@@ -143,7 +154,7 @@ export function FeedbackToast({
             width: 28,
             height: 28,
             borderRadius: 14,
-            backgroundColor: isSuccess ? Colors.success.light : Colors.error.light,
+            backgroundColor: isSuccess ? "rgba(74,222,128,0.2)" : "rgba(248,113,113,0.2)",
             alignItems: "center",
             justifyContent: "center",
           }}
@@ -156,7 +167,7 @@ export function FeedbackToast({
         </View>
         <Text
           style={{
-            color: Colors.neutral[900],
+            color: "#FFFFFF",
             fontSize: 13,
             fontWeight: "600",
           }}

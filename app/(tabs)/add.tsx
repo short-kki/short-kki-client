@@ -28,7 +28,7 @@ import {
 } from "lucide-react-native";
 import { Colors } from "@/constants/design-system";
 import { api, USE_MOCK } from "@/services/api";
-import { Toast, useToast } from "@/components/ui";
+import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
 
 // API 응답 타입
 interface ApiResponse<T> {
@@ -140,7 +140,7 @@ export default function AddRecipeScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [parsedRecipe, setParsedRecipe] = useState<ParsedRecipe | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const { toastMessage, toastOpacity, toastTranslate, showToast } = useToast();
+  const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } = useFeedbackToast();
 
   const handleSearch = async () => {
     if (!url.trim()) {
@@ -613,8 +613,9 @@ export default function AddRecipeScreen() {
         )}
       </View>
 
-      <Toast
+      <FeedbackToast
         message={toastMessage}
+        variant={toastVariant}
         opacity={toastOpacity}
         translate={toastTranslate}
       />

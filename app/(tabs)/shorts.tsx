@@ -1,4 +1,5 @@
 import { Colors } from "@/constants/design-system";
+import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
 import {
   useCurationShorts,
   useRecommendedCurations,
@@ -521,20 +522,8 @@ export default function ShortsScreen() {
   const [bookmarkTab, setBookmarkTab] = useState<"personal" | "group">("personal");
   const [ownedBookIdsByVideo, setOwnedBookIdsByVideo] = useState<Record<string, string[]>>({});
   const [bookmarkCounts, setBookmarkCounts] = useState<Record<string, number>>({});
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [toastVariant, setToastVariant] = useState<"success" | "danger">("success");
-  const [toastId, setToastId] = useState(0);
-  const toastOpacity = useRef(new Animated.Value(0)).current;
-  const toastTranslate = useRef(new Animated.Value(8)).current;
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (toastTimer.current) {
-        clearTimeout(toastTimer.current);
-      }
-    };
-  }, []);
+  const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } =
+    useFeedbackToast(1400);
 
   useEffect(() => {
     setBookmarkCounts((prev) => {
@@ -616,51 +605,6 @@ export default function ShortsScreen() {
   const toggleMute = useCallback(() => {
     setIsMuted((prev) => !prev);
   }, []);
-
-  const showToast = useCallback((message: string, variant: "success" | "danger" = "success") => {
-    setToastId((prev) => prev + 1);
-    setToastVariant(variant);
-    setToastMessage(message);
-    toastOpacity.stopAnimation();
-    toastTranslate.stopAnimation();
-    toastOpacity.setValue(0);
-    toastTranslate.setValue(8);
-
-    Animated.parallel([
-      Animated.timing(toastOpacity, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(toastTranslate, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    if (toastTimer.current) {
-      clearTimeout(toastTimer.current);
-    }
-    toastTimer.current = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(toastOpacity, {
-          toValue: 0,
-          duration: 260,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(toastTranslate, {
-          toValue: 8,
-          duration: 260,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setToastMessage(null);
-      });
-    }, 1400);
-  }, [toastOpacity, toastTranslate]);
 
   const handleViewRecipe = useCallback((recipeId: string) => {
     console.log("[Shorts] handleViewRecipe called - recipeId:", recipeId, "type:", typeof recipeId);
@@ -1184,54 +1128,13 @@ export default function ShortsScreen() {
         </View>
       </Modal>
 
-      {toastMessage && (
-        <Animated.View
-          key={toastId}
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            left: 20,
-            right: 20,
-            bottom: insets.bottom + 20,
-            alignItems: "center",
-            transform: [{ translateY: toastTranslate }],
-            opacity: toastOpacity,
-          }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-              backgroundColor: Colors.neutral[0],
-              borderRadius: 16,
-              overflow: "hidden",
-              paddingVertical: 12,
-              paddingHorizontal: 14,
-            }}
-          >
-            <View
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 14,
-                backgroundColor: toastVariant === "success" ? Colors.success.light : Colors.error.light,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              {toastVariant === "success" ? (
-                <Check size={16} color={Colors.success.main} strokeWidth={3} />
-              ) : (
-                <X size={16} color={Colors.error.main} strokeWidth={3} />
-              )}
-            </View>
-            <Text style={{ color: Colors.neutral[900], fontSize: 13, fontWeight: "600" }}>
-              {toastMessage}
-            </Text>
-          </View>
-        </Animated.View>
-      )}
+      <FeedbackToast
+        message={toastMessage}
+        variant={toastVariant}
+        opacity={toastOpacity}
+        translate={toastTranslate}
+        aboveTabBar
+      />
     </View>
   );
 }
