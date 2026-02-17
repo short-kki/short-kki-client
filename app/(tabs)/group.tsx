@@ -31,7 +31,7 @@ import {
   UserPlus,
   Calendar,
   ShoppingCart,
-  BookOpen,
+  Book,
   Edit3,
   Trash2,
   LogOut,
@@ -539,7 +539,7 @@ export default function GroupScreen() {
             {[
               { icon: Calendar, label: "식단표" },
               { icon: ShoppingCart, label: "장볼거리" },
-              { icon: BookOpen, label: "레시피북" },
+              { icon: Book, label: "레시피북" },
               { icon: Users, label: "멤버관리" },
             ].map((item, index) => (
               <TouchableOpacity
@@ -891,7 +891,7 @@ export default function GroupScreen() {
                               alignItems: "center",
                             }}
                           >
-                            <BookOpen size={36} color={Colors.neutral[300]} />
+                            <Book size={36} color={Colors.neutral[300]} />
                           </View>
                         )}
                         {/* 레시피 정보 */}

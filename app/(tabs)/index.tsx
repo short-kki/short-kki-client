@@ -26,7 +26,8 @@ import {
 import { Colors, Typography, Spacing, BorderRadius, Shadows, SemanticColors } from "@/constants/design-system";
 import { useRecommendedCurations } from "@/hooks";
 import type { CurationSection } from "@/data/mock";
-import Svg, { Path, Defs, LinearGradient, Stop, Rect } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
+import { LinearGradient } from "expo-linear-gradient";
 
 // YouTube 썸네일 URL 생성 함수
 const getYoutubeThumbnail = (videoId: string) =>
@@ -98,18 +99,18 @@ function YouTubeBadge({ creatorName }: { creatorName?: string }) {
 const TopRankCard = React.memo(function TopRankCard({
   item,
   rank,
+  cardWidth,
   onPress,
 }: {
   item: ShortsCardItem;
   rank: number;
+  cardWidth: number;
   onPress: () => void;
 }) {
-  const { width: screenWidth } = useWindowDimensions();
-  const CARD_WIDTH = Math.min(220, Math.max(170, Math.round(screenWidth * 0.55)));
+  const CARD_WIDTH = cardWidth;
   const CARD_HEIGHT = Math.round(CARD_WIDTH * 1.42);
   const titleLineHeight = 20;
   const rankLineHeight = 40;
-  const gradientId = `topCardOverlay-${item.id}`;
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -131,23 +132,12 @@ const TopRankCard = React.memo(function TopRankCard({
           contentFit="cover"
           contentPosition="center"
         />
-        <Svg
-          width="100%"
-          height="100%"
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.25)', 'rgba(0,0,0,0.55)']}
+          locations={[0.55, 0.8, 1]}
           style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
           pointerEvents="none"
-        >
-          <Defs>
-            <LinearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0.55" stopColor="#000000" stopOpacity="0" />
-              <Stop offset="0.8" stopColor="#000000" stopOpacity="0.25" />
-              <Stop offset="1" stopColor="#000000" stopOpacity="0.55" />
-            </LinearGradient>
-          </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${gradientId})`} />
-        </Svg>
+        />
         <View
           style={{
             position: "absolute",
@@ -203,12 +193,9 @@ const TopRankCard = React.memo(function TopRankCard({
 });
 
 // 통일 카드 컴포넌트
-const ShortsCard = React.memo(function ShortsCard({ item, onPress }: { item: ShortsCardItem; onPress: () => void }) {
-  const { width: screenWidth } = useWindowDimensions();
-  const CARD_WIDTH = Math.min(190, Math.max(150, Math.round(screenWidth * 0.48)));
+const ShortsCard = React.memo(function ShortsCard({ item, onPress, cardWidth }: { item: ShortsCardItem; onPress: () => void; cardWidth: number }) {
+  const CARD_WIDTH = cardWidth;
   const CARD_HEIGHT = Math.round(CARD_WIDTH * (16 / 9));
-  const topGradientId = `cardOverlayTop-${item.id}`;
-  const bottomGradientId = `cardOverlayBottom-${item.id}`;
 
   return (
     <TouchableOpacity
@@ -239,22 +226,11 @@ const ShortsCard = React.memo(function ShortsCard({ item, onPress }: { item: Sho
             contentFit="cover"
             contentPosition="center"
           />
-          <Svg
-            width="100%"
-            height="30%"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-            style={{ position: "absolute", left: 0, right: 0, top: 0 }}
+          <LinearGradient
+            colors={['rgba(0,0,0,0.35)', 'transparent']}
+            style={{ position: "absolute", left: 0, right: 0, top: 0, height: "30%" }}
             pointerEvents="none"
-          >
-            <Defs>
-              <LinearGradient id={topGradientId} x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor="#000000" stopOpacity="0.35" />
-                <Stop offset="1" stopColor="#000000" stopOpacity="0" />
-              </LinearGradient>
-            </Defs>
-            <Rect x="-1" y="-1" width="102%" height="102%" fill={`url(#${topGradientId})`} />
-          </Svg>
+          />
           <YouTubeBadge creatorName={item.creatorName} />
           <View
             style={{
@@ -268,23 +244,12 @@ const ShortsCard = React.memo(function ShortsCard({ item, onPress }: { item: Sho
               borderBottomRightRadius: BorderRadius.md,
             }}
           >
-            <Svg
-              width="100%"
-              height="100%"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.45)', 'rgba(0,0,0,0.8)']}
+              locations={[0.4, 0.7, 1]}
               style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
               pointerEvents="none"
-            >
-              <Defs>
-                <LinearGradient id={bottomGradientId} x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0.4" stopColor="#000000" stopOpacity="0" />
-                  <Stop offset="0.7" stopColor="#000000" stopOpacity="0.45" />
-                  <Stop offset="1" stopColor="#000000" stopOpacity="0.8" />
-                </LinearGradient>
-              </Defs>
-              <Rect x="-1" y="-1" width="102%" height="102%" fill={`url(#${bottomGradientId})`} />
-            </Svg>
+            />
             <View style={{ paddingHorizontal: 10, paddingTop: 10, paddingBottom: 10 }}>
               <Text
                 style={{
@@ -312,8 +277,7 @@ const ShortsCard = React.memo(function ShortsCard({ item, onPress }: { item: Sho
 });
 
 // 레시피 카드 컴포넌트 (가로 스크롤용)
-const RecipeCard = React.memo(function RecipeCard({ item, onPress, size = "medium" }: { item: any; onPress: () => void; size?: "small" | "medium" | "large" }) {
-  void size;
+const RecipeCard = React.memo(function RecipeCard({ item, onPress, cardWidth }: { item: any; onPress: () => void; cardWidth: number }) {
   return (
     <ShortsCard
       item={{
@@ -327,6 +291,7 @@ const RecipeCard = React.memo(function RecipeCard({ item, onPress, size = "mediu
         creatorName: item.creatorName,
       }}
       onPress={onPress}
+      cardWidth={cardWidth}
     />
   );
 });
@@ -401,10 +366,12 @@ const SectionHeader = React.memo(function SectionHeader({
 // 큐레이션 섹션 행 컴포넌트 (renderItem에서 사용)
 const CurationSectionRow = React.memo(function CurationSectionRow({
   section,
+  cardWidth,
   onRecipePress,
   onSeeAll,
 }: {
   section: CurationSection;
+  cardWidth: number;
   onRecipePress: (recipeId: string, section: CurationSection) => void;
   onSeeAll: (sectionId: string, sectionTitle: string) => void;
 }) {
@@ -425,7 +392,7 @@ const CurationSectionRow = React.memo(function CurationSectionRow({
             key={recipe.id}
             item={recipe}
             onPress={() => onRecipePress(recipe.id, section)}
-            size="medium"
+            cardWidth={cardWidth}
           />
         ))}
       </ScrollView>
@@ -441,6 +408,8 @@ export default function HomeScreen() {
   const [selectedFilter, setSelectedFilter] = useState("전체");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const logoSize = Math.min(52, Math.max(40, Math.round(screenWidth * 0.12)));
+  const topCardWidth = Math.min(220, Math.max(170, Math.round(screenWidth * 0.55)));
+  const shortsCardWidth = Math.min(190, Math.max(150, Math.round(screenWidth * 0.48)));
   const FILTER_BAR_HEIGHT = 44;
   const HEADER_BAR_HEIGHT = logoSize + Spacing.sm * 2; // logo + paddingVertical
   const SEPARATOR_HEIGHT = 1;
@@ -609,11 +578,12 @@ export default function HomeScreen() {
     return (
       <CurationSectionRow
         section={section}
+        cardWidth={shortsCardWidth}
         onRecipePress={handleRecipePress}
         onSeeAll={handleSeeAllSection}
       />
     );
-  }, [handleRecipePress, handleSeeAllSection]);
+  }, [shortsCardWidth, handleRecipePress, handleSeeAllSection]);
 
   const handleEndReached = useCallback(() => {
     if (hasNext && !loadingMore) fetchNextPage();
@@ -686,6 +656,7 @@ export default function HomeScreen() {
                 key={key}
                 item={item}
                 rank={rank}
+                cardWidth={topCardWidth}
                 onPress={() => handleTopCurationPress(item.id)}
               />
             ))}
@@ -693,7 +664,7 @@ export default function HomeScreen() {
         </View>
       )}
     </View>
-  ), [loading, isRefreshing, topRecipes, sections.length, topShorts, handleTopCurationPress]);
+  ), [loading, isRefreshing, topRecipes, sections.length, topShorts, topCardWidth, handleTopCurationPress]);
 
   const listFooterComponent = useMemo(() =>
     loadingMore ? (

@@ -38,7 +38,7 @@ import {
   HelpCircle,
   X,
   Check,
-  BookOpen,
+  Book,
   FolderPlus,
   Square,
   CheckSquare,
@@ -1094,7 +1094,7 @@ export default function RecipeDetailScreen() {
                   gap: 6,
                 }}
               >
-                <BookOpen size={16} color={bookmarkTab === "personal" ? "#FFF" : Colors.neutral[600]} />
+                <Book size={16} color={bookmarkTab === "personal" ? "#FFF" : Colors.neutral[600]} />
                 <Text
                   style={{
                     fontSize: 14,
@@ -1192,7 +1192,7 @@ export default function RecipeDetailScreen() {
                               marginRight: 12,
                             }}
                           >
-                            <BookOpen size={22} color={isSelected ? Colors.primary[500] : Colors.neutral[500]} />
+                            <Book size={22} color={isSelected ? Colors.primary[500] : Colors.neutral[500]} strokeWidth={2.5} />
                           </View>
                           <View style={{ flex: 1 }}>
                             <Text

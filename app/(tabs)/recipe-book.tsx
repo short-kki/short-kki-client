@@ -27,7 +27,7 @@ import {
   Lock,
   Users,
   GripVertical,
-  BookOpen,
+  Book,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows, ComponentSizes } from "@/constants/design-system";
 import { usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
@@ -159,7 +159,7 @@ function RecipeBookCard({
       >
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <BookOpen size={18} color={Colors.primary[400]} strokeWidth={2} />
+            <Book size={18} color={Colors.primary[400]} strokeWidth={2.5} />
             <Text
               style={{
                 fontSize: Typography.fontSize.md,
@@ -323,10 +323,10 @@ export default function RecipeBookScreen() {
     }
   }, [params.groupId, params._t]);
 
-  const handleRecipeBookPress = useCallback((bookId: string) => {
+  const handleRecipeBookPress = useCallback((bookId: string, bookName?: string) => {
     router.push({
       pathname: "/recipe-book-detail",
-      params: { bookId },
+      params: { bookId, ...(bookName ? { bookName } : {}) },
     });
   }, [router]);
 
@@ -442,7 +442,7 @@ export default function RecipeBookScreen() {
       <ScaleDecorator activeScale={1.01}>
         <RecipeBookCard
           book={item}
-          onPress={() => handleRecipeBookPress(item.id)}
+          onPress={() => handleRecipeBookPress(item.id, item.name)}
           onMenuPress={() => handleMenuPress(item)}
           draggable
           dragging={isActive}
@@ -567,7 +567,7 @@ export default function RecipeBookScreen() {
                   <RecipeBookCard
                     key={book.id}
                     book={book}
-                    onPress={() => handleRecipeBookPress(book.id)}
+                    onPress={() => handleRecipeBookPress(book.id, book.name)}
                     onMenuPress={() => handleMenuPress(book)}
                   />
                 ))}
@@ -823,7 +823,7 @@ export default function RecipeBookScreen() {
                       <RecipeBookCard
                         key={book.id}
                         book={book}
-                        onPress={() => handleRecipeBookPress(book.id)}
+                        onPress={() => handleRecipeBookPress(book.id, book.name)}
                         onMenuPress={() => handleMenuPress(book)}
                         onGroupPress={() => {
                           if (book.groupId) {
@@ -847,7 +847,7 @@ export default function RecipeBookScreen() {
       )}
 
       {/* 레시피북 생성 모달 */}
-      <Modal visible={showCreateModal} transparent animationType="fade" onShow={() => setTimeout(() => createInputRef.current?.focus(), 100)}>
+      <Modal visible={showCreateModal} transparent animationType="fade" onRequestClose={() => { setShowCreateModal(false); setNewBookName(""); }} onShow={() => setTimeout(() => createInputRef.current?.focus(), 100)}>
         <Pressable
           style={{
             flex: 1,
@@ -855,7 +855,7 @@ export default function RecipeBookScreen() {
             justifyContent: "center",
             alignItems: "center",
           }}
-          onPress={() => setShowCreateModal(false)}
+          onPress={() => { setShowCreateModal(false); setNewBookName(""); }}
         >
           <Pressable
             style={{
@@ -969,7 +969,7 @@ export default function RecipeBookScreen() {
       </Modal>
 
       {/* 레시피북 이름 변경 모달 */}
-      <Modal visible={showEditModal} transparent animationType="fade" onShow={() => setTimeout(() => editInputRef.current?.focus(), 100)}>
+      <Modal visible={showEditModal} transparent animationType="fade" onRequestClose={() => setShowEditModal(false)} onShow={() => setTimeout(() => editInputRef.current?.focus(), 100)}>
         <Pressable
           style={{
             flex: 1,

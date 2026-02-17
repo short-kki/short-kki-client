@@ -15,7 +15,7 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
-  BookOpen,
+  Book,
   Bookmark,
   ListPlus,
   Check,
@@ -290,21 +290,36 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
       >
         {/* 작성자 */}
         <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
-          <View
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              backgroundColor: Colors.primary[500],
-              justifyContent: "center",
-              alignItems: "center",
-              marginRight: 10,
-            }}
-          >
-            <Text style={{ color: "#FFF", fontWeight: "bold", fontSize: 16 }}>
-              {item.authorAvatar ?? item.author?.[0] ?? "?"}
-            </Text>
-          </View>
+          {item.authorProfileImgUrl ? (
+            <Image
+              source={{ uri: item.authorProfileImgUrl }}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                marginRight: 10,
+                borderWidth: 1.5,
+                borderColor: "rgba(255,255,255,0.3)",
+              }}
+              contentFit="cover"
+            />
+          ) : (
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: Colors.primary[500],
+                justifyContent: "center",
+                alignItems: "center",
+                marginRight: 10,
+              }}
+            >
+              <Text style={{ color: "#FFF", fontWeight: "bold", fontSize: 16 }}>
+                {item.authorAvatar ?? item.author?.[0] ?? "?"}
+              </Text>
+            </View>
+          )}
           <View>
             <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 15 }}>
               {item.author}
@@ -985,7 +1000,7 @@ export default function ShortsScreen() {
                   gap: 6,
                 }}
               >
-                <BookOpen size={16} color={bookmarkTab === "personal" ? "#FFF" : Colors.neutral[600]} />
+                <Book size={16} color={bookmarkTab === "personal" ? "#FFF" : Colors.neutral[600]} />
                 <Text
                   style={{
                     fontSize: 14,
@@ -1059,7 +1074,7 @@ export default function ShortsScreen() {
                         marginRight: 12,
                       }}
                     >
-                      <BookOpen size={22} color={isSelected ? Colors.primary[500] : Colors.neutral[500]} />
+                      <Book size={22} color={isSelected ? Colors.primary[500] : Colors.neutral[500]} strokeWidth={2.5} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text

@@ -25,7 +25,7 @@ import {
   FolderInput,
   ChevronDown,
   Check,
-  BookOpen,
+  Book,
   Users,
   X,
 } from "lucide-react-native";
@@ -195,7 +195,7 @@ function RecipeCard({
 export default function RecipeBookDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ bookId: string; groupId?: string; groupName?: string }>();
+  const params = useLocalSearchParams<{ bookId: string; bookName?: string; groupId?: string; groupName?: string }>();
 
   const bookId = params.bookId || "default";
   const [sortType, setSortType] = useState<RecipeSortType>("RECENT");
@@ -436,7 +436,7 @@ export default function RecipeBookDetailScreen() {
               }}
               numberOfLines={1}
             >
-              {bookName || "레시피북"}
+              {bookName || params.bookName || "레시피북"}
             </Text>
           </View>
           <TouchableOpacity
@@ -494,6 +494,7 @@ export default function RecipeBookDetailScreen() {
             paddingHorizontal: HORIZONTAL_PADDING,
             paddingTop: 14,
             paddingBottom: Spacing.md,
+            ...(recipes.length === 0 ? { flexGrow: 1 } : {}),
           }}
           onEndReached={() => {
             if (hasMore) {
@@ -511,17 +512,19 @@ export default function RecipeBookDetailScreen() {
           ListEmptyComponent={
             <View
               style={{
+                flex: 1,
+                justifyContent: "center",
                 alignItems: "center",
-                paddingVertical: Spacing["4xl"],
+                paddingBottom: 120,
               }}
             >
-              <ChefHat size={48} color={Colors.neutral[300]} />
+              <ChefHat size={56} color={Colors.neutral[300]} />
               <Text
                 style={{
-                  fontSize: Typography.fontSize.lg,
+                  fontSize: Typography.fontSize.md,
                   fontWeight: "600",
-                  color: Colors.neutral[500],
-                  marginTop: Spacing.md,
+                  color: Colors.neutral[400],
+                  marginTop: Spacing.lg,
                 }}
               >
                 저장된 레시피가 없어요
@@ -530,7 +533,7 @@ export default function RecipeBookDetailScreen() {
                 style={{
                   fontSize: Typography.fontSize.sm,
                   color: Colors.neutral[400],
-                  marginTop: Spacing.xs,
+                  marginTop: Spacing.sm,
                   textAlign: "center",
                 }}
               >
@@ -541,13 +544,13 @@ export default function RecipeBookDetailScreen() {
                 activeOpacity={0.8}
                 style={{
                   backgroundColor: Colors.primary[500],
-                  paddingHorizontal: 24,
-                  paddingVertical: 12,
+                  paddingHorizontal: 28,
+                  paddingVertical: 13,
                   borderRadius: BorderRadius.full,
-                  marginTop: Spacing.lg,
+                  marginTop: Spacing.xl,
                 }}
               >
-                <Text style={{ color: "#FFF", fontWeight: "600" }}>
+                <Text style={{ color: "#FFF", fontWeight: "600", fontSize: Typography.fontSize.sm }}>
                   레시피 둘러보기
                 </Text>
               </TouchableOpacity>
@@ -860,7 +863,7 @@ export default function RecipeBookDetailScreen() {
                   gap: 6,
                 }}
               >
-                <BookOpen size={16} color={bookSelectTab === "personal" ? "#FFF" : Colors.neutral[600]} />
+                <Book size={16} color={bookSelectTab === "personal" ? "#FFF" : Colors.neutral[600]} />
                 <Text
                   style={{
                     fontSize: 14,
@@ -956,7 +959,7 @@ export default function RecipeBookDetailScreen() {
                         marginRight: 12,
                       }}
                     >
-                      <BookOpen size={22} color={Colors.neutral[500]} />
+                      <Book size={22} color={Colors.neutral[500]} strokeWidth={2.5} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text

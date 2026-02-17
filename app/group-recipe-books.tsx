@@ -11,7 +11,7 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { ArrowLeft, Folder, BookOpen } from "lucide-react-native";
+import { ArrowLeft, Folder, Book } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { useGroupRecipeBooksById } from "@/hooks";
 import { API_BASE_URL } from "@/constants/oauth";
@@ -37,10 +37,10 @@ export default function GroupRecipeBooksScreen() {
     }, [refetch])
   );
 
-  const handleBookPress = (bookId: string) => {
+  const handleBookPress = (bookId: string, bookName?: string) => {
     router.push({
       pathname: "/recipe-book-detail",
-      params: { bookId },
+      params: { bookId, ...(bookName ? { bookName } : {}) },
     });
   };
 
@@ -106,7 +106,7 @@ export default function GroupRecipeBooksScreen() {
           recipeBooks.map((book) => (
             <TouchableOpacity
               key={book.id}
-              onPress={() => handleBookPress(book.id)}
+              onPress={() => handleBookPress(book.id, book.name)}
               activeOpacity={0.8}
               style={{
                 backgroundColor: Colors.neutral[0],
@@ -210,7 +210,7 @@ export default function GroupRecipeBooksScreen() {
               paddingVertical: Spacing["4xl"],
             }}
           >
-            <BookOpen size={48} color={Colors.neutral[300]} />
+            <Book size={48} color={Colors.neutral[300]} />
             <Text
               style={{
                 fontSize: Typography.fontSize.lg,
