@@ -1021,8 +1021,16 @@ export default function ShortsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* 폴더 목록 */}
-            <ScrollView style={{ maxHeight: 150 }} contentContainerStyle={{ paddingHorizontal: 20 }}>
+            {/* 폴더 목록 — 2개 항목 높이 고정 (73px * 2) */}
+            <ScrollView style={{ height: 146 }} contentContainerStyle={{ paddingHorizontal: 20 }}>
+              {bookmarkTab === "group" && recipeBooks.group.length === 0 && (
+                <View style={{ justifyContent: "center", alignItems: "center", height: 146 }}>
+                  <Users size={32} color={Colors.neutral[300]} />
+                  <Text style={{ fontSize: 14, color: Colors.neutral[400], marginTop: 12 }}>
+                    참여중인 그룹이 없습니다
+                  </Text>
+                </View>
+              )}
               {(bookmarkTab === "personal" ? recipeBooks.personal : recipeBooks.group).map((book) => {
                 const isSelected = selectedVideoId
                   ? (ownedBookIdsByVideo[selectedVideoId] || []).includes(book.id)
@@ -1089,8 +1097,8 @@ export default function ShortsScreen() {
                 );
               })}
 
-              {/* 새 레시피북 만들기 */}
-              <TouchableOpacity
+              {/* 새 레시피북 만들기 - 개인 탭에서만 표시 */}
+              {bookmarkTab === "personal" && <TouchableOpacity
                 onPress={() => {
                   closeBookmarkSheet(() => {
                     router.push("/(tabs)/recipe-book");
@@ -1122,7 +1130,7 @@ export default function ShortsScreen() {
                 <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.primary[500] }}>
                   새 레시피북 만들기
                 </Text>
-              </TouchableOpacity>
+              </TouchableOpacity>}
             </ScrollView>
           </Animated.View>
         </View>
