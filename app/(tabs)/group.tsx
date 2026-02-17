@@ -46,6 +46,7 @@ import {
   Bookmark,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
+import { API_BASE_URL } from "@/constants/oauth";
 import { useGroups, useGroupFeeds, useGroupMembers, getGroupInviteCode } from "@/hooks";
 import type { Group } from "@/data/mock";
 
@@ -367,18 +368,20 @@ export default function GroupScreen() {
       // API에서 초대 코드 받기
       const inviteCode = await getGroupInviteCode(selectedGroup.id);
 
-      // 딥링크 URL 생성
-      const inviteUrl = `https://shortkki.com/group/invite/${inviteCode}`;
+      // 웹 폴백 URL (앱 미설치 시 웹페이지 표시)
+      // 로컬: http://localhost:8080/group/invite/{code}
+      // 프로덕션: https://api.shortkki.com/group/invite/{code}
+      const webFallbackUrl = `${API_BASE_URL}/group/invite/${inviteCode}`;
 
       // 시스템 공유 시트 열기
       await Share.share(
         Platform.OS === "ios"
           ? {
               message: `${selectedGroup.name} 그룹에 초대합니다!`,
-              url: inviteUrl,
+              url: webFallbackUrl,
             }
           : {
-              message: `${selectedGroup.name} 그룹에 초대합니다!\n${inviteUrl}`,
+              message: `${selectedGroup.name} 그룹에 초대합니다!\n${webFallbackUrl}`,
             }
       );
       setShowInviteModal(false);
