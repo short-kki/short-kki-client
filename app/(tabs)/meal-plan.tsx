@@ -47,6 +47,7 @@ import {
 import { Colors, Spacing, BorderRadius, Typography } from "@/constants/design-system";
 import { useRecipeCalendar, useRecipeQueue } from "@/hooks";
 import type { CalendarMeal } from "@/data/mock";
+import ConfirmActionModal from "@/components/ui/ConfirmActionModal";
 
 const DAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -97,17 +98,26 @@ const getWeekDays = (weekStart: Date) => {
   });
 };
 
-const getMonthCalendar = (year: number, month: number): (Date | null)[] => {
+const getMonthCalendar = (year: number, month: number): Date[] => {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const startDay = firstDay.getDay();
   const daysInMonth = lastDay.getDate();
 
-  const cells: (Date | null)[] = [];
-  for (let i = 0; i < startDay; i++) cells.push(null);
-  for (let i = 1; i <= daysInMonth; i++) cells.push(new Date(year, month, i));
-  while (cells.length % 7 !== 0) cells.push(null);
-
+  const cells: Date[] = [];
+  // 앞: 이전 달 날짜로 채움
+  for (let i = startDay - 1; i >= 0; i--) {
+    cells.push(new Date(year, month, -i));
+  }
+  // 해당 월
+  for (let i = 1; i <= daysInMonth; i++) {
+    cells.push(new Date(year, month, i));
+  }
+  // 뒤: 다음 달 날짜로 채움
+  let nextDay = 1;
+  while (cells.length % 7 !== 0) {
+    cells.push(new Date(year, month + 1, nextDay++));
+  }
   return cells;
 };
 
@@ -277,24 +287,32 @@ export default function MealPlanScreen() {
     | { mealId: string; source: "group"; groupId: string }
     | null
   >(null);
+  const [showGroupDeleteConfirm, setShowGroupDeleteConfirm] = useState(false);
 
-  // 조회 기간 계산: 주간 뷰는 해당 주의 일요일~토요일, 월간 뷰는 해당 월 1일~말일
+  // 조회 기간 계산: 항상 월 단위로 fetch → 같은 월 내 주간 이동 시 refetch 없음
   const dateRange = useMemo(() => {
     if (viewMode === "month") {
-      // 월간 뷰: 해당 월의 1일 ~ 말일
-      const startDate = new Date(viewMonth.year, viewMonth.month, 1);
-      const endDate = new Date(viewMonth.year, viewMonth.month + 1, 0);
+      const firstOfMonth = new Date(viewMonth.year, viewMonth.month, 1);
+      const lastOfMonth = new Date(viewMonth.year, viewMonth.month + 1, 0);
+      // 그리드 시작: 1일이 속한 주의 일요일
+      const gridStart = new Date(firstOfMonth);
+      gridStart.setDate(gridStart.getDate() - firstOfMonth.getDay());
+      // 그리드 끝: 마지막 날이 속한 주의 토요일
+      const gridEnd = new Date(lastOfMonth);
+      gridEnd.setDate(gridEnd.getDate() + (6 - lastOfMonth.getDay()));
       return {
-        startDate: formatDateId(startDate),
-        endDate: formatDateId(endDate),
+        startDate: formatDateId(gridStart),
+        endDate: formatDateId(gridEnd),
       };
     }
-    // 주간 뷰: 해당 주의 일요일 ~ 토요일
+    // 주간 뷰: 주의 첫날~마지막 날이 속한 월 전체를 커버 (월 경계 주간 대응)
     const weekEnd = new Date(currentWeekStart);
     weekEnd.setDate(currentWeekStart.getDate() + 6);
+    const startDate = new Date(currentWeekStart.getFullYear(), currentWeekStart.getMonth(), 1);
+    const endDate = new Date(weekEnd.getFullYear(), weekEnd.getMonth() + 1, 0);
     return {
-      startDate: formatDateId(currentWeekStart),
-      endDate: formatDateId(weekEnd),
+      startDate: formatDateId(startDate),
+      endDate: formatDateId(endDate),
     };
   }, [viewMode, viewMonth, currentWeekStart]);
 
@@ -305,19 +323,24 @@ export default function MealPlanScreen() {
   const { queues: savedRecipes, loading: queueLoading, addQueue, deleteQueue, addToCalendar, refetch: refetchQueue } = useRecipeQueue();
   const queueInitializedRef = useRef(false);
 
-  // 탭 포커스 시 캘린더 & 대기열 새로고침
+  // 탭 포커스 시 캘린더 & 대기열 백그라운드 갱신 (loading 표시 없이)
   useFocusEffect(
     useCallback(() => {
-      refetchCalendar();
-      refetchQueue();
+      refetchCalendar({ silent: true, force: true });
+      refetchQueue({ silent: true });
     }, [refetchCalendar, refetchQueue])
   );
 
-  // 대기열 초기 로드 완료 시 항목이 있으면 열기
+  // 대기열 초기 로드 완료 시 항목이 있으면 애니메이션과 함께 열기
   useEffect(() => {
     if (!queueLoading && !queueInitializedRef.current) {
       queueInitializedRef.current = true;
       if (savedRecipes.length > 0) {
+        LayoutAnimation.configureNext({
+          duration: 350,
+          create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+          update: { type: LayoutAnimation.Types.easeInEaseOut },
+        });
         setShowQueue(true);
       }
     }
@@ -388,7 +411,7 @@ export default function MealPlanScreen() {
   const weekDays = useMemo(() => getWeekDays(currentWeekStart), [currentWeekStart]);
   const monthCalendar = useMemo(() => getMonthCalendar(viewMonth.year, viewMonth.month), [viewMonth]);
   const monthRows = useMemo(() => {
-    const rows: (Date | null)[][] = [];
+    const rows: Date[][] = [];
     for (let i = 0; i < monthCalendar.length; i += 7) {
       rows.push(monthCalendar.slice(i, i + 7));
     }
@@ -397,9 +420,12 @@ export default function MealPlanScreen() {
 
   const selectedMeals = localMeals[selectedDate] ?? EMPTY_MEALS;
 
-  // 내 식단이 있으면 내 식단, 없고 그룹 식단이 있으면 그룹, 둘 다 없으면 내 식단
+  // 날짜 변경 또는 초기 로드 시에만 탭 자동 전환 (식단 추가/삭제 시 탭 유지)
+  const prevSelectedDate = useRef<string | null>(null);
   useEffect(() => {
     if (calendarLoading) return;
+    if (prevSelectedDate.current === selectedDate) return;
+    prevSelectedDate.current = selectedDate;
     const hasPersonal = (localMeals[selectedDate] ?? []).length > 0;
     if (hasPersonal) {
       setMealPlanTab("personal");
@@ -878,9 +904,7 @@ export default function MealPlanScreen() {
                     fontWeight: "600",
                     color: selectedDate === day.id
                       ? Colors.primary[500]
-                      : day.isPast
-                        ? Colors.neutral[300]
-                        : Colors.neutral[400],
+                      : Colors.neutral[400],
                   }}>
                     {day.day}
                   </Text>
@@ -916,11 +940,9 @@ export default function MealPlanScreen() {
                       fontWeight: isSelected ? "700" : "500",
                       color: isSelected
                         ? "#FFFFFF"
-                        : day.isPast
-                          ? Colors.neutral[300]
-                          : day.day === "일"
-                            ? "#F0816C"
-                            : Colors.neutral[800],
+                        : day.day === "일"
+                          ? "#F0816C"
+                          : Colors.neutral[800],
                     }}>
                       {day.date}
                     </Text>
@@ -968,16 +990,12 @@ export default function MealPlanScreen() {
             {monthRows.map((row, rowIndex) => (
               <View key={rowIndex} style={{ flexDirection: "row", gap: 6 }}>
                 {row.map((date, colIndex) => {
-                  if (!date) {
-                    return <View key={`empty-${rowIndex}-${colIndex}`} style={{ flex: 1, paddingVertical: 10 }} />;
-                  }
-
                   const dateId = formatDateId(date);
                   const isSelected = selectedDate === dateId;
                   const isToday = date.toDateString() === today.toDateString();
                   const hasMeals = datesWithMeals.has(dateId);
                   const isSunday = colIndex === 0;
-                  const isPast = date < today && !isToday;
+                  const isOtherMonth = date.getMonth() !== viewMonth.month;
 
                   return (
                     <Pressable
@@ -1001,7 +1019,7 @@ export default function MealPlanScreen() {
                         fontWeight: isSelected ? "700" : "500",
                         color: isSelected
                           ? "#FFFFFF"
-                          : isPast
+                          : isOtherMonth
                             ? Colors.neutral[300]
                             : isSunday
                               ? "#F0816C"
@@ -1261,7 +1279,7 @@ export default function MealPlanScreen() {
               <Text style={{ fontSize: 13, color: Colors.error.main, marginBottom: Spacing.xs }}>
                 식단을 불러오지 못했어요
               </Text>
-              <Pressable onPress={refetchCalendar}>
+              <Pressable onPress={() => refetchCalendar({ force: true })}>
                 <Text style={{ fontSize: 13, color: Colors.primary[500], fontWeight: "600" }}>다시 시도</Text>
               </Pressable>
             </View>
@@ -1360,7 +1378,7 @@ export default function MealPlanScreen() {
                   <Text style={{ fontSize: 13, color: Colors.error.main, marginBottom: Spacing.xs }}>
                     그룹 식단을 불러오지 못했어요
                   </Text>
-                  <Pressable onPress={refetchCalendar}>
+                  <Pressable onPress={() => refetchCalendar({ force: true })}>
                     <Text style={{ fontSize: 13, color: Colors.primary[500], fontWeight: "600" }}>다시 시도</Text>
                   </Pressable>
                 </View>
@@ -1609,24 +1627,19 @@ export default function MealPlanScreen() {
               activeOpacity={0.6}
               onPress={async () => {
                 if (!menuTarget) return;
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                if (menuTarget.source === "personal") {
-                  setLocalMeals(prev => ({
-                    ...prev,
-                    [selectedDate]: (prev[selectedDate] || []).filter(m => String(m.id) !== menuTarget.mealId),
-                  }));
-                } else {
-                  setLocalGroupMeals(prev => {
-                    const groupMeals = prev[menuTarget.groupId] || {};
-                    return {
-                      ...prev,
-                      [menuTarget.groupId]: {
-                        ...groupMeals,
-                        [selectedDate]: (groupMeals[selectedDate] || []).filter(m => String(m.id) !== menuTarget.mealId),
-                      },
-                    };
-                  });
+
+                // 그룹 식단은 확인 모달 먼저 표시
+                if (menuTarget.source === "group") {
+                  closeMealMenu();
+                  setShowGroupDeleteConfirm(true);
+                  return;
                 }
+
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setLocalMeals(prev => ({
+                  ...prev,
+                  [selectedDate]: (prev[selectedDate] || []).filter(m => String(m.id) !== menuTarget.mealId),
+                }));
                 closeMealMenu();
 
                 const mealIdNum = parseInt(menuTarget.mealId);
@@ -1637,7 +1650,7 @@ export default function MealPlanScreen() {
                   await deleteCalendarMeal(mealIdNum);
                 } catch (err) {
                   console.error("식단 삭제 실패:", err);
-                  refetchCalendar();
+                  refetchCalendar({ force: true });
                 }
               }}
               style={{
@@ -1655,6 +1668,46 @@ export default function MealPlanScreen() {
           </RNAnimated.View>
         </View>
       </Modal>
+
+      {/* 그룹 식단 삭제 확인 모달 */}
+      <ConfirmActionModal
+        visible={showGroupDeleteConfirm}
+        title="그룹 식단을 삭제할까요?"
+        description="그룹 멤버 모두의 식단에서 삭제돼요"
+        confirmText="삭제"
+        confirmLoadingText="삭제 중..."
+        onClose={() => {
+          setShowGroupDeleteConfirm(false);
+          setMenuTarget(null);
+        }}
+        onConfirm={async () => {
+          if (!menuTarget || menuTarget.source !== "group") return;
+
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          setLocalGroupMeals(prev => {
+            const groupMeals = prev[menuTarget.groupId] || {};
+            return {
+              ...prev,
+              [menuTarget.groupId]: {
+                ...groupMeals,
+                [selectedDate]: (groupMeals[selectedDate] || []).filter(m => String(m.id) !== menuTarget.mealId),
+              },
+            };
+          });
+          setShowGroupDeleteConfirm(false);
+
+          const mealIdNum = parseInt(menuTarget.mealId);
+          setMenuTarget(null);
+          if (Number.isNaN(mealIdNum) || mealIdNum < 0) return;
+
+          try {
+            await deleteCalendarMeal(mealIdNum);
+          } catch (err) {
+            console.error("그룹 식단 삭제 실패:", err);
+            refetchCalendar({ force: true });
+          }
+        }}
+      />
     </View>
   );
 }

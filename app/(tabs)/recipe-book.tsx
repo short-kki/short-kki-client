@@ -1159,8 +1159,6 @@ export default function RecipeBookScreen() {
         title="레시피북을 삭제할까요?"
         description="삭제된 레시피북의 레시피는 기본 레시피북으로 이동됩니다."
         targetName={deleteTargetBook?.name}
-        targetMeta={deleteTargetBook ? `· 레시피 ${deleteTargetBook.recipeCount}개` : undefined}
-        targetIcon={<Folder size={18} color={Colors.neutral[600]} />}
         loading={isDeletingBook}
         onClose={() => {
           if (isDeletingBook) return;

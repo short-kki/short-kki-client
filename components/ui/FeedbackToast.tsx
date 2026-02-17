@@ -6,6 +6,12 @@ import { BorderRadius, Colors, Spacing, Typography } from "@/constants/design-sy
 
 export type FeedbackToastVariant = "success" | "danger";
 
+/** 토스트 메시지에 표시할 제목을 최대 길이로 잘라줍니다. */
+export function truncateTitle(title: string, maxLength: number = 12): string {
+  if (title.length <= maxLength) return title;
+  return title.slice(0, maxLength) + "...";
+}
+
 interface FeedbackToastState {
   toastMessage: string | null;
   toastVariant: FeedbackToastVariant;
@@ -125,43 +131,35 @@ export function FeedbackToast({
           flexDirection: "row",
           alignItems: "center",
           gap: 10,
-          backgroundColor: "rgba(28, 25, 23, 0.94)",
-          borderWidth: 1,
-          borderColor: isSuccess ? "rgba(16, 185, 129, 0.35)" : "rgba(239, 68, 68, 0.35)",
-          borderRadius: BorderRadius.xl,
-          paddingHorizontal: Spacing.md,
-          paddingVertical: 11,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.18,
-          shadowRadius: 16,
-          elevation: 10,
+          backgroundColor: Colors.neutral[0],
+          borderRadius: 16,
+          overflow: "hidden",
+          paddingVertical: 12,
+          paddingHorizontal: 14,
         }}
       >
         <View
           style={{
-            width: 26,
-            height: 26,
-            borderRadius: 13,
-            backgroundColor: isSuccess ? "rgba(16, 185, 129, 0.2)" : "rgba(239, 68, 68, 0.2)",
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            backgroundColor: isSuccess ? Colors.success.light : Colors.error.light,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
           {isSuccess ? (
-            <Check size={15} color={Colors.success.main} strokeWidth={3} />
+            <Check size={16} color={Colors.success.main} strokeWidth={3} />
           ) : (
-            <X size={15} color={Colors.error.main} strokeWidth={3} />
+            <X size={16} color={Colors.error.main} strokeWidth={3} />
           )}
         </View>
         <Text
           style={{
-            flex: 1,
-            color: Colors.neutral[0],
-            fontSize: Typography.fontSize.sm,
-            fontWeight: Typography.fontWeight.semiBold,
+            color: Colors.neutral[900],
+            fontSize: 13,
+            fontWeight: "600",
           }}
-          numberOfLines={2}
         >
           {message}
         </Text>

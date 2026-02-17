@@ -75,12 +75,13 @@ export default function TabLayout() {
   }, [openAddMenu, openMenu]);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[50] }}>
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: Colors.primary[500],
           tabBarInactiveTintColor: Colors.neutral[400],
           headerShown: false,
+          sceneContainerStyle: { backgroundColor: Colors.neutral[50] },
           tabBarStyle: {
             backgroundColor: "#FFFFFF",
             borderTopWidth: 1,

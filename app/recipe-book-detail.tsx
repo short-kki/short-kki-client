@@ -1,12 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   Pressable,
   Modal,
+  Animated,
+  Easing,
   ActivityIndicator,
   FlatList,
+  Dimensions,
+  ScrollView,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,11 +25,20 @@ import {
   FolderInput,
   ChevronDown,
   Check,
+  BookOpen,
+  Users,
+  X,
 } from "lucide-react-native";
-import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
-import { useRecipeBookDetail } from "@/hooks";
-import RecipeBookSelectModal from "@/components/RecipeBookSelectModal";
-import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/design-system";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const CARD_GAP = 10;
+const HORIZONTAL_PADDING = 20;
+const CARD_WIDTH = (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - CARD_GAP) / 2;
+const BOOK_LIST_ITEM_HEIGHT = 73; // paddingVertical(14*2) + icon(44) + border(1)
+const BOOK_LIST_VISIBLE_COUNT = 3;
+import { useRecipeBookDetail, usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
+import { FeedbackToast, useFeedbackToast, truncateTitle } from "@/components/ui/FeedbackToast";
 import ConfirmActionModal from "@/components/ui/ConfirmActionModal";
 
 
@@ -61,116 +74,118 @@ function RecipeCard({
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={0.8}
+      activeOpacity={0.85}
       style={{
-        width: "48%",
-        marginBottom: Spacing.md,
+        width: CARD_WIDTH,
+        backgroundColor: Colors.neutral[0],
+        borderRadius: 14,
+        overflow: "hidden",
+        marginBottom: CARD_GAP,
+        ...Shadows.xs,
       }}
     >
+      {/* 썸네일 */}
       <View
         style={{
-          backgroundColor: Colors.neutral[0],
-          borderRadius: BorderRadius.xl,
-          overflow: "hidden",
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 8,
-          elevation: 2,
+          width: "100%",
+          height: CARD_WIDTH,
+          position: "relative",
+          backgroundColor: Colors.neutral[200],
         }}
       >
-        {/* 썸네일 */}
-        <View style={{ aspectRatio: 3 / 4, position: "relative" }}>
-          <Image
-            source={{ uri: recipe.thumbnail }}
-            style={{ width: "100%", height: "100%" }}
-            contentFit="cover"
-          />
-          {/* 시간 배지 */}
-          {recipe.duration ? (
-            <View
-              style={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-                backgroundColor: "rgba(0,0,0,0.7)",
-                paddingHorizontal: 8,
-                paddingVertical: 4,
-                borderRadius: BorderRadius.sm,
-                flexDirection: "row",
-                alignItems: "center",
-              }}
-            >
-              <Clock size={10} color="#FFF" />
-              <Text
-                style={{
-                  color: "#FFF",
-                  fontSize: 10,
-                  fontWeight: "600",
-                  marginLeft: 3,
-                }}
-              >
-                {recipe.duration}
-              </Text>
-            </View>
-          ) : null}
-        </View>
-        {/* 정보 */}
-        <View style={{ padding: Spacing.sm, position: "relative" }}>
-          {/* 더보기 버튼 */}
-          <TouchableOpacity
-            onPress={(e) => {
-              e.stopPropagation();
-              onMenuPress();
-            }}
+        <Image
+          source={{ uri: recipe.thumbnail }}
+          style={{ width: "100%", height: "100%" }}
+          contentFit="cover"
+        />
+        {/* 시간 배지 */}
+        {recipe.duration ? (
+          <View
             style={{
               position: "absolute",
               top: 8,
               right: 8,
-              padding: 4,
-              zIndex: 1,
-            }}
-            activeOpacity={0.7}
-          >
-            <MoreVertical size={16} color={Colors.neutral[400]} />
-          </TouchableOpacity>
-          <Text
-            style={{
-              fontSize: Typography.fontSize.sm,
-              fontWeight: "600",
-              color: Colors.neutral[900],
-            }}
-            numberOfLines={2}
-          >
-            {recipe.title}
-          </Text>
-          <View
-            style={{
+              backgroundColor: "rgba(0,0,0,0.7)",
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: BorderRadius.sm,
               flexDirection: "row",
               alignItems: "center",
-              marginTop: 4,
             }}
           >
-            <Bookmark size={10} color={Colors.primary[500]} fill={Colors.primary[500]} />
+            <Clock size={10} color="#FFF" />
             <Text
               style={{
-                fontSize: Typography.fontSize.xs,
-                color: Colors.neutral[500],
+                color: "#FFF",
+                fontSize: 10,
+                fontWeight: "600",
                 marginLeft: 3,
               }}
             >
-              {formatCount(recipe.likes)}
-            </Text>
-            <Text
-              style={{
-                fontSize: Typography.fontSize.xs,
-                color: Colors.neutral[400],
-                marginLeft: "auto",
-              }}
-            >
-              {recipe.savedAt}
+              {recipe.duration}
             </Text>
           </View>
+        ) : null}
+      </View>
+      {/* 정보 */}
+      <View style={{ paddingHorizontal: 10, paddingVertical: 8, position: "relative" }}>
+        {/* 더보기 버튼 */}
+        <TouchableOpacity
+          onPress={(e) => {
+            e.stopPropagation();
+            onMenuPress();
+          }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={{
+            position: "absolute",
+            top: 4,
+            right: 2,
+            padding: 8,
+            zIndex: 1,
+          }}
+          activeOpacity={0.7}
+        >
+          <MoreVertical size={18} color={Colors.neutral[400]} />
+        </TouchableOpacity>
+        <Text
+          style={{
+            fontSize: 16,
+            fontWeight: "600",
+            color: Colors.neutral[900],
+            lineHeight: 21,
+            paddingRight: 28,
+          }}
+          numberOfLines={1}
+        >
+          {recipe.title}
+        </Text>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginTop: 6,
+          }}
+        >
+          <Bookmark size={12} color={Colors.neutral[400]} />
+          <Text
+            style={{
+              fontSize: 12,
+              color: Colors.neutral[400],
+              fontWeight: "500",
+              marginLeft: 4,
+            }}
+          >
+            {formatCount(recipe.likes)}
+          </Text>
+          <Text
+            style={{
+              fontSize: 12,
+              color: Colors.neutral[400],
+              marginLeft: "auto",
+            }}
+          >
+            {recipe.savedAt}
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -200,38 +215,154 @@ export default function RecipeBookDetailScreen() {
     loadingMore,
   } = useRecipeBookDetail(bookId, sortType);
 
+  const { recipeBooks: personalBooks = [] } = usePersonalRecipeBooks();
+  const { recipeBooks: groupBooks = [] } = useGroupRecipeBooks();
+
   const [showRecipeMenuModal, setShowRecipeMenuModal] = useState(false);
-  const [showBookSelectModal, setShowBookSelectModal] = useState(false);
+  const [showBookSelectSheet, setShowBookSelectSheet] = useState(false);
+  const [bookSelectTab, setBookSelectTab] = useState<"personal" | "group">("personal");
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [isDeletingRecipe, setIsDeletingRecipe] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<any>(null);
   const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } =
     useFeedbackToast(1600);
 
+  const sortOverlayOpacity = useRef(new Animated.Value(0)).current;
+  const sortSheetTranslateY = useRef(new Animated.Value(300)).current;
+
+  const menuOverlayOpacity = useRef(new Animated.Value(0)).current;
+  const menuSheetTranslateY = useRef(new Animated.Value(300)).current;
+
+  const bookSelectOverlayOpacity = useRef(new Animated.Value(0)).current;
+  const bookSelectSheetTranslateY = useRef(new Animated.Value(500)).current;
+
+  const openSortSheet = useCallback(() => {
+    setShowSortModal(true);
+    Animated.parallel([
+      Animated.timing(sortOverlayOpacity, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sortSheetTranslateY, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [sortOverlayOpacity, sortSheetTranslateY]);
+
+  const closeSortSheet = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(sortOverlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sortSheetTranslateY, {
+        toValue: 300,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowSortModal(false);
+    });
+  }, [sortOverlayOpacity, sortSheetTranslateY]);
+
+  const openMenuSheet = useCallback(() => {
+    setShowRecipeMenuModal(true);
+    Animated.parallel([
+      Animated.timing(menuOverlayOpacity, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+      Animated.timing(menuSheetTranslateY, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [menuOverlayOpacity, menuSheetTranslateY]);
+
+  const closeMenuSheet = useCallback((onDone?: () => void) => {
+    Animated.parallel([
+      Animated.timing(menuOverlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(menuSheetTranslateY, {
+        toValue: 300,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowRecipeMenuModal(false);
+      onDone?.();
+    });
+  }, [menuOverlayOpacity, menuSheetTranslateY]);
+
+  const openBookSelectSheet = useCallback(() => {
+    setBookSelectTab("personal");
+    setShowBookSelectSheet(true);
+    Animated.parallel([
+      Animated.timing(bookSelectOverlayOpacity, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bookSelectSheetTranslateY, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [bookSelectOverlayOpacity, bookSelectSheetTranslateY]);
+
+  const closeBookSelectSheet = useCallback((onDone?: () => void) => {
+    Animated.parallel([
+      Animated.timing(bookSelectOverlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bookSelectSheetTranslateY, {
+        toValue: 500,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowBookSelectSheet(false);
+      onDone?.();
+    });
+  }, [bookSelectOverlayOpacity, bookSelectSheetTranslateY]);
+
   const handleRecipePress = (recipeId: string) => {
     router.push(`/recipe/${recipeId}`);
   };
 
-  const handleRecipeMenuPress = (recipe: any) => {
+  const handleRecipeMenuPress = useCallback((recipe: any) => {
     setSelectedRecipe(recipe);
-    setShowRecipeMenuModal(true);
-  };
+    openMenuSheet();
+  }, [openMenuSheet]);
 
   const handleRecipeMenuAction = (action: "move" | "delete") => {
     if (!selectedRecipe) return;
 
-    setShowRecipeMenuModal(false);
-
-    setTimeout(() => {
+    closeMenuSheet(() => {
       switch (action) {
         case "move":
-          setShowBookSelectModal(true);
+          openBookSelectSheet();
           break;
         case "delete":
           setShowDeleteConfirmModal(true);
           break;
       }
-    }, 200);
+    });
   };
 
   const handleDeleteRecipe = async () => {
@@ -242,13 +373,25 @@ export default function RecipeBookDetailScreen() {
       const success = await removeRecipe(selectedRecipe.id);
       if (success) {
         setShowDeleteConfirmModal(false);
-        showToast("레시피북에서 삭제했어요.", "success");
+        showToast("북마크를 해제했어요.", "success");
       } else {
         showToast("레시피 삭제에 실패했어요.", "danger");
       }
     } finally {
       setIsDeletingRecipe(false);
     }
+  };
+
+  const handleMoveToBook = async (targetBookId: string, targetBookName: string) => {
+    if (!selectedRecipe) return;
+    closeBookSelectSheet(async () => {
+      const success = await moveRecipe(selectedRecipe.id, targetBookId);
+      if (success) {
+        showToast(`"${truncateTitle(targetBookName)}"(으)로 이동했어요.`, "success");
+      } else {
+        showToast("레시피 이동에 실패했어요.", "danger");
+      }
+    });
   };
 
   const currentSortLabel = SORT_OPTIONS.find((option) => option.value === sortType)?.label ?? "최근순";
@@ -272,76 +415,54 @@ export default function RecipeBookDetailScreen() {
         <View
           style={{
             flexDirection: "row",
-            alignItems: "flex-start",
+            alignItems: "center",
+            justifyContent: "space-between",
             paddingHorizontal: 16,
-            paddingTop: 10,
-            paddingBottom: 10,
+            paddingVertical: 12,
           }}
         >
-          <Pressable
-            onPress={() => router.back()}
-            style={{
-              width: 40,
-              height: 40,
-              justifyContent: "center",
-              alignItems: "center",
-              marginRight: 8,
-              marginTop: 2,
-            }}
-          >
-            <ArrowLeft size={24} color={Colors.neutral[900]} />
-          </Pressable>
-          <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+            <Pressable
+              onPress={() => router.back()}
+              style={{ padding: 8, marginRight: 8 }}
+            >
+              <ArrowLeft size={24} color={Colors.neutral[900]} />
+            </Pressable>
             <Text
               style={{
                 fontSize: 20,
                 fontWeight: "700",
                 color: Colors.neutral[900],
               }}
+              numberOfLines={1}
             >
               {bookName || "레시피북"}
             </Text>
-            <View
+          </View>
+          <TouchableOpacity
+            onPress={openSortSheet}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: Colors.neutral[100],
+              borderRadius: BorderRadius.full,
+              paddingVertical: 6,
+              paddingHorizontal: 10,
+              marginLeft: 8,
+            }}
+          >
+            <Text
               style={{
-                marginTop: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
+                fontSize: 12,
+                fontWeight: "600",
+                color: Colors.neutral[700],
               }}
             >
-              <Text
-                style={{
-                  fontSize: 13,
-                  color: Colors.neutral[500],
-                }}
-              >
-                {totalCount || recipes.length}개의 레시피
-              </Text>
-              <TouchableOpacity
-                onPress={() => setShowSortModal(true)}
-                activeOpacity={0.8}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  backgroundColor: Colors.neutral[100],
-                  borderRadius: BorderRadius.full,
-                  paddingVertical: 6,
-                  paddingHorizontal: 10,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "600",
-                    color: Colors.neutral[700],
-                  }}
-                >
-                  정렬: {currentSortLabel}
-                </Text>
-                <ChevronDown size={14} color={Colors.neutral[500]} style={{ marginLeft: 4 }} />
-              </TouchableOpacity>
-            </View>
-          </View>
+              정렬: {currentSortLabel}
+            </Text>
+            <ChevronDown size={14} color={Colors.neutral[500]} style={{ marginLeft: 4 }} />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -368,11 +489,10 @@ export default function RecipeBookDetailScreen() {
           numColumns={2}
           columnWrapperStyle={{
             justifyContent: "space-between",
-            marginBottom: Spacing.md,
           }}
           contentContainerStyle={{
-            paddingHorizontal: Spacing.xl,
-            paddingTop: Spacing.lg,
+            paddingHorizontal: HORIZONTAL_PADDING,
+            paddingTop: 14,
             paddingBottom: Spacing.md,
           }}
           onEndReached={() => {
@@ -436,43 +556,63 @@ export default function RecipeBookDetailScreen() {
         />
       )}
 
-      {/* 레시피 메뉴 바텀시트 */}
-      <Modal visible={showSortModal} transparent animationType="fade">
-        <Pressable
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.35)",
-            justifyContent: "flex-end",
-          }}
-          onPress={() => setShowSortModal(false)}
-        >
-          <Pressable
+      {/* 정렬 바텀시트 */}
+      <Modal
+        visible={showSortModal}
+        transparent
+        statusBarTranslucent
+        animationType="none"
+        onRequestClose={closeSortSheet}
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          {/* 오버레이 */}
+          <Animated.View
             style={{
-              backgroundColor: Colors.neutral[0],
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.35)",
+              opacity: sortOverlayOpacity,
+            }}
+          >
+            <Pressable style={{ flex: 1 }} onPress={closeSortSheet} />
+          </Animated.View>
+
+          {/* 시트 */}
+          <Animated.View
+            style={{
+              transform: [{ translateY: sortSheetTranslateY }],
+              backgroundColor: "#FFFFFF",
               borderTopLeftRadius: BorderRadius.xl,
               borderTopRightRadius: BorderRadius.xl,
-              paddingTop: Spacing.md,
-              paddingBottom: insets.bottom + Spacing.lg,
+              paddingTop: Spacing.sm,
+              paddingBottom: insets.bottom + Spacing.xl + 100,
+              marginBottom: -100,
+              paddingHorizontal: Spacing.xl,
             }}
-            onPress={(e) => e.stopPropagation()}
           >
-            <View
-              style={{
-                width: 36,
-                height: 4,
-                backgroundColor: Colors.neutral[300],
-                borderRadius: 2,
-                alignSelf: "center",
-                marginBottom: Spacing.md,
-              }}
-            />
+            {/* 핸들 바 */}
+            <View style={{
+              width: 36,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: Colors.neutral[200],
+              alignSelf: "center",
+              marginBottom: Spacing.lg,
+            }} />
+
+            {/* 타이틀 */}
             <Text
               style={{
-                fontSize: Typography.fontSize.base,
+                fontSize: 18,
                 fontWeight: "700",
                 color: Colors.neutral[900],
-                paddingHorizontal: Spacing.xl,
-                paddingBottom: Spacing.sm,
+                paddingBottom: Spacing.md,
+                marginBottom: Spacing.sm,
+                borderBottomWidth: 1,
+                borderBottomColor: Colors.neutral[100],
               }}
             >
               정렬 기준
@@ -484,217 +624,370 @@ export default function RecipeBookDetailScreen() {
                   key={option.value}
                   onPress={() => {
                     setSortType(option.value);
-                    setShowSortModal(false);
+                    closeSortSheet();
                   }}
-                  activeOpacity={0.8}
+                  activeOpacity={0.6}
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    paddingVertical: Spacing.md,
-                    paddingHorizontal: Spacing.xl,
+                    paddingVertical: 14,
                   }}
                 >
                   <Text
                     style={{
-                      fontSize: Typography.fontSize.base,
-                      color: isSelected ? Colors.primary[600] : Colors.neutral[800],
-                      fontWeight: isSelected ? "700" : "500",
+                      fontSize: 16,
+                      color: isSelected ? Colors.primary[500] : Colors.neutral[700],
+                      fontWeight: isSelected ? "700" : "400",
                     }}
                   >
                     {option.label}
                   </Text>
-                  {isSelected ? <Check size={18} color={Colors.primary[600]} /> : null}
                 </TouchableOpacity>
               );
             })}
-          </Pressable>
-        </Pressable>
+          </Animated.View>
+        </View>
       </Modal>
 
       {/* 레시피 메뉴 바텀시트 */}
-      <Modal visible={showRecipeMenuModal} transparent animationType="slide">
-        <Pressable
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            justifyContent: "flex-end",
-          }}
-          onPress={() => setShowRecipeMenuModal(false)}
-        >
-          <Pressable
+      <Modal
+        visible={showRecipeMenuModal}
+        transparent
+        statusBarTranslucent
+        animationType="none"
+        onRequestClose={() => closeMenuSheet()}
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          {/* 오버레이 */}
+          <Animated.View
             style={{
-              backgroundColor: Colors.neutral[0],
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.35)",
+              opacity: menuOverlayOpacity,
+            }}
+          >
+            <Pressable style={{ flex: 1 }} onPress={() => closeMenuSheet()} />
+          </Animated.View>
+
+          {/* 시트 */}
+          <Animated.View
+            style={{
+              transform: [{ translateY: menuSheetTranslateY }],
+              backgroundColor: "#FFFFFF",
               borderTopLeftRadius: BorderRadius.xl,
               borderTopRightRadius: BorderRadius.xl,
-              paddingTop: Spacing.md,
-              paddingBottom: insets.bottom + Spacing.lg,
+              paddingTop: Spacing.sm,
+              paddingBottom: insets.bottom + Spacing.xl + 100,
+              marginBottom: -100,
+              paddingHorizontal: Spacing.xl,
             }}
-            onPress={(e) => e.stopPropagation()}
           >
-            {/* 핸들바 */}
-            <View
-              style={{
-                width: 36,
-                height: 4,
-                backgroundColor: Colors.neutral[300],
-                borderRadius: 2,
-                alignSelf: "center",
-                marginBottom: Spacing.lg,
-              }}
-            />
+            {/* 핸들 바 */}
+            <View style={{
+              width: 36,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: Colors.neutral[200],
+              alignSelf: "center",
+              marginBottom: Spacing.lg,
+            }} />
 
             {/* 레시피 정보 */}
+            {selectedRecipe && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingBottom: Spacing.md,
+                  marginBottom: Spacing.sm,
+                  borderBottomWidth: 1,
+                  borderBottomColor: Colors.neutral[100],
+                }}
+              >
+                <Image
+                  source={{ uri: selectedRecipe.thumbnail }}
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: BorderRadius.md,
+                  }}
+                  contentFit="cover"
+                />
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: 15,
+                    fontWeight: "600",
+                    color: Colors.neutral[900],
+                    marginLeft: Spacing.md,
+                  }}
+                  numberOfLines={1}
+                >
+                  {selectedRecipe.title}
+                </Text>
+              </View>
+            )}
+
+            {/* 다른 레시피북으로 이동 */}
+            <TouchableOpacity
+              onPress={() => handleRecipeMenuAction("move")}
+              activeOpacity={0.6}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: Spacing.md,
+                paddingVertical: 14,
+              }}
+            >
+              <FolderInput size={20} color={Colors.neutral[600]} />
+              <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.neutral[900] }}>
+                다른 레시피북으로 이동
+              </Text>
+            </TouchableOpacity>
+
+            {/* 북마크 해제 */}
+            <TouchableOpacity
+              onPress={() => handleRecipeMenuAction("delete")}
+              activeOpacity={0.6}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: Spacing.md,
+                paddingVertical: 14,
+              }}
+            >
+              <Trash2 size={20} color={Colors.error.main} />
+              <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.error.main }}>
+                북마크 해제
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
+
+
+      {/* 레시피북 이동 바텀시트 */}
+      <Modal
+        visible={showBookSelectSheet}
+        transparent
+        statusBarTranslucent
+        animationType="none"
+        onRequestClose={() => closeBookSelectSheet()}
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          {/* 오버레이 */}
+          <Animated.View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              opacity: bookSelectOverlayOpacity,
+            }}
+          >
+            <Pressable style={{ flex: 1 }} onPress={() => closeBookSelectSheet()} />
+          </Animated.View>
+
+          {/* 시트 */}
+          <Animated.View
+            style={{
+              transform: [{ translateY: bookSelectSheetTranslateY }],
+              backgroundColor: Colors.neutral[0],
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              paddingTop: 8,
+              paddingBottom: insets.bottom + Spacing.xl + 100,
+              marginBottom: -100,
+            }}
+          >
+            {/* 핸들 바 */}
+            <View style={{ alignItems: "center", paddingVertical: 8 }}>
+              <View
+                style={{
+                  width: 40,
+                  height: 4,
+                  backgroundColor: Colors.neutral[300],
+                  borderRadius: 2,
+                }}
+              />
+            </View>
+
+            {/* 헤더 */}
             <View
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                paddingHorizontal: Spacing.xl,
-                paddingBottom: Spacing.lg,
+                justifyContent: "space-between",
+                paddingHorizontal: 20,
+                paddingVertical: 12,
                 borderBottomWidth: 1,
                 borderBottomColor: Colors.neutral[100],
               }}
             >
-              {selectedRecipe && (
-                <>
-                  <Image
-                    source={{ uri: selectedRecipe.thumbnail }}
+              <Text style={{ fontSize: 18, fontWeight: "700", color: Colors.neutral[900] }}>
+                다른 레시피북으로 이동
+              </Text>
+              <TouchableOpacity onPress={() => closeBookSelectSheet()}>
+                <X size={24} color={Colors.neutral[500]} />
+              </TouchableOpacity>
+            </View>
+
+            {/* 탭 */}
+            <View
+              style={{
+                flexDirection: "row",
+                paddingHorizontal: 20,
+                paddingVertical: 12,
+                gap: 8,
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => setBookSelectTab("personal")}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                  backgroundColor: bookSelectTab === "personal" ? Colors.neutral[900] : Colors.neutral[100],
+                  gap: 6,
+                }}
+              >
+                <BookOpen size={16} color={bookSelectTab === "personal" ? "#FFF" : Colors.neutral[600]} />
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: bookSelectTab === "personal" ? "#FFF" : Colors.neutral[600],
+                  }}
+                >
+                  개인
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setBookSelectTab("group")}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                  backgroundColor: bookSelectTab === "group" ? Colors.neutral[900] : Colors.neutral[100],
+                  gap: 6,
+                }}
+              >
+                <Users size={16} color={bookSelectTab === "group" ? "#FFF" : Colors.neutral[600]} />
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: bookSelectTab === "group" ? "#FFF" : Colors.neutral[600],
+                  }}
+                >
+                  그룹
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* 레시피북 목록 */}
+            <ScrollView style={{ height: BOOK_LIST_ITEM_HEIGHT * BOOK_LIST_VISIBLE_COUNT }} contentContainerStyle={{ paddingHorizontal: 20 }}>
+              {(() => {
+                const books = bookSelectTab === "personal"
+                  ? personalBooks
+                      .filter((book) => String(book.id) !== bookId)
+                      .map((book) => ({
+                        id: String(book.id),
+                        name: book.name,
+                        recipeCount: book.recipeCount,
+                        isDefault: book.isDefault,
+                        groupName: undefined as string | undefined,
+                      }))
+                  : groupBooks
+                      .filter((book) => String(book.id) !== bookId)
+                      .map((book) => ({
+                        id: String(book.id),
+                        name: book.name,
+                        recipeCount: book.recipeCount,
+                        isDefault: false,
+                        groupName: book.groupName,
+                      }));
+
+                if (books.length === 0) {
+                  return (
+                    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 60 }}>
+                      <Users size={32} color={Colors.neutral[300]} />
+                      <Text style={{ fontSize: 14, color: Colors.neutral[400], marginTop: 12 }}>
+                        {bookSelectTab === "group"
+                          ? "참여한 그룹이 없습니다"
+                          : "이동할 수 있는 레시피북이 없습니다"}
+                      </Text>
+                    </View>
+                  );
+                }
+
+                return books.map((book) => (
+                  <TouchableOpacity
+                    key={book.id}
+                    onPress={() => handleMoveToBook(book.id, book.name)}
+                    activeOpacity={0.7}
                     style={{
-                      width: 56,
-                      height: 56,
-                      borderRadius: BorderRadius.md,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingVertical: 14,
+                      borderBottomWidth: 1,
+                      borderBottomColor: Colors.neutral[100],
                     }}
-                    contentFit="cover"
-                  />
-                  <View style={{ flex: 1, marginLeft: Spacing.md }}>
-                    <Text
+                  >
+                    <View
                       style={{
-                        fontSize: Typography.fontSize.base,
-                        fontWeight: "600",
-                        color: Colors.neutral[900],
-                      }}
-                      numberOfLines={2}
-                    >
-                      {selectedRecipe.title}
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: Typography.fontSize.sm,
-                        color: Colors.neutral[500],
-                        marginTop: 2,
+                        width: 44,
+                        height: 44,
+                        borderRadius: 10,
+                        backgroundColor: Colors.neutral[100],
+                        justifyContent: "center",
+                        alignItems: "center",
+                        marginRight: 12,
                       }}
                     >
-                      {selectedRecipe.author}
-                    </Text>
-                  </View>
-                </>
-              )}
-            </View>
-
-            {/* 메뉴 옵션들 */}
-            <View style={{ paddingTop: Spacing.sm }}>
-              {/* 다른 레시피북으로 이동 */}
-              <TouchableOpacity
-                onPress={() => handleRecipeMenuAction("move")}
-                activeOpacity={0.7}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: Spacing.md,
-                  paddingHorizontal: Spacing.xl,
-                }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: Colors.neutral[100],
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <FolderInput size={20} color={Colors.neutral[700]} />
-                </View>
-                <Text
-                  style={{
-                    flex: 1,
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: "500",
-                    color: Colors.neutral[900],
-                    marginLeft: Spacing.md,
-                  }}
-                >
-                  다른 레시피북으로 이동
-                </Text>
-              </TouchableOpacity>
-
-              {/* 삭제 */}
-              <TouchableOpacity
-                onPress={() => handleRecipeMenuAction("delete")}
-                activeOpacity={0.7}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: Spacing.md,
-                  paddingHorizontal: Spacing.xl,
-                }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: Colors.error.light,
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <Trash2 size={20} color={Colors.error.main} />
-                </View>
-                <Text
-                  style={{
-                    flex: 1,
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: "500",
-                    color: Colors.error.main,
-                    marginLeft: Spacing.md,
-                  }}
-                >
-                  레시피북에서 삭제
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-          </Pressable>
-        </Pressable>
+                      <BookOpen size={22} color={Colors.neutral[500]} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontSize: 15,
+                          fontWeight: "600",
+                          color: Colors.neutral[900],
+                        }}
+                      >
+                        {book.name}
+                        {book.isDefault && (
+                          <Text style={{ color: Colors.neutral[400], fontWeight: "400" }}> (기본)</Text>
+                        )}
+                      </Text>
+                      <Text style={{ fontSize: 13, color: Colors.neutral[500], marginTop: 2 }}>
+                        {book.groupName ? `${book.groupName} · ` : ""}
+                        레시피 {book.recipeCount}개
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ));
+              })()}
+            </ScrollView>
+          </Animated.View>
+        </View>
       </Modal>
-
-
-      {/* 레시피북 선택 모달 */}
-      <RecipeBookSelectModal
-        visible={showBookSelectModal}
-        onClose={() => setShowBookSelectModal(false)}
-        onSelect={async (bookId, bookName) => {
-          if (selectedRecipe) {
-            const success = await moveRecipe(selectedRecipe.id, bookId);
-            if (success) {
-              showToast(`"${bookName}"(으)로 이동했어요.`, "success");
-            } else {
-              showToast("레시피 이동에 실패했어요.", "danger");
-            }
-          }
-        }}
-        currentBookId={bookId}
-        title="이동할 레시피북"
-      />
       <ConfirmActionModal
         visible={showDeleteConfirmModal}
-        title="레시피를 삭제할까요?"
-        description="이 레시피북에서만 제거되며, 다른 레시피북에는 그대로 유지됩니다."
-        targetName={selectedRecipe?.title}
-        targetMeta={selectedRecipe ? `· 북마크 ${formatCount(selectedRecipe.likes || 0)}` : undefined}
-        targetIcon={<ChefHat size={18} color={Colors.neutral[600]} />}
+        title="레시피 북마크를 해제할까요?"
+        confirmText="해제"
+        confirmLoadingText="해제 중..."
         loading={isDeletingRecipe}
         onClose={() => {
           if (isDeletingRecipe) return;

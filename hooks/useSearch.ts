@@ -15,6 +15,7 @@ interface SearchParams {
   cuisineTypes?: string[];
   mealTypes?: string[];
   difficulties?: string[];
+  enabled?: boolean;
 }
 
 interface ApiResponse<T> {
@@ -52,9 +53,10 @@ function buildQueryString(params: SearchParams, page: number, size: number): str
 }
 
 export function useRecipeSearch(params: SearchParams) {
+  const enabled = params.enabled !== false;
   const [results, setResults] = useState<SearchRecipeItem[]>([]);
   const [pageInfo, setPageInfo] = useState<SearchPageInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -123,6 +125,10 @@ export function useRecipeSearch(params: SearchParams) {
   }, []);
 
   const fetchInitial = useCallback(async () => {
+    if (!paramsRef.current.enabled && paramsRef.current.enabled !== undefined) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
