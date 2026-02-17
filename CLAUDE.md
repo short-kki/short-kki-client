@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Shortkki (숏끼) - A short-form recipe sharing and social meal calendar app built with React Native/Expo. Features TikTok/Reels-style vertical video UI for recipe discovery with YouTube Shorts integration.
 
+> **Important**: This app must run correctly on both **iOS** and **Android** platforms simultaneously. When writing or modifying code, always consider cross-platform compatibility — avoid platform-specific APIs without providing fallbacks, test UI rendering on both platforms, and be cautious with platform-dependent styling or behavior differences.
+
 ## Commands
 
 ```bash

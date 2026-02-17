@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
   SectionList,
   RefreshControl,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,7 +26,8 @@ import {
 import { Colors, Typography, Spacing, BorderRadius, Shadows, SemanticColors } from "@/constants/design-system";
 import { useRecommendedCurations } from "@/hooks";
 import type { CurationSection } from "@/data/mock";
-import Svg, { Path, Defs, LinearGradient, Stop, Rect } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
+import { LinearGradient } from "expo-linear-gradient";
 
 // YouTube 썸네일 URL 생성 함수
 const getYoutubeThumbnail = (videoId: string) =>
@@ -97,18 +99,18 @@ function YouTubeBadge({ creatorName }: { creatorName?: string }) {
 const TopRankCard = React.memo(function TopRankCard({
   item,
   rank,
+  cardWidth,
   onPress,
 }: {
   item: ShortsCardItem;
   rank: number;
+  cardWidth: number;
   onPress: () => void;
 }) {
-  const { width: screenWidth } = useWindowDimensions();
-  const CARD_WIDTH = Math.min(220, Math.max(170, Math.round(screenWidth * 0.55)));
+  const CARD_WIDTH = cardWidth;
   const CARD_HEIGHT = Math.round(CARD_WIDTH * 1.42);
   const titleLineHeight = 20;
   const rankLineHeight = 40;
-  const gradientId = `topCardOverlay-${item.id}`;
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -130,23 +132,12 @@ const TopRankCard = React.memo(function TopRankCard({
           contentFit="cover"
           contentPosition="center"
         />
-        <Svg
-          width="100%"
-          height="100%"
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.25)', 'rgba(0,0,0,0.55)']}
+          locations={[0.55, 0.8, 1]}
           style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
           pointerEvents="none"
-        >
-          <Defs>
-            <LinearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0.55" stopColor="#000000" stopOpacity="0" />
-              <Stop offset="0.8" stopColor="#000000" stopOpacity="0.25" />
-              <Stop offset="1" stopColor="#000000" stopOpacity="0.55" />
-            </LinearGradient>
-          </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${gradientId})`} />
-        </Svg>
+        />
         <View
           style={{
             position: "absolute",
@@ -202,12 +193,9 @@ const TopRankCard = React.memo(function TopRankCard({
 });
 
 // 통일 카드 컴포넌트
-const ShortsCard = React.memo(function ShortsCard({ item, onPress }: { item: ShortsCardItem; onPress: () => void }) {
-  const { width: screenWidth } = useWindowDimensions();
-  const CARD_WIDTH = Math.min(190, Math.max(150, Math.round(screenWidth * 0.48)));
+const ShortsCard = React.memo(function ShortsCard({ item, onPress, cardWidth }: { item: ShortsCardItem; onPress: () => void; cardWidth: number }) {
+  const CARD_WIDTH = cardWidth;
   const CARD_HEIGHT = Math.round(CARD_WIDTH * (16 / 9));
-  const topGradientId = `cardOverlayTop-${item.id}`;
-  const bottomGradientId = `cardOverlayBottom-${item.id}`;
 
   return (
     <TouchableOpacity
@@ -238,22 +226,11 @@ const ShortsCard = React.memo(function ShortsCard({ item, onPress }: { item: Sho
             contentFit="cover"
             contentPosition="center"
           />
-          <Svg
-            width="100%"
-            height="30%"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-            style={{ position: "absolute", left: 0, right: 0, top: 0 }}
+          <LinearGradient
+            colors={['rgba(0,0,0,0.35)', 'transparent']}
+            style={{ position: "absolute", left: 0, right: 0, top: 0, height: "30%" }}
             pointerEvents="none"
-          >
-            <Defs>
-              <LinearGradient id={topGradientId} x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor="#000000" stopOpacity="0.35" />
-                <Stop offset="1" stopColor="#000000" stopOpacity="0" />
-              </LinearGradient>
-            </Defs>
-            <Rect x="-1" y="-1" width="102%" height="102%" fill={`url(#${topGradientId})`} />
-          </Svg>
+          />
           <YouTubeBadge creatorName={item.creatorName} />
           <View
             style={{
@@ -267,23 +244,12 @@ const ShortsCard = React.memo(function ShortsCard({ item, onPress }: { item: Sho
               borderBottomRightRadius: BorderRadius.md,
             }}
           >
-            <Svg
-              width="100%"
-              height="100%"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.45)', 'rgba(0,0,0,0.8)']}
+              locations={[0.4, 0.7, 1]}
               style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
               pointerEvents="none"
-            >
-              <Defs>
-                <LinearGradient id={bottomGradientId} x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0.4" stopColor="#000000" stopOpacity="0" />
-                  <Stop offset="0.7" stopColor="#000000" stopOpacity="0.45" />
-                  <Stop offset="1" stopColor="#000000" stopOpacity="0.8" />
-                </LinearGradient>
-              </Defs>
-              <Rect x="-1" y="-1" width="102%" height="102%" fill={`url(#${bottomGradientId})`} />
-            </Svg>
+            />
             <View style={{ paddingHorizontal: 10, paddingTop: 10, paddingBottom: 10 }}>
               <Text
                 style={{
@@ -311,8 +277,7 @@ const ShortsCard = React.memo(function ShortsCard({ item, onPress }: { item: Sho
 });
 
 // 레시피 카드 컴포넌트 (가로 스크롤용)
-const RecipeCard = React.memo(function RecipeCard({ item, onPress, size = "medium" }: { item: any; onPress: () => void; size?: "small" | "medium" | "large" }) {
-  void size;
+const RecipeCard = React.memo(function RecipeCard({ item, onPress, cardWidth }: { item: any; onPress: () => void; cardWidth: number }) {
   return (
     <ShortsCard
       item={{
@@ -326,6 +291,7 @@ const RecipeCard = React.memo(function RecipeCard({ item, onPress, size = "mediu
         creatorName: item.creatorName,
       }}
       onPress={onPress}
+      cardWidth={cardWidth}
     />
   );
 });
@@ -361,7 +327,7 @@ const SectionHeader = React.memo(function SectionHeader({
           }}
           numberOfLines={1}
           adjustsFontSizeToFit
-          minimumFontScale={0.7}
+          {...(Platform.OS === 'ios' && { minimumFontScale: 0.7 })}
         >
           {title}
         </Text>
@@ -397,6 +363,43 @@ const SectionHeader = React.memo(function SectionHeader({
   );
 });
 
+// 큐레이션 섹션 행 컴포넌트 (renderItem에서 사용)
+const CurationSectionRow = React.memo(function CurationSectionRow({
+  section,
+  cardWidth,
+  onRecipePress,
+  onSeeAll,
+}: {
+  section: CurationSection;
+  cardWidth: number;
+  onRecipePress: (recipeId: string, section: CurationSection) => void;
+  onSeeAll: (sectionId: string, sectionTitle: string) => void;
+}) {
+  return (
+    <View style={{ marginBottom: Spacing.base }}>
+      <SectionHeader
+        title={section.title.trim().startsWith("#") ? section.title : `# ${section.title}`}
+        description={section.description}
+        onSeeAll={() => onSeeAll(section.id, section.title)}
+      />
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}
+      >
+        {section.recipes?.map((recipe) => (
+          <RecipeCard
+            key={recipe.id}
+            item={recipe}
+            onPress={() => onRecipePress(recipe.id, section)}
+            cardWidth={cardWidth}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+});
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -405,6 +408,8 @@ export default function HomeScreen() {
   const [selectedFilter, setSelectedFilter] = useState("전체");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const logoSize = Math.min(52, Math.max(40, Math.round(screenWidth * 0.12)));
+  const topCardWidth = Math.min(220, Math.max(170, Math.round(screenWidth * 0.55)));
+  const shortsCardWidth = Math.min(190, Math.max(150, Math.round(screenWidth * 0.48)));
   const FILTER_BAR_HEIGHT = 44;
   const HEADER_BAR_HEIGHT = logoSize + Spacing.sm * 2; // logo + paddingVertical
   const SEPARATOR_HEIGHT = 1;
@@ -457,7 +462,7 @@ export default function HomeScreen() {
     refetch,
   } = useRecommendedCurations();
 
-  const handleRecipePress = (recipeId: string, section: CurationSection) => {
+  const handleRecipePress = useCallback((recipeId: string, section: CurationSection) => {
     router.push({
       pathname: "/(tabs)/shorts",
       params: {
@@ -466,18 +471,21 @@ export default function HomeScreen() {
         curationRecipes: JSON.stringify(section.recipes ?? []),
       },
     });
-  };
+  }, [router]);
 
-  const handleShortsPress = (shortsId: string) => {
+  const handleShortsPress = useCallback((shortsId: string) => {
     router.push({
       pathname: "/(tabs)/shorts",
       params: { startIndex: shortsId },
     });
-  };
+  }, [router]);
 
-  const handleTopCurationPress = (shortsId: string) => {
+  const handleTopCurationPress = useCallback((shortsId: string) => {
     if (!topCuration) {
-      handleShortsPress(shortsId);
+      router.push({
+        pathname: "/(tabs)/shorts",
+        params: { startIndex: shortsId },
+      });
       return;
     }
     router.push({
@@ -488,33 +496,30 @@ export default function HomeScreen() {
         curationRecipes: JSON.stringify(topCuration.recipes ?? []),
       },
     });
-  };
+  }, [router, topCuration]);
 
-  const handleSeeAllShorts = () => {
+  const handleSeeAllShorts = useCallback(() => {
     router.push("/(tabs)/shorts");
-  };
+  }, [router]);
 
-  const handleSearch = () => {
+  const handleSearch = useCallback(() => {
     router.push("/search");
-  };
+  }, [router]);
 
-  const handleNotifications = () => {
+  const handleNotifications = useCallback(() => {
     router.push("/notifications");
-  };
+  }, [router]);
 
-  const handleSeeAllSection = (sectionId: string) => {
-    router.push({
-      pathname: "/(tabs)/shorts",
-      params: { section: sectionId },
-    });
-  };
+  const handleSeeAllSection = useCallback((sectionId: string, sectionTitle: string) => {
+    router.push(`/search-results?curationId=${sectionId}&curationTitle=${encodeURIComponent(sectionTitle)}` as any);
+  }, [router]);
 
-  const handleSeeAllTrending = () => {
+  const handleSeeAllTrending = useCallback(() => {
     router.push({
       pathname: "/(tabs)/shorts",
       params: { section: "trending" },
     });
-  };
+  }, [router]);
 
   const FILTERS = ["전체", "한식", "양식", "일식", "디저트", "안주"];
 
@@ -539,10 +544,13 @@ export default function HomeScreen() {
   }, [sections, selectedFilter]);
 
   const AnimatedSectionList = useRef(Animated.createAnimatedComponent(SectionList)).current;
-  const curationSections = filteredSections.map((section) => ({
-    ...section,
-    data: [section],
-  }));
+  const curationSections = useMemo(
+    () => filteredSections.map((section) => ({
+      ...section,
+      data: [section],
+    })),
+    [filteredSections]
+  );
   const topShorts = useMemo(
     () =>
       topRecipes.slice(0, 5).map((item, index) => ({
@@ -562,6 +570,122 @@ export default function HomeScreen() {
     [topRecipes]
   );
 
+  // SectionList 콜백 메모이제이션
+  const keyExtractor = useCallback((item: unknown) => (item as CurationSection).id, []);
+
+  const renderCurationItem = useCallback(({ item }: { item: unknown }) => {
+    const section = item as CurationSection;
+    return (
+      <CurationSectionRow
+        section={section}
+        cardWidth={shortsCardWidth}
+        onRecipePress={handleRecipePress}
+        onSeeAll={handleSeeAllSection}
+      />
+    );
+  }, [shortsCardWidth, handleRecipePress, handleSeeAllSection]);
+
+  const handleEndReached = useCallback(() => {
+    if (hasNext && !loadingMore) fetchNextPage();
+  }, [hasNext, loadingMore, fetchNextPage]);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refetch]);
+
+  const onScrollEvent = useMemo(
+    () => Animated.event(
+      [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+      { useNativeDriver: true }
+    ),
+    [scrollY]
+  );
+
+  const contentContainerStyle = useMemo(
+    () => ({ paddingTop: headerHeight, paddingBottom: 16 }),
+    [headerHeight]
+  );
+
+  const listHeaderComponent = useMemo(() => (
+    <View>
+      {/* 초기 로딩 상태 (새로고침이 아닐 때만) */}
+      {loading && !isRefreshing && topRecipes.length === 0 && (
+        <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
+          <ActivityIndicator size="large" color={Colors.primary[500]} />
+          <Text style={{ marginTop: Spacing.md, color: Colors.neutral[500] }}>
+            로딩 중...
+          </Text>
+        </View>
+      )}
+
+      {/* 데이터가 없을 때 (로딩 완료 후) */}
+      {!loading && topRecipes.length === 0 && sections.length === 0 && (
+        <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
+          <Text style={{ fontSize: Typography.fontSize.lg, fontWeight: "600", color: Colors.neutral[500] }}>
+            콘텐츠가 없습니다
+          </Text>
+          <Text style={{ fontSize: Typography.fontSize.sm, color: Colors.neutral[400], marginTop: Spacing.xs }}>
+            서버 연결을 확인해주세요
+          </Text>
+        </View>
+      )}
+
+      {/* TOP 레시피 랭킹 - 데이터가 있으면 항상 표시 */}
+      {topRecipes.length > 0 && (
+        <View style={{ paddingTop: Spacing.base, paddingBottom: Spacing.lg }}>
+          <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.base }}>
+            <Text style={{ fontSize: 24, fontWeight: "800", color: Colors.neutral[900], letterSpacing: -0.4 }}>
+              TOP 레시피
+            </Text>
+            <Text style={{ fontSize: 12, color: Colors.neutral[600], marginTop: 2 }}>
+              가장 많이 저장된 레시피
+            </Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}
+          >
+            {topShorts.map(({ key, item, rank }) => (
+              <TopRankCard
+                key={key}
+                item={item}
+                rank={rank}
+                cardWidth={topCardWidth}
+                onPress={() => handleTopCurationPress(item.id)}
+              />
+            ))}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  ), [loading, isRefreshing, topRecipes, sections.length, topShorts, topCardWidth, handleTopCurationPress]);
+
+  const listFooterComponent = useMemo(() =>
+    loadingMore ? (
+      <View style={{ paddingVertical: Spacing.lg }}>
+        <ActivityIndicator size="small" color={Colors.primary[500]} />
+      </View>
+    ) : null,
+    [loadingMore]
+  );
+
+  const refreshControl = useMemo(() => (
+    <RefreshControl
+      refreshing={isRefreshing}
+      onRefresh={handleRefresh}
+      {...(Platform.OS === 'ios'
+        ? { tintColor: "transparent" }
+        : { colors: [Colors.primary[500]], progressBackgroundColor: Colors.neutral[0], progressViewOffset: headerHeight }
+      )}
+    />
+  ), [isRefreshing, handleRefresh, headerHeight]);
+
   return (
     <View style={{ flex: 1, backgroundColor: SemanticColors.backgroundSecondary }}>
       <StatusBar barStyle="dark-content" />
@@ -570,131 +694,23 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         bounces
         overScrollMode="always"
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={async () => {
-              setIsRefreshing(true);
-              try {
-                await refetch();
-              } finally {
-                setIsRefreshing(false);
-              }
-            }}
-            tintColor="transparent"
-            colors={["transparent"]}
-          />
-        }
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
-        )}
+        refreshControl={refreshControl}
+        onScroll={onScrollEvent}
         scrollEventThrottle={16}
-        contentContainerStyle={{
-          paddingTop: headerHeight,
-          paddingBottom: 16,
-        }}
+        contentContainerStyle={contentContainerStyle}
         sections={curationSections}
-        keyExtractor={(item: unknown) => (item as CurationSection).id}
-        renderItem={({ item }: { item: unknown }) => {
-          const section = item as CurationSection;
-          return (
-            <View style={{ marginBottom: Spacing.base }}>
-              <SectionHeader
-                title={section.title.trim().startsWith("#") ? section.title : `# ${section.title}`}
-                description={section.description}
-                onSeeAll={() => handleSeeAllSection(section.id)}
-              />
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                removeClippedSubviews
-                contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}
-              >
-                {section.recipes?.map((recipe) => (
-                  <RecipeCard
-                    key={recipe.id}
-                    item={recipe}
-                    onPress={() => handleRecipePress(recipe.id, section)}
-                    size="medium"
-                  />
-                ))}
-              </ScrollView>
-            </View>
-          );
-        }}
-        ListHeaderComponent={
-          <View>
-            {/* 초기 로딩 상태 (새로고침이 아닐 때만) */}
-            {loading && !isRefreshing && topRecipes.length === 0 && (
-              <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
-                <ActivityIndicator size="large" color={Colors.primary[500]} />
-                <Text style={{ marginTop: Spacing.md, color: Colors.neutral[500] }}>
-                  로딩 중...
-                </Text>
-              </View>
-            )}
-
-            {/* 데이터가 없을 때 (로딩 완료 후) */}
-            {!loading && topRecipes.length === 0 && sections.length === 0 && (
-              <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
-                <Text style={{ fontSize: Typography.fontSize.lg, fontWeight: "600", color: Colors.neutral[500] }}>
-                  콘텐츠가 없습니다
-                </Text>
-                <Text style={{ fontSize: Typography.fontSize.sm, color: Colors.neutral[400], marginTop: Spacing.xs }}>
-                  서버 연결을 확인해주세요
-                </Text>
-              </View>
-            )}
-
-            {/* TOP 레시피 랭킹 - 데이터가 있으면 항상 표시 */}
-            {topRecipes.length > 0 && (
-              <View style={{ paddingTop: Spacing.base, paddingBottom: Spacing.lg }}>
-                <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.base }}>
-                  <Text style={{ fontSize: 24, fontWeight: "800", color: Colors.neutral[900], letterSpacing: -0.4 }}>
-                    TOP 레시피
-                  </Text>
-                  <Text style={{ fontSize: 12, color: Colors.neutral[600], marginTop: 2 }}>
-                    가장 많이 저장된 레시피
-                  </Text>
-                </View>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  removeClippedSubviews
-                  contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}
-                >
-                  {topShorts.map(({ key, item, rank }) => (
-                    <TopRankCard
-                      key={key}
-                      item={item}
-                      rank={rank}
-                      onPress={() => handleTopCurationPress(item.id)}
-                    />
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-          </View>
-        }
-        onEndReached={() => {
-          if (hasNext && !loadingMore) fetchNextPage();
-        }}
+        keyExtractor={keyExtractor}
+        renderItem={renderCurationItem}
+        ListHeaderComponent={listHeaderComponent}
+        onEndReached={handleEndReached}
         onEndReachedThreshold={0.6}
-        ListFooterComponent={
-          loadingMore ? (
-            <View style={{ paddingVertical: Spacing.lg }}>
-              <ActivityIndicator size="small" color={Colors.primary[500]} />
-            </View>
-          ) : null
-        }
+        ListFooterComponent={listFooterComponent}
         removeClippedSubviews
         initialNumToRender={3}
-        maxToRenderPerBatch={4}
-        windowSize={7}
-        updateCellsBatchingPeriod={50}
-      >
-      </AnimatedSectionList>
+        maxToRenderPerBatch={3}
+        windowSize={5}
+        updateCellsBatchingPeriod={100}
+      />
 
       {/* Fixed Header - rendered after ScrollView to receive touch events */}
       <Animated.View
@@ -842,35 +858,37 @@ export default function HomeScreen() {
         <View style={{ height: 1, backgroundColor: Colors.neutral[100] }} />
       </Animated.View>
 
-      {/* 커스텀 리프레시 인디케이터 (YouTube 스타일) */}
-      <Animated.View
-        pointerEvents="none"
-        style={{
-          position: "absolute",
-          top: headerHeight,
-          left: 0,
-          right: 0,
-          alignItems: "center",
-          zIndex: 99,
-          transform: [{ translateY: indicatorTranslateY }],
-          opacity: isRefreshing ? 1 : pullProgress,
-        }}
-      >
+      {/* 커스텀 리프레시 인디케이터 (YouTube 스타일, iOS only - Android는 네이티브 RefreshControl 사용) */}
+      {Platform.OS === 'ios' && (
         <Animated.View
+          pointerEvents="none"
           style={{
-            width: REFRESH_INDICATOR_SIZE,
-            height: REFRESH_INDICATOR_SIZE,
-            borderRadius: REFRESH_INDICATOR_SIZE / 2,
-            backgroundColor: Colors.neutral[0],
+            position: "absolute",
+            top: headerHeight,
+            left: 0,
+            right: 0,
             alignItems: "center",
-            justifyContent: "center",
-            transform: [{ scale: isRefreshing ? 1 : indicatorScale }],
-            ...Shadows.md,
+            zIndex: 99,
+            transform: [{ translateY: indicatorTranslateY }],
+            opacity: isRefreshing ? 1 : pullProgress,
           }}
         >
-          <ActivityIndicator size="small" color={Colors.primary[500]} />
+          <Animated.View
+            style={{
+              width: REFRESH_INDICATOR_SIZE,
+              height: REFRESH_INDICATOR_SIZE,
+              borderRadius: REFRESH_INDICATOR_SIZE / 2,
+              backgroundColor: Colors.neutral[0],
+              alignItems: "center",
+              justifyContent: "center",
+              transform: [{ scale: isRefreshing ? 1 : indicatorScale }],
+              ...Shadows.md,
+            }}
+          >
+            <ActivityIndicator size="small" color={Colors.primary[500]} />
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
+      )}
     </View>
   );
 }

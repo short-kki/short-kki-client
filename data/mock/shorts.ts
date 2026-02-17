@@ -13,6 +13,7 @@ export interface ShortsItem {
   title: string;
   author: string;
   authorAvatar?: string;
+  authorProfileImgUrl?: string;
   creatorName?: string;
   thumbnail: string;
   views?: string;
@@ -26,6 +27,7 @@ export interface CurationRecipe {
   thumbnail: string;
   duration: string;
   author: string;
+  authorProfileImgUrl?: string;
   creatorName?: string;
   bookmarks?: number;
   sourceUrl?: string;

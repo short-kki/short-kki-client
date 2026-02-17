@@ -1,15 +1,14 @@
 import React from "react";
 import { Modal, Pressable, Text, TouchableOpacity, View } from "react-native";
-import { AlertTriangle, Trash2 } from "lucide-react-native";
+import { AlertCircle } from "lucide-react-native";
 import { BorderRadius, Colors } from "@/constants/design-system";
 
 interface ConfirmActionModalProps {
   visible: boolean;
   title: string;
-  description: string;
+  description?: string;
   targetName?: string;
-  targetMeta?: string;
-  targetIcon?: React.ReactNode;
+  icon?: React.ReactNode;
   confirmText?: string;
   confirmLoadingText?: string;
   cancelText?: string;
@@ -23,8 +22,7 @@ export default function ConfirmActionModal({
   title,
   description,
   targetName,
-  targetMeta,
-  targetIcon,
+  icon,
   confirmText = "삭제",
   confirmLoadingText = "삭제 중...",
   cancelText = "취소",
@@ -49,100 +47,79 @@ export default function ConfirmActionModal({
         <Pressable
           style={{
             backgroundColor: "#FFFFFF",
-            borderRadius: 24,
-            padding: 28,
-            marginHorizontal: 40,
+            borderRadius: 20,
+            paddingTop: 24,
+            paddingHorizontal: 24,
+            paddingBottom: 20,
             alignItems: "center",
             shadowColor: "#000",
-            shadowOffset: { width: 0, height: 10 },
-            shadowOpacity: 0.15,
-            shadowRadius: 20,
-            elevation: 10,
-            width: "85%",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 12,
+            elevation: 8,
+            width: "80%",
           }}
           onPress={(e) => e.stopPropagation()}
         >
           <View
             style={{
-              width: 72,
-              height: 72,
-              borderRadius: 36,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
               backgroundColor: Colors.error.light,
               justifyContent: "center",
               alignItems: "center",
-              marginBottom: 20,
+              marginBottom: 14,
             }}
           >
-            <AlertTriangle size={36} color={Colors.error.main} />
+            {icon || <AlertCircle size={24} color={Colors.error.main} />}
           </View>
 
           <Text
             style={{
-              fontSize: 20,
-              fontWeight: "800",
+              fontSize: 17,
+              fontWeight: "700",
               color: Colors.neutral[900],
-              marginBottom: 8,
+              textAlign: "center",
             }}
           >
             {title}
           </Text>
 
-          {targetName && (
-            <View
+          {targetName ? (
+            <Text
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: Colors.neutral[100],
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-                borderRadius: 12,
-                marginBottom: 12,
-                width: "100%",
-                justifyContent: "center",
+                fontSize: 14,
+                fontWeight: "500",
+                color: Colors.neutral[500],
+                marginTop: 6,
+                textAlign: "center",
+              }}
+              numberOfLines={1}
+            >
+              {targetName}
+            </Text>
+          ) : null}
+
+          {description ? (
+            <Text
+              style={{
+                fontSize: 13,
+                color: Colors.neutral[400],
+                textAlign: "center",
+                lineHeight: 18,
+                marginTop: 6,
               }}
             >
-              {targetIcon}
-              <Text
-                style={{
-                  fontSize: 15,
-                  fontWeight: "600",
-                  color: Colors.neutral[800],
-                  marginLeft: 8,
-                }}
-                numberOfLines={1}
-              >
-                {targetName}
-              </Text>
-              {targetMeta ? (
-                <Text
-                  style={{
-                    fontSize: 13,
-                    color: Colors.neutral[500],
-                    marginLeft: 8,
-                  }}
-                >
-                  {targetMeta}
-                </Text>
-              ) : null}
-            </View>
-          )}
-
-          <Text
-            style={{
-              fontSize: 14,
-              color: Colors.neutral[500],
-              textAlign: "center",
-              lineHeight: 20,
-            }}
-          >
-            {description}
-          </Text>
+              {description}
+            </Text>
+          ) : null}
 
           <View
             style={{
               flexDirection: "row",
-              gap: 12,
-              marginTop: 24,
+              gap: 10,
+              marginTop: 20,
               width: "100%",
             }}
           >
@@ -153,16 +130,16 @@ export default function ConfirmActionModal({
               style={{
                 flex: 1,
                 backgroundColor: Colors.neutral[100],
-                paddingVertical: 14,
+                paddingVertical: 13,
                 borderRadius: BorderRadius.lg,
                 alignItems: "center",
               }}
             >
               <Text
                 style={{
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: "600",
-                  color: Colors.neutral[700],
+                  color: Colors.neutral[600],
                 }}
               >
                 {cancelText}
@@ -176,18 +153,14 @@ export default function ConfirmActionModal({
               style={{
                 flex: 1,
                 backgroundColor: loading ? Colors.neutral[300] : Colors.error.main,
-                paddingVertical: 14,
+                paddingVertical: 13,
                 borderRadius: BorderRadius.lg,
                 alignItems: "center",
-                flexDirection: "row",
-                justifyContent: "center",
-                gap: 6,
               }}
             >
-              <Trash2 size={18} color="#FFFFFF" />
               <Text
                 style={{
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: "700",
                   color: "#FFFFFF",
                 }}

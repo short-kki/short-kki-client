@@ -6,6 +6,12 @@ import { BorderRadius, Colors, Spacing, Typography } from "@/constants/design-sy
 
 export type FeedbackToastVariant = "success" | "danger";
 
+/** 토스트 메시지에 표시할 제목을 최대 길이로 잘라줍니다. */
+export function truncateTitle(title: string, maxLength: number = 12): string {
+  if (title.length <= maxLength) return title;
+  return title.slice(0, maxLength) + "...";
+}
+
 interface FeedbackToastState {
   toastMessage: string | null;
   toastVariant: FeedbackToastVariant;
@@ -71,7 +77,9 @@ export function useFeedbackToast(duration: number = 1500): FeedbackToastState {
           easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
         }),
-      ]).start(() => setToastMessage(null));
+      ]).start();
+      // 애니메이션 콜백이 호출되지 않는 경우를 대비해 타이머로 확실히 제거
+      setTimeout(() => setToastMessage(null), 300);
     }, duration);
   }, [duration, toastOpacity, toastTranslate]);
 
@@ -89,7 +97,10 @@ interface FeedbackToastProps {
   variant: FeedbackToastVariant;
   opacity: Animated.Value;
   translate: Animated.Value;
+  /** 기본 위치 위에 추가할 간격 (default: 12) */
   bottomOffset?: number;
+  /** 탭바가 보이는 화면에서 true — 부모 View가 이미 탭바 영역을 제외하므로 offset만 적용 */
+  aboveTabBar?: boolean;
 }
 
 export function FeedbackToast({
@@ -97,7 +108,8 @@ export function FeedbackToast({
   variant,
   opacity,
   translate,
-  bottomOffset = 88,
+  bottomOffset = 12,
+  aboveTabBar = false,
 }: FeedbackToastProps) {
   const insets = useSafeAreaInsets();
 
@@ -106,6 +118,11 @@ export function FeedbackToast({
   }
 
   const isSuccess = variant === "success";
+  // 탭바 화면: 부모 View 하단 = 탭바 상단이므로 offset만 적용
+  // 비탭바 화면: safe area를 고려해야 함
+  const bottom = aboveTabBar
+    ? bottomOffset
+    : insets.bottom + bottomOffset;
 
   return (
     <Animated.View
@@ -114,7 +131,7 @@ export function FeedbackToast({
         position: "absolute",
         left: Spacing.lg,
         right: Spacing.lg,
-        bottom: insets.bottom + bottomOffset,
+        bottom,
         zIndex: 300,
         opacity,
         transform: [{ translateY: translate }],
@@ -125,43 +142,35 @@ export function FeedbackToast({
           flexDirection: "row",
           alignItems: "center",
           gap: 10,
-          backgroundColor: "rgba(28, 25, 23, 0.94)",
-          borderWidth: 1,
-          borderColor: isSuccess ? "rgba(16, 185, 129, 0.35)" : "rgba(239, 68, 68, 0.35)",
-          borderRadius: BorderRadius.xl,
-          paddingHorizontal: Spacing.md,
-          paddingVertical: 11,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.18,
-          shadowRadius: 16,
-          elevation: 10,
+          backgroundColor: "rgba(0,0,0,0.8)",
+          borderRadius: 16,
+          overflow: "hidden",
+          paddingVertical: 12,
+          paddingHorizontal: 14,
         }}
       >
         <View
           style={{
-            width: 26,
-            height: 26,
-            borderRadius: 13,
-            backgroundColor: isSuccess ? "rgba(16, 185, 129, 0.2)" : "rgba(239, 68, 68, 0.2)",
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            backgroundColor: isSuccess ? "rgba(74,222,128,0.2)" : "rgba(248,113,113,0.2)",
             alignItems: "center",
             justifyContent: "center",
           }}
         >
           {isSuccess ? (
-            <Check size={15} color={Colors.success.main} strokeWidth={3} />
+            <Check size={16} color={Colors.success.main} strokeWidth={3} />
           ) : (
-            <X size={15} color={Colors.error.main} strokeWidth={3} />
+            <X size={16} color={Colors.error.main} strokeWidth={3} />
           )}
         </View>
         <Text
           style={{
-            flex: 1,
-            color: Colors.neutral[0],
-            fontSize: Typography.fontSize.sm,
-            fontWeight: Typography.fontWeight.semiBold,
+            color: "#FFFFFF",
+            fontSize: 13,
+            fontWeight: "600",
           }}
-          numberOfLines={2}
         >
           {message}
         </Text>

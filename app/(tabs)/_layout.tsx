@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Tabs, useLocalSearchParams, useRouter, useSegments } from "expo-router";
 import { View, Pressable, Text, TouchableOpacity, Animated, Easing } from "react-native";
-import { Home, CalendarDays, Plus, BookOpen, Users, Globe, PenLine, ChevronRight } from "lucide-react-native";
+import { Home, CalendarDays, Plus, Book, Users, Globe, PenLine, ChevronRight } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors, Spacing, BorderRadius } from "@/constants/design-system";
 
@@ -75,12 +75,13 @@ export default function TabLayout() {
   }, [openAddMenu, openMenu]);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: Colors.neutral[50] }}>
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: Colors.primary[500],
           tabBarInactiveTintColor: Colors.neutral[400],
           headerShown: false,
+          sceneContainerStyle: { backgroundColor: Colors.neutral[50] },
           tabBarStyle: {
             backgroundColor: "#FFFFFF",
             borderTopWidth: 1,
@@ -174,7 +175,7 @@ export default function TabLayout() {
                   backgroundColor: focused ? `${Colors.primary[500]}15` : "transparent",
                 }}
               >
-                <BookOpen size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
+                <Book size={24} color={color} strokeWidth={focused ? 2.5 : 2} />
               </View>
             ),
           }}

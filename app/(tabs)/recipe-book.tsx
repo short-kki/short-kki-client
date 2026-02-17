@@ -27,10 +27,12 @@ import {
   Lock,
   Users,
   GripVertical,
+  Book,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows, ComponentSizes } from "@/constants/design-system";
 import { usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
 import ConfirmActionModal from "@/components/ui/ConfirmActionModal";
+import { FeedbackToast, useFeedbackToast, truncateTitle } from "@/components/ui/FeedbackToast";
 
 // 레시피북 데이터 타입 (hooks에서 가져온 타입과 호환)
 interface RecipeBook {
@@ -156,7 +158,8 @@ function RecipeBookCard({
         }}
       >
         <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.sm }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Book size={18} color={Colors.primary[400]} strokeWidth={2.5} />
             <Text
               style={{
                 fontSize: Typography.fontSize.md,
@@ -295,10 +298,13 @@ export default function RecipeBookScreen() {
   const [newBookName, setNewBookName] = useState("");
   const [editingBook, setEditingBook] = useState<RecipeBook | null>(null);
   const [editBookName, setEditBookName] = useState("");
+  const createInputRef = useRef<TextInput>(null);
+  const editInputRef = useRef<TextInput>(null);
   const [selectedBook, setSelectedBook] = useState<RecipeBook | null>(null);
   const [deleteTargetBook, setDeleteTargetBook] = useState<RecipeBook | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeletingBook, setIsDeletingBook] = useState(false);
+  const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } = useFeedbackToast();
   const [mutablePersonalBooks, setMutablePersonalBooks] = useState<RecipeBook[]>([]);
   const isReorderingRef = useRef(false);
   const listBottomPadding = insets.bottom + ComponentSizes.tabBar.height + Spacing.lg;
@@ -317,10 +323,10 @@ export default function RecipeBookScreen() {
     }
   }, [params.groupId, params._t]);
 
-  const handleRecipeBookPress = useCallback((bookId: string) => {
+  const handleRecipeBookPress = useCallback((bookId: string, bookName?: string) => {
     router.push({
       pathname: "/recipe-book-detail",
-      params: { bookId },
+      params: { bookId, ...(bookName ? { bookName } : {}) },
     });
   }, [router]);
 
@@ -353,12 +359,14 @@ export default function RecipeBookScreen() {
   const confirmDelete = useCallback(async () => {
     if (!deleteTargetBook || isDeletingBook) return;
 
+    const bookName = deleteTargetBook.name;
     setIsDeletingBook(true);
     try {
       const success = await removeRecipeBook(deleteTargetBook.id);
       if (success) {
         setShowDeleteModal(false);
         setDeleteTargetBook(null);
+        showToast(`"${truncateTitle(bookName)}" 레시피북이 삭제되었습니다`);
       } else {
         Alert.alert("오류", "레시피북 삭제에 실패했습니다.");
       }
@@ -382,13 +390,15 @@ export default function RecipeBookScreen() {
       return;
     }
 
+    const bookName = newBookName.trim();
     setIsCreating(true);
-    const success = await createRecipeBook(newBookName.trim());
+    const success = await createRecipeBook(bookName);
     setIsCreating(false);
 
     if (success) {
       setNewBookName("");
       setShowCreateModal(false);
+      showToast(`"${truncateTitle(bookName)}" 레시피북이 생성되었습니다`);
     } else {
       Alert.alert("오류", "레시피북 생성에 실패했습니다. 다시 시도해주세요.");
     }
@@ -400,11 +410,13 @@ export default function RecipeBookScreen() {
       return;
     }
 
-    const success = await renameRecipeBook(editingBook.id, editBookName.trim());
+    const newName = editBookName.trim();
+    const success = await renameRecipeBook(editingBook.id, newName);
     if (success) {
       setEditingBook(null);
       setEditBookName("");
       setShowEditModal(false);
+      showToast(`"${truncateTitle(newName)}" (으)로 이름이 변경되었습니다`);
     } else {
       Alert.alert("오류", "레시피북 이름 변경에 실패했습니다.");
     }
@@ -430,7 +442,7 @@ export default function RecipeBookScreen() {
       <ScaleDecorator activeScale={1.01}>
         <RecipeBookCard
           book={item}
-          onPress={() => handleRecipeBookPress(item.id)}
+          onPress={() => handleRecipeBookPress(item.id, item.name)}
           onMenuPress={() => handleMenuPress(item)}
           draggable
           dragging={isActive}
@@ -555,7 +567,7 @@ export default function RecipeBookScreen() {
                   <RecipeBookCard
                     key={book.id}
                     book={book}
-                    onPress={() => handleRecipeBookPress(book.id)}
+                    onPress={() => handleRecipeBookPress(book.id, book.name)}
                     onMenuPress={() => handleMenuPress(book)}
                   />
                 ))}
@@ -811,7 +823,7 @@ export default function RecipeBookScreen() {
                       <RecipeBookCard
                         key={book.id}
                         book={book}
-                        onPress={() => handleRecipeBookPress(book.id)}
+                        onPress={() => handleRecipeBookPress(book.id, book.name)}
                         onMenuPress={() => handleMenuPress(book)}
                         onGroupPress={() => {
                           if (book.groupId) {
@@ -835,7 +847,7 @@ export default function RecipeBookScreen() {
       )}
 
       {/* 레시피북 생성 모달 */}
-      <Modal visible={showCreateModal} transparent animationType="fade">
+      <Modal visible={showCreateModal} transparent animationType="fade" onRequestClose={() => { setShowCreateModal(false); setNewBookName(""); }} onShow={() => setTimeout(() => createInputRef.current?.focus(), 100)}>
         <Pressable
           style={{
             flex: 1,
@@ -843,59 +855,78 @@ export default function RecipeBookScreen() {
             justifyContent: "center",
             alignItems: "center",
           }}
-          onPress={() => setShowCreateModal(false)}
+          onPress={() => { setShowCreateModal(false); setNewBookName(""); }}
         >
           <Pressable
             style={{
               width: "85%",
-              backgroundColor: Colors.neutral[0],
-              borderRadius: BorderRadius.xl,
-              padding: Spacing.xl,
+              backgroundColor: "#FFFFFF",
+              borderRadius: 20,
+              paddingTop: 24,
+              paddingHorizontal: 22,
+              paddingBottom: 20,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.12,
+              shadowRadius: 24,
+              elevation: 12,
             }}
             onPress={(e) => e.stopPropagation()}
           >
             <Text
               style={{
-                fontSize: Typography.fontSize.xl,
+                fontSize: 17,
                 fontWeight: "700",
                 color: Colors.neutral[900],
-                marginBottom: Spacing.lg,
+                marginBottom: 4,
               }}
             >
               새 레시피북
             </Text>
+            <Text
+              style={{
+                fontSize: 13,
+                color: Colors.neutral[400],
+                marginBottom: 18,
+              }}
+            >
+              레시피를 모아둘 새 레시피북을 만들어보세요
+            </Text>
 
             <Text
               style={{
-                fontSize: Typography.fontSize.sm,
-                color: Colors.neutral[600],
-                marginBottom: Spacing.sm,
+                fontSize: 12,
+                fontWeight: "600",
+                color: Colors.neutral[500],
+                marginBottom: 8,
               }}
             >
-              제목
+              레시피북 이름
             </Text>
             <TextInput
               style={{
                 backgroundColor: Colors.neutral[50],
-                borderWidth: 1,
+                borderWidth: 1.5,
                 borderColor: Colors.neutral[200],
-                borderRadius: BorderRadius.lg,
-                padding: Spacing.md,
-                fontSize: Typography.fontSize.base,
+                borderRadius: 12,
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+                fontSize: 15,
                 color: Colors.neutral[900],
               }}
-              placeholder="레시피북 이름"
-              placeholderTextColor={Colors.neutral[400]}
+              ref={createInputRef}
+              placeholder="예) 다이어트 레시피, 주말 브런치"
+              placeholderTextColor={Colors.neutral[300]}
               value={newBookName}
               onChangeText={setNewBookName}
-              autoFocus
+              maxLength={20}
             />
 
             <View
               style={{
                 flexDirection: "row",
-                gap: Spacing.sm,
-                marginTop: Spacing.xl,
+                gap: 8,
+                marginTop: 20,
               }}
             >
               <TouchableOpacity
@@ -903,43 +934,33 @@ export default function RecipeBookScreen() {
                   setShowCreateModal(false);
                   setNewBookName("");
                 }}
+                activeOpacity={0.7}
                 style={{
                   flex: 1,
                   backgroundColor: Colors.neutral[100],
-                  borderRadius: BorderRadius.lg,
-                  paddingVertical: Spacing.md,
+                  borderRadius: 10,
+                  paddingVertical: 11,
                   alignItems: "center",
                 }}
               >
-                <Text
-                  style={{
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: Typography.fontWeight.semiBold,
-                    color: Colors.neutral[600],
-                  }}
-                >
+                <Text style={{ fontSize: 14, fontWeight: "600", color: Colors.neutral[500] }}>
                   취소
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleCreateBook}
-                disabled={isCreating}
+                disabled={isCreating || !newBookName.trim()}
+                activeOpacity={0.7}
                 style={{
                   flex: 1,
-                  backgroundColor: isCreating ? Colors.neutral[300] : Colors.primary[500],
-                  borderRadius: BorderRadius.lg,
-                  paddingVertical: Spacing.md,
+                  backgroundColor: isCreating || !newBookName.trim() ? Colors.neutral[200] : Colors.primary[500],
+                  borderRadius: 10,
+                  paddingVertical: 11,
                   alignItems: "center",
                 }}
               >
-                <Text
-                  style={{
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: Typography.fontWeight.semiBold,
-                    color: "#FFF",
-                  }}
-                >
-                  {isCreating ? "저장 중..." : "저장"}
+                <Text style={{ fontSize: 14, fontWeight: "700", color: isCreating || !newBookName.trim() ? Colors.neutral[400] : "#FFFFFF" }}>
+                  {isCreating ? "추가 중..." : "추가"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -948,7 +969,7 @@ export default function RecipeBookScreen() {
       </Modal>
 
       {/* 레시피북 이름 변경 모달 */}
-      <Modal visible={showEditModal} transparent animationType="fade">
+      <Modal visible={showEditModal} transparent animationType="fade" onRequestClose={() => setShowEditModal(false)} onShow={() => setTimeout(() => editInputRef.current?.focus(), 100)}>
         <Pressable
           style={{
             flex: 1,
@@ -961,54 +982,73 @@ export default function RecipeBookScreen() {
           <Pressable
             style={{
               width: "85%",
-              backgroundColor: Colors.neutral[0],
-              borderRadius: BorderRadius.xl,
-              padding: Spacing.xl,
+              backgroundColor: "#FFFFFF",
+              borderRadius: 20,
+              paddingTop: 24,
+              paddingHorizontal: 22,
+              paddingBottom: 20,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.12,
+              shadowRadius: 24,
+              elevation: 12,
             }}
             onPress={(e) => e.stopPropagation()}
           >
             <Text
               style={{
-                fontSize: Typography.fontSize.xl,
+                fontSize: 17,
                 fontWeight: "700",
                 color: Colors.neutral[900],
-                marginBottom: Spacing.lg,
+                marginBottom: 4,
               }}
             >
               이름 변경
             </Text>
+            <Text
+              style={{
+                fontSize: 13,
+                color: Colors.neutral[400],
+                marginBottom: 18,
+              }}
+            >
+              레시피북의 새로운 이름을 입력해주세요
+            </Text>
 
             <Text
               style={{
-                fontSize: Typography.fontSize.sm,
-                color: Colors.neutral[600],
-                marginBottom: Spacing.sm,
+                fontSize: 12,
+                fontWeight: "600",
+                color: Colors.neutral[500],
+                marginBottom: 8,
               }}
             >
-              제목
+              레시피북 이름
             </Text>
             <TextInput
               style={{
                 backgroundColor: Colors.neutral[50],
-                borderWidth: 1,
+                borderWidth: 1.5,
                 borderColor: Colors.neutral[200],
-                borderRadius: BorderRadius.lg,
-                padding: Spacing.md,
-                fontSize: Typography.fontSize.base,
+                borderRadius: 12,
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+                fontSize: 15,
                 color: Colors.neutral[900],
               }}
-              placeholder="레시피북 이름"
-              placeholderTextColor={Colors.neutral[400]}
+              ref={editInputRef}
+              placeholder="새로운 이름 입력"
+              placeholderTextColor={Colors.neutral[300]}
               value={editBookName}
               onChangeText={setEditBookName}
-              autoFocus
+              maxLength={20}
             />
 
             <View
               style={{
                 flexDirection: "row",
-                gap: Spacing.sm,
-                marginTop: Spacing.xl,
+                gap: 8,
+                marginTop: 20,
               }}
             >
               <TouchableOpacity
@@ -1017,41 +1057,32 @@ export default function RecipeBookScreen() {
                   setEditingBook(null);
                   setEditBookName("");
                 }}
+                activeOpacity={0.7}
                 style={{
                   flex: 1,
                   backgroundColor: Colors.neutral[100],
-                  borderRadius: BorderRadius.lg,
-                  paddingVertical: Spacing.md,
+                  borderRadius: 10,
+                  paddingVertical: 11,
                   alignItems: "center",
                 }}
               >
-                <Text
-                  style={{
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: Typography.fontWeight.semiBold,
-                    color: Colors.neutral[600],
-                  }}
-                >
+                <Text style={{ fontSize: 14, fontWeight: "600", color: Colors.neutral[500] }}>
                   취소
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleEditBook}
+                disabled={!editBookName.trim()}
+                activeOpacity={0.7}
                 style={{
                   flex: 1,
-                  backgroundColor: Colors.primary[500],
-                  borderRadius: BorderRadius.lg,
-                  paddingVertical: Spacing.md,
+                  backgroundColor: !editBookName.trim() ? Colors.neutral[200] : Colors.primary[500],
+                  borderRadius: 10,
+                  paddingVertical: 11,
                   alignItems: "center",
                 }}
               >
-                <Text
-                  style={{
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: Typography.fontWeight.semiBold,
-                    color: "#FFF",
-                  }}
-                >
+                <Text style={{ fontSize: 14, fontWeight: "700", color: !editBookName.trim() ? Colors.neutral[400] : "#FFFFFF" }}>
                   저장
                 </Text>
               </TouchableOpacity>
@@ -1156,11 +1187,10 @@ export default function RecipeBookScreen() {
 
       <ConfirmActionModal
         visible={showDeleteModal}
-        title="레시피북을 삭제할까요?"
+        title={`"${truncateTitle(deleteTargetBook?.name ?? "")}" 을 삭제할까요?`}
         description="삭제된 레시피북의 레시피는 기본 레시피북으로 이동됩니다."
-        targetName={deleteTargetBook?.name}
-        targetMeta={deleteTargetBook ? `· 레시피 ${deleteTargetBook.recipeCount}개` : undefined}
-        targetIcon={<Folder size={18} color={Colors.neutral[600]} />}
+        confirmText="삭제"
+        confirmLoadingText="삭제 중..."
         loading={isDeletingBook}
         onClose={() => {
           if (isDeletingBook) return;
@@ -1168,6 +1198,14 @@ export default function RecipeBookScreen() {
           setDeleteTargetBook(null);
         }}
         onConfirm={confirmDelete}
+      />
+
+      <FeedbackToast
+        message={toastMessage}
+        variant={toastVariant}
+        opacity={toastOpacity}
+        translate={toastTranslate}
+        aboveTabBar
       />
     </View>
   );
