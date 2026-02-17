@@ -14,8 +14,7 @@ import { router } from 'expo-router';
 import { api, USE_MOCK } from './api';
 
 // 개발 빌드에서만 true로 변경
-// TODO: 백엔드 /api/v1/device-tokens API 구현 후 활성화
-const ENABLE_PUSH = false;
+const ENABLE_PUSH = true;
 
 type NotificationType = 'GROUP_INVITE' | 'RECIPE_SHARED' | 'CALENDAR_UPDATE' | 'COMMENT_ADDED';
 
@@ -26,7 +25,7 @@ interface NotificationData {
 }
 
 class PushNotificationService {
-  private expoPushToken: string | null = null;
+  private fcmToken: string | null = null;
 
   async initialize(): Promise<void> {
     if (!ENABLE_PUSH) {
@@ -99,23 +98,36 @@ class PushNotificationService {
       const Notifications = await import('expo-notifications');
       const Device = await import('expo-device');
 
-      if (!Device.isDevice) return null;
+      if (!Device.isDevice) {
+        console.log('[Push] 시뮬레이터에서는 푸시 알림이 지원되지 않습니다. Mock 토큰으로 API 테스트합니다.');
+        // 시뮬레이터에서 API 테스트용 mock 토큰 사용
+        const mockToken = `mock-fcm-token-${Platform.OS}-${Date.now()}`;
+        this.fcmToken = mockToken;
 
-      const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: 'd982feea-4f84-43f3-ae8a-5eb1572b6ca8',
-      });
-
-      this.expoPushToken = tokenData.data;
-      console.log('[Push] Expo Push Token:', this.expoPushToken);
-
-      if (!USE_MOCK) {
-        await api.post('/api/v1/device-tokens', {
-          token: this.expoPushToken,
-          deviceType: Platform.OS === 'ios' ? 'IOS' : 'ANDROID',
-        });
+        if (!USE_MOCK) {
+          await api.post('/api/v1/notifications/fcm-token', {
+            fcmToken: mockToken,
+            platform: Platform.OS === 'ios' ? 'IOS' : 'ANDROID',
+          });
+          console.log('[Push] Mock FCM 토큰 서버 등록 완료:', mockToken);
+        }
+        return mockToken;
       }
 
-      return this.expoPushToken;
+      // 네이티브 FCM/APNs 토큰 발급
+      const tokenData = await Notifications.getDevicePushTokenAsync();
+      this.fcmToken = tokenData.data;
+      console.log('[Push] FCM Token:', this.fcmToken);
+
+      if (!USE_MOCK) {
+        await api.post('/api/v1/notifications/fcm-token', {
+          fcmToken: this.fcmToken,
+          platform: Platform.OS === 'ios' ? 'IOS' : 'ANDROID',
+        });
+        console.log('[Push] FCM 토큰 서버 등록 완료');
+      }
+
+      return this.fcmToken;
     } catch (error) {
       console.error('[Push] 토큰 등록 실패:', error);
       return null;
@@ -123,16 +135,19 @@ class PushNotificationService {
   }
 
   async unregisterToken(): Promise<void> {
-    if (!this.expoPushToken) return;
+    if (!this.fcmToken) return;
 
     try {
       if (!USE_MOCK) {
-        await api.delete('/api/v1/device-tokens');
+        await api.delete('/api/v1/notifications/fcm-token', {
+          fcmToken: this.fcmToken,
+        });
+        console.log('[Push] FCM 토큰 서버에서 삭제 완료');
       }
     } catch (error) {
       console.error('[Push] 토큰 삭제 실패:', error);
     } finally {
-      this.expoPushToken = null;
+      this.fcmToken = null;
     }
   }
 
@@ -174,7 +189,7 @@ class PushNotificationService {
   }
 
   getToken(): string | null {
-    return this.expoPushToken;
+    return this.fcmToken;
   }
 
   isAvailable(): boolean {

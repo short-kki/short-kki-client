@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "437242253991",
+    "project_id": "short-kki-2760e",
+    "storage_bucket": "short-kki-2760e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:437242253991:android:36b3f73f94b50daf240182",
+        "android_client_info": {
+          "package_name": "com.anonymous.shortkki"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAtnbRR32ykka4GsBrWF_HoHuxRUCLHFXE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import {
   ArrowLeft,
@@ -33,6 +33,8 @@ import {
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/design-system";
 import { recipeApi, type RecipeCreateRequest } from "@/services/recipeApi";
 import { api } from "@/services/api";
+import { uploadImage, type ImagePickerAsset } from "@/services/fileUpload";
+import SuccessResultModal from "@/components/ui/SuccessResultModal";
 
 // ============================================================================
 // TYPES
@@ -101,6 +103,7 @@ const MEAL_TYPE_OPTIONS: { value: MealType; label: string }[] = [
 export default function RecipeCreateManualScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ returnTab?: string }>();
 
   // Basic Info
   const [title, setTitle] = useState("");
@@ -108,6 +111,7 @@ export default function RecipeCreateManualScreen() {
   const [cookingTime, setCookingTime] = useState("");
   const [servings, setServings] = useState("2");
   const [thumbnail, setThumbnail] = useState<string | null>(null);
+  const [thumbnailAsset, setThumbnailAsset] = useState<ImagePickerAsset | null>(null);
 
   // Category Info
   const [difficulty, setDifficulty] = useState<Difficulty>("BEGINNER");
@@ -126,6 +130,8 @@ export default function RecipeCreateManualScreen() {
 
   // UI State
   const [isSaving, setIsSaving] = useState(false);
+  const [showSaveSuccessModal, setShowSaveSuccessModal] = useState(false);
+  const [savedRecipeTitle, setSavedRecipeTitle] = useState("");
 
   // 재료 검색 관련 State
   const [apiIngredients, setApiIngredients] = useState<ApiIngredient[]>([]);
@@ -258,7 +264,16 @@ export default function RecipeCreateManualScreen() {
     });
 
     if (!result.canceled) {
-      setThumbnail(result.assets[0].uri);
+      const asset = result.assets[0];
+      setThumbnail(asset.uri);
+      setThumbnailAsset({
+        uri: asset.uri,
+        fileName: asset.fileName,
+        mimeType: asset.mimeType,
+        fileSize: asset.fileSize,
+        width: asset.width,
+        height: asset.height,
+      });
     }
   };
 
@@ -291,12 +306,19 @@ export default function RecipeCreateManualScreen() {
     setIsSaving(true);
 
     try {
+      let mainImgFileId: number | undefined;
+      if (thumbnailAsset) {
+        const uploadedFile = await uploadImage(thumbnailAsset, "RECIPE_IMG", "PUBLIC");
+        mainImgFileId = uploadedFile.fileId;
+      }
+
       const request: RecipeCreateRequest = {
         basicInfo: {
           title: title.trim(),
           description: description.trim() || undefined,
           servingSize: servingsNum,
           cookingTime: cookingTimeNum,
+          mainImgFileId,
         },
         categoryInfo: {
           cuisineType,
@@ -316,13 +338,8 @@ export default function RecipeCreateManualScreen() {
       };
 
       await recipeApi.create(request);
-
-      Alert.alert("저장 완료", `"${title}" 레시피가 저장되었습니다.`, [
-        {
-          text: "확인",
-          onPress: () => router.push("/(tabs)/recipe-book"),
-        },
-      ]);
+      setSavedRecipeTitle(title.trim());
+      setShowSaveSuccessModal(true);
     } catch (error: any) {
       console.error("Recipe create error:", error);
       const errorMessage = error?.message?.toLowerCase() || "";
@@ -336,12 +353,8 @@ export default function RecipeCreateManualScreen() {
         error?.message?.includes("409")
       ) {
         console.log("Duplicate recipe - treating as success");
-        Alert.alert("저장 완료", `"${title}" 레시피가 저장되었습니다.`, [
-          {
-            text: "확인",
-            onPress: () => router.push("/(tabs)/recipe-book"),
-          },
-        ]);
+        setSavedRecipeTitle(title.trim());
+        setShowSaveSuccessModal(true);
         return;
       }
 
@@ -411,7 +424,20 @@ export default function RecipeCreateManualScreen() {
             backgroundColor: Colors.neutral[0],
           }}
         >
-          <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
+          <TouchableOpacity
+            onPress={() => {
+              if (params.returnTab) {
+                const targetPath = params.returnTab === "index" ? "/(tabs)" : `/(tabs)/${params.returnTab}`;
+                router.replace({
+                  pathname: targetPath as any,
+                  params: { openAddMenu: String(Date.now()) },
+                });
+                return;
+              }
+              router.back();
+            }}
+            style={{ padding: 4 }}
+          >
             <ArrowLeft size={24} color={Colors.neutral[900]} />
           </TouchableOpacity>
           <Text
@@ -460,7 +486,10 @@ export default function RecipeCreateManualScreen() {
                     contentFit="cover"
                   />
                   <TouchableOpacity
-                    onPress={() => setThumbnail(null)}
+                    onPress={() => {
+                      setThumbnail(null);
+                      setThumbnailAsset(null);
+                    }}
                     style={{
                       position: "absolute",
                       top: 8,
@@ -931,6 +960,18 @@ export default function RecipeCreateManualScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <SuccessResultModal
+        visible={showSaveSuccessModal}
+        title="레시피 저장 완료!"
+        description={savedRecipeTitle ? `"${savedRecipeTitle}" 레시피가 저장되었습니다.` : undefined}
+        confirmText="레시피북으로 이동"
+        onClose={() => setShowSaveSuccessModal(false)}
+        onConfirm={() => {
+          setShowSaveSuccessModal(false);
+          router.push("/(tabs)/recipe-book");
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

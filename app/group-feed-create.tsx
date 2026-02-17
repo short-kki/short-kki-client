@@ -41,15 +41,64 @@ interface SelectedImage {
 export default function GroupFeedCreateScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ groupId: string; groupName: string }>();
+  const params = useLocalSearchParams<{
+    groupId: string;
+    groupName: string;
+    feedId?: string;
+    isEdit?: string;
+  }>();
+
+  const isEditMode = params.isEdit === "true" && !!params.feedId;
 
   const [content, setContent] = useState("");
   const [images, setImages] = useState<SelectedImage[]>([]);
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
+  const [existingImageFileId, setExistingImageFileId] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>("");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [scaleAnim] = useState(new Animated.Value(0));
   const [fadeAnim] = useState(new Animated.Value(0));
+
+  // 수정 모드일 때 기존 피드 데이터 불러오기
+  useEffect(() => {
+    if (isEditMode && params.feedId && params.groupId) {
+      fetchFeedData();
+    }
+  }, [isEditMode, params.feedId, params.groupId]);
+
+  const fetchFeedData = async () => {
+    try {
+      setIsLoading(true);
+      const response = await api.get<{
+        code: string;
+        message: string;
+        data: {
+          id: number;
+          content: string;
+          imageFileId: number | null;
+          imageUrl: string | null;
+        };
+      }>(`/api/v1/groups/${params.groupId}/feeds/${params.feedId}`);
+
+      if (response.data) {
+        setContent(response.data.content || "");
+        if (response.data.imageUrl) {
+          setExistingImageUrl(response.data.imageUrl);
+        }
+        if (response.data.imageFileId) {
+          setExistingImageFileId(response.data.imageFileId);
+        }
+      }
+    } catch (error) {
+      console.error("피드 조회 실패:", error);
+      Alert.alert("오류", "피드 정보를 불러오는데 실패했습니다.");
+      router.back();
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // 성공 모달 애니메이션
   useEffect(() => {
@@ -142,7 +191,7 @@ export default function GroupFeedCreateScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!content.trim() && images.length === 0) {
+    if (!content.trim() && images.length === 0 && !existingImageUrl) {
       Alert.alert("알림", "내용을 입력하거나 사진을 추가해주세요.");
       return;
     }
@@ -158,7 +207,7 @@ export default function GroupFeedCreateScreen() {
     try {
       let imageFileId: number | null = null;
 
-      // 이미지가 있으면 먼저 업로드 (1개만 지원)
+      // 새 이미지가 있으면 먼저 업로드 (1개만 지원)
       if (images.length > 0) {
         setUploadProgress("이미지 업로드 중...");
 
@@ -169,38 +218,70 @@ export default function GroupFeedCreateScreen() {
         );
         imageFileId = uploadedFile.fileId;
 
-        console.log("[Feed Create] 이미지 업로드 완료:", {
+        console.log("[Feed] 이미지 업로드 완료:", {
           fileId: uploadedFile.fileId,
           objectKey: uploadedFile.objectKey,
           url: uploadedFile.url,
         });
 
-        setUploadProgress("피드 등록 중...");
+        setUploadProgress(isEditMode ? "피드 수정 중..." : "피드 등록 중...");
       }
 
-      const feedRequest = {
-        content: content.trim(),
-        feedType: "USER_CREATED",
-        ...(imageFileId && { imageFileId }),
-      };
+      if (isEditMode && params.feedId) {
+        // 수정 모드: PATCH 요청
+        // imageFileId 처리 로직:
+        // - 새 이미지 업로드: 새 fileId 전송
+        // - 기존 이미지 유지: 기존 fileId 전송 (또는 미전송)
+        // - 기존 이미지 삭제: null 전송
+        let finalImageFileId: number | null | undefined = undefined;
 
-      console.log("[Feed Create] 피드 생성 요청:", feedRequest);
+        if (images.length > 0) {
+          // 새 이미지가 업로드됨
+          finalImageFileId = imageFileId;
+        } else if (existingImageUrl) {
+          // 기존 이미지 유지 (변경 없음이므로 전송하지 않음)
+          finalImageFileId = undefined;
+        } else if (existingImageFileId && !existingImageUrl) {
+          // 기존 이미지가 있었는데 삭제됨
+          finalImageFileId = null;
+        }
 
-      if (USE_MOCK) {
-        // Mock 모드: 시뮬레이션
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        const updateRequest: { content: string; imageFileId?: number | null } = {
+          content: content.trim(),
+        };
+
+        if (finalImageFileId !== undefined) {
+          updateRequest.imageFileId = finalImageFileId;
+        }
+
+        console.log("[Feed] 피드 수정 요청:", updateRequest);
+
+        if (!USE_MOCK) {
+          await api.patch(`/api/v1/groups/${params.groupId}/feeds/${params.feedId}`, updateRequest);
+        }
       } else {
-        // 실제 API 호출: POST /api/v1/groups/{groupId}/feeds
-        const response = await api.post(`/api/v1/groups/${params.groupId}/feeds`, feedRequest);
-        console.log("[Feed Create] 피드 생성 응답:", response);
+        // 생성 모드: POST 요청
+        const feedRequest = {
+          content: content.trim(),
+          feedType: "USER_CREATED",
+          ...(imageFileId && { imageFileId }),
+        };
+
+        console.log("[Feed] 피드 생성 요청:", feedRequest);
+
+        if (USE_MOCK) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        } else {
+          await api.post(`/api/v1/groups/${params.groupId}/feeds`, feedRequest);
+        }
       }
 
       router.back();
     } catch (error) {
-      console.error("피드 생성 실패:", error);
+      console.error(isEditMode ? "피드 수정 실패:" : "피드 생성 실패:", error);
       Alert.alert(
         "오류",
-        error instanceof Error ? error.message : "피드 등록에 실패했습니다."
+        error instanceof Error ? error.message : (isEditMode ? "피드 수정에 실패했습니다." : "피드 등록에 실패했습니다.")
       );
     } finally {
       setIsSubmitting(false);
@@ -208,7 +289,7 @@ export default function GroupFeedCreateScreen() {
     }
   };
 
-  const canSubmit = content.trim() || images.length > 0;
+  const canSubmit = content.trim() || images.length > 0 || existingImageUrl;
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[0] }}>
@@ -242,7 +323,7 @@ export default function GroupFeedCreateScreen() {
               color: Colors.neutral[900],
             }}
           >
-            피드 작성
+            {isEditMode ? "피드 수정" : "피드 작성"}
           </Text>
 
           <TouchableOpacity
@@ -269,11 +350,27 @@ export default function GroupFeedCreateScreen() {
                 color: canSubmit && !isSubmitting ? "#FFFFFF" : Colors.neutral[400],
               }}
             >
-              {isSubmitting ? "등록 중" : "등록"}
+              {isSubmitting ? (isEditMode ? "수정 중" : "등록 중") : (isEditMode ? "수정" : "등록")}
             </Text>
           </TouchableOpacity>
         </View>
 
+        {/* 로딩 중일 때 (수정 모드에서 기존 데이터 불러오는 중) */}
+        {isLoading ? (
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+            <ActivityIndicator size="large" color={Colors.primary[500]} />
+            <Text
+              style={{
+                marginTop: Spacing.md,
+                fontSize: Typography.fontSize.base,
+                color: Colors.neutral[500],
+              }}
+            >
+              피드 정보를 불러오는 중...
+            </Text>
+          </View>
+        ) : (
+        <>
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ padding: Spacing.xl }}
@@ -358,8 +455,8 @@ export default function GroupFeedCreateScreen() {
             {content.length}/500
           </Text>
 
-          {/* 이미지 미리보기 */}
-          {images.length > 0 && (
+          {/* 이미지 미리보기 - 새 이미지 또는 기존 이미지 */}
+          {(images.length > 0 || existingImageUrl) && (
             <View style={{ marginTop: Spacing.lg }}>
               <Text
                 style={{
@@ -376,10 +473,43 @@ export default function GroupFeedCreateScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ gap: Spacing.md }}
               >
-                {images.map((img, index) => (
-                  <View key={index} style={{ position: "relative" }}>
+                {images.length > 0 ? (
+                  // 새로 선택한 이미지 표시
+                  images.map((img, index) => (
+                    <View key={index} style={{ position: "relative" }}>
+                      <Image
+                        source={{ uri: img.uri }}
+                        style={{
+                          width: 120,
+                          height: 120,
+                          borderRadius: BorderRadius.lg,
+                        }}
+                        contentFit="cover"
+                      />
+                      <TouchableOpacity
+                        onPress={() => handleRemoveImage(index)}
+                        activeOpacity={0.8}
+                        style={{
+                          position: "absolute",
+                          top: 6,
+                          right: 6,
+                          width: 28,
+                          height: 28,
+                          borderRadius: 14,
+                          backgroundColor: "rgba(0,0,0,0.6)",
+                          justifyContent: "center",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Trash2 size={16} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                ) : existingImageUrl ? (
+                  // 기존 이미지 표시 (수정 모드)
+                  <View style={{ position: "relative" }}>
                     <Image
-                      source={{ uri: img.uri }}
+                      source={{ uri: existingImageUrl }}
                       style={{
                         width: 120,
                         height: 120,
@@ -388,7 +518,7 @@ export default function GroupFeedCreateScreen() {
                       contentFit="cover"
                     />
                     <TouchableOpacity
-                      onPress={() => handleRemoveImage(index)}
+                      onPress={() => setExistingImageUrl(null)}
                       activeOpacity={0.8}
                       style={{
                         position: "absolute",
@@ -405,7 +535,7 @@ export default function GroupFeedCreateScreen() {
                       <Trash2 size={16} color="#FFFFFF" />
                     </TouchableOpacity>
                   </View>
-                ))}
+                ) : null}
               </ScrollView>
             </View>
           )}
@@ -481,12 +611,14 @@ export default function GroupFeedCreateScreen() {
 
           <View style={{ flex: 1 }} />
 
-          {images.length > 0 && (
+          {(images.length > 0 || existingImageUrl) && (
             <Text style={{ fontSize: 12, color: Colors.primary[500] }}>
               사진 1장 첨부됨
             </Text>
           )}
         </View>
+        </>
+        )}
       </KeyboardAvoidingView>
 
       {/* 업로드 진행 오버레이 */}

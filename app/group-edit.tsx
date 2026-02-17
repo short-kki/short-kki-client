@@ -30,6 +30,8 @@ import {
   X,
   CheckCircle,
   Sparkles,
+  AlertTriangle,
+  Save,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { useGroupDetail, useGroups } from "@/hooks";
@@ -46,11 +48,12 @@ const GROUP_TYPES = [
 export default function GroupEditScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ groupId: string }>();
+  const params = useLocalSearchParams<{ groupId?: string }>();
 
-  const groupId = params.groupId || "1";
-  const { group, loading, updateGroup } = useGroupDetail(groupId);
-  const { deleteGroup } = useGroups();
+  const groupId = params.groupId;
+  const isCreateMode = !groupId;
+  const { group, loading, updateGroup } = useGroupDetail(groupId || "");
+  const { deleteGroup, createGroup } = useGroups();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -64,6 +67,8 @@ export default function GroupEditScreen() {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
   const [scaleAnim] = useState(new Animated.Value(0));
   const [fadeAnim] = useState(new Animated.Value(0));
 
@@ -89,15 +94,15 @@ export default function GroupEditScreen() {
     }
   }, [showSuccessModal]);
 
-  // 그룹 데이터 로드 시 상태 초기화
+  // 그룹 데이터 로드 시 상태 초기화 (수정 모드에서만)
   useEffect(() => {
-    if (group) {
+    if (!isCreateMode && group) {
       setName(group.name);
       setDescription(group.description || "");
       setGroupType(group.groupType);
       setThumbnailImgUrl(group.thumbnailImgUrl);
     }
-  }, [group]);
+  }, [group, isCreateMode]);
 
   const handleNameChange = (text: string) => {
     setName(text);
@@ -152,18 +157,27 @@ export default function GroupEditScreen() {
         setIsUploadingImage(false);
       }
 
-      const updateData = {
+      const groupData = {
         name: name.trim(),
         description: description.trim() || undefined,
         thumbnailImgUrl: finalThumbnailUrl || undefined,
         groupType,
       };
-      console.log("[Group Edit] 그룹 수정 요청 데이터:", JSON.stringify(updateData, null, 2));
-      await updateGroup(updateData);
+
+      if (isCreateMode) {
+        // 생성 모드
+        console.log("[Group Edit] 그룹 생성 요청 데이터:", JSON.stringify(groupData, null, 2));
+        const newGroup = await createGroup(groupData);
+        setCreatedGroupId(newGroup.id);
+      } else {
+        // 수정 모드
+        console.log("[Group Edit] 그룹 수정 요청 데이터:", JSON.stringify(groupData, null, 2));
+        await updateGroup(groupData);
+      }
       setShowSuccessModal(true);
     } catch (error) {
-      console.error("그룹 수정 실패:", error);
-      Alert.alert("오류", "그룹 정보 수정에 실패했습니다.");
+      console.error(isCreateMode ? "그룹 생성 실패:" : "그룹 수정 실패:", error);
+      Alert.alert("오류", isCreateMode ? "그룹 생성에 실패했습니다." : "그룹 정보 수정에 실패했습니다.");
     } finally {
       setIsSaving(false);
     }
@@ -269,22 +283,14 @@ export default function GroupEditScreen() {
 
   const handleBack = () => {
     if (hasChanges) {
-      Alert.alert(
-        "변경 사항 저장",
-        "저장하지 않은 변경 사항이 있습니다. 저장하시겠습니까?",
-        [
-          { text: "저장 안 함", style: "destructive", onPress: () => router.back() },
-          { text: "취소", style: "cancel" },
-          { text: "저장", onPress: handleSave },
-        ]
-      );
+      setShowUnsavedModal(true);
     } else {
       router.back();
     }
   };
 
-  // 로딩 중일 때
-  if (loading) {
+  // 로딩 중일 때 (수정 모드에서만)
+  if (!isCreateMode && loading) {
     return (
       <View
         style={{
@@ -335,16 +341,16 @@ export default function GroupEditScreen() {
               color: Colors.neutral[900],
             }}
           >
-            그룹 수정
+            {isCreateMode ? "그룹 만들기" : "그룹 수정"}
           </Text>
         </View>
 
         <TouchableOpacity
           onPress={handleSave}
           activeOpacity={0.7}
-          disabled={isSaving}
+          disabled={isSaving || (!isCreateMode && !hasChanges) || (isCreateMode && !name.trim())}
           style={{
-            backgroundColor: hasChanges && !isSaving ? Colors.primary[500] : Colors.neutral[200],
+            backgroundColor: (isCreateMode ? name.trim() : hasChanges) && !isSaving ? Colors.primary[500] : Colors.neutral[200],
             paddingHorizontal: 16,
             paddingVertical: 8,
             borderRadius: BorderRadius.full,
@@ -359,10 +365,10 @@ export default function GroupEditScreen() {
               style={{
                 fontSize: 14,
                 fontWeight: "600",
-                color: hasChanges ? "#FFF" : Colors.neutral[400],
+                color: (isCreateMode ? name.trim() : hasChanges) ? "#FFF" : Colors.neutral[400],
               }}
             >
-              저장
+              {isCreateMode ? "만들기" : "저장"}
             </Text>
           )}
         </TouchableOpacity>
@@ -1199,7 +1205,7 @@ export default function GroupEditScreen() {
                 marginBottom: 8,
               }}
             >
-              저장 완료!
+              {isCreateMode ? "그룹 생성 완료!" : "저장 완료!"}
             </Text>
 
             {/* 그룹 이름 표시 */}
@@ -1246,14 +1252,22 @@ export default function GroupEditScreen() {
                 marginTop: 8,
               }}
             >
-              그룹 정보가 성공적으로{"\n"}수정되었습니다
+              {isCreateMode ? "새 그룹이 성공적으로\n생성되었습니다" : "그룹 정보가 성공적으로\n수정되었습니다"}
             </Text>
 
             {/* 확인 버튼 */}
             <TouchableOpacity
               onPress={() => {
                 setShowSuccessModal(false);
-                router.back();
+                if (isCreateMode && createdGroupId) {
+                  // 생성 모드: 새 그룹으로 이동
+                  router.replace({
+                    pathname: "/(tabs)/group",
+                    params: { groupId: createdGroupId, _t: Date.now().toString() },
+                  });
+                } else {
+                  router.back();
+                }
               }}
               activeOpacity={0.8}
               style={{
@@ -1287,6 +1301,181 @@ export default function GroupEditScreen() {
             </TouchableOpacity>
           </Animated.View>
         </Animated.View>
+      </Modal>
+
+      {/* 변경사항 저장 여부 모달 */}
+      <Modal
+        visible={showUnsavedModal}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+      >
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={() => setShowUnsavedModal(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: Colors.neutral[0],
+              borderRadius: 24,
+              padding: 28,
+              marginHorizontal: 32,
+              width: "85%",
+              maxWidth: 340,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.15,
+              shadowRadius: 20,
+              elevation: 10,
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* 경고 아이콘 */}
+            <View
+              style={{
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <View
+                style={{
+                  width: 72,
+                  height: 72,
+                  borderRadius: 36,
+                  backgroundColor: Colors.warning.light,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <View
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 28,
+                    backgroundColor: Colors.warning.main,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <AlertTriangle size={28} color="#FFFFFF" strokeWidth={2.5} />
+                </View>
+              </View>
+            </View>
+
+            {/* 타이틀 */}
+            <Text
+              style={{
+                fontSize: 20,
+                fontWeight: "700",
+                color: Colors.neutral[900],
+                textAlign: "center",
+                marginBottom: 8,
+              }}
+            >
+              저장하지 않은 변경사항
+            </Text>
+
+            {/* 설명 */}
+            <Text
+              style={{
+                fontSize: 15,
+                color: Colors.neutral[500],
+                textAlign: "center",
+                lineHeight: 22,
+                marginBottom: 24,
+              }}
+            >
+              변경사항이 저장되지 않았습니다.{"\n"}저장하시겠습니까?
+            </Text>
+
+            {/* 버튼들 */}
+            <View style={{ gap: 10 }}>
+              {/* 저장 버튼 */}
+              <TouchableOpacity
+                onPress={() => {
+                  setShowUnsavedModal(false);
+                  handleSave();
+                }}
+                activeOpacity={0.8}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: Colors.primary[500],
+                  paddingVertical: 14,
+                  borderRadius: 14,
+                  gap: 8,
+                }}
+              >
+                <Save size={18} color="#FFFFFF" />
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: "#FFFFFF",
+                  }}
+                >
+                  저장하기
+                </Text>
+              </TouchableOpacity>
+
+              {/* 저장 안함 버튼 */}
+              <TouchableOpacity
+                onPress={() => {
+                  setShowUnsavedModal(false);
+                  router.back();
+                }}
+                activeOpacity={0.8}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: Colors.neutral[100],
+                  paddingVertical: 14,
+                  borderRadius: 14,
+                  gap: 8,
+                }}
+              >
+                <Trash2 size={18} color={Colors.error.main} />
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: Colors.error.main,
+                  }}
+                >
+                  저장 안 함
+                </Text>
+              </TouchableOpacity>
+
+              {/* 취소 버튼 */}
+              <TouchableOpacity
+                onPress={() => setShowUnsavedModal(false)}
+                activeOpacity={0.8}
+                style={{
+                  alignItems: "center",
+                  justifyContent: "center",
+                  paddingVertical: 12,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontWeight: "500",
+                    color: Colors.neutral[400],
+                  }}
+                >
+                  취소
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );

@@ -29,3 +29,5 @@ export type { TagProps, TagGroupProps, CategoryTagProps, TagVariant, TagColor, T
 
 // Toast
 export { Toast, useToast } from './Toast';
+export { FeedbackToast, useFeedbackToast } from './FeedbackToast';
+export { default as SuccessResultModal } from './SuccessResultModal';

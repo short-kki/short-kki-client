@@ -7,6 +7,12 @@
 import { API_BASE_URL } from '@/constants/oauth';
 import { getAuthData } from '@/utils/auth-storage';
 
+export interface ApiError extends Error {
+  status?: number;
+  code?: string;
+  data?: unknown;
+}
+
 // Mock 데이터 사용 여부 (개발 모드에서 true, 실서버 테스트시 false로 변경)
 export const USE_MOCK = false;
 
@@ -47,6 +53,9 @@ async function fetchApi<T>(
   if (!response.ok) {
     // 에러 응답 본문 파싱 시도
     let errorMessage = `API Error: ${response.status}`;
+    let errorCode: string | undefined;
+    let errorDataPayload: unknown;
+
     try {
       const errorData = await response.json();
       // 중복/이미 등록된 에러는 console.log로 처리 (LogBox에 안 뜨게)
@@ -68,11 +77,19 @@ async function fetchApi<T>(
       } else if (errorData.code) {
         errorMessage = `${errorData.code}: ${errorData.message || response.statusText}`;
       }
+
+      errorCode = typeof errorData.code === 'string' ? errorData.code : undefined;
+      errorDataPayload = errorData.data;
     } catch {
       // JSON 파싱 실패 시 기본 메시지 사용
       console.error(`API Error [${endpoint}] (no JSON):`, response.status, response.statusText);
     }
-    throw new Error(errorMessage);
+
+    const apiError = new Error(errorMessage) as ApiError;
+    apiError.status = response.status;
+    apiError.code = errorCode;
+    apiError.data = errorDataPayload;
+    throw apiError;
   }
 
   // 204 No Content 등 빈 응답 처리
@@ -108,8 +125,11 @@ export const api = {
       body: JSON.stringify(data),
     }, requiresAuth),
 
-  delete: <T>(endpoint: string, requiresAuth: boolean = true) =>
-    fetchApi<T>(endpoint, { method: 'DELETE' }, requiresAuth),
+  delete: <T>(endpoint: string, data?: unknown, requiresAuth: boolean = true) =>
+    fetchApi<T>(endpoint, {
+      method: 'DELETE',
+      ...(data && { body: JSON.stringify(data) }),
+    }, requiresAuth),
 };
 
 export default api;

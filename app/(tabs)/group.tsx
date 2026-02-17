@@ -13,6 +13,9 @@ import {
   BackHandler,
   Animated,
   Easing,
+  Share,
+  Platform,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,9 +23,9 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import {
   Plus,
-  Bell,
   MoreHorizontal,
   Users,
+  ChevronLeft,
   ChevronRight,
   X,
   UserPlus,
@@ -34,8 +37,6 @@ import {
   LogOut,
   PenSquare,
   Heart,
-  BookmarkPlus,
-  Copy,
   Share2,
   MessageCircle,
   PartyPopper,
@@ -45,7 +46,8 @@ import {
   Bookmark,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
-import { useGroups, useGroupFeeds } from "@/hooks";
+import { API_BASE_URL } from "@/constants/oauth";
+import { useGroups, useGroupFeeds, useGroupMembers, getGroupInviteCode } from "@/hooks";
 import type { Group } from "@/data/mock";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -70,6 +72,8 @@ export default function GroupScreen() {
   const { groups, createGroup, deleteGroup, refetch: refetchGroups } = useGroups();
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const { feeds, toggleLike, deleteFeed, refetch: refetchFeeds } = useGroupFeeds(selectedGroup?.id);
+  const { members } = useGroupMembers(selectedGroup?.id);
+  const appliedRouteTargetRef = useRef<string | null>(null);
 
   // 그룹 탭을 다시 누르면 그룹 목록으로 돌아가기
   const navigation = useNavigation();
@@ -98,11 +102,17 @@ export default function GroupScreen() {
 
   // params로 groupId가 전달되면 해당 그룹을 자동 선택
   useEffect(() => {
-    if (params.groupId && groups.length > 0) {
-      const target = groups.find(g => String(g.id) === String(params.groupId));
-      if (target) {
-        setSelectedGroup(target);
-      }
+    if (!params.groupId || groups.length === 0) return;
+
+    const routeTargetKey = `${params.groupId}:${params._t ?? ""}`;
+    if (appliedRouteTargetRef.current === routeTargetKey) {
+      return;
+    }
+
+    const target = groups.find(g => String(g.id) === String(params.groupId));
+    if (target) {
+      setSelectedGroup(target);
+      appliedRouteTargetRef.current = routeTargetKey;
     }
   }, [params.groupId, params._t, groups]);
 
@@ -132,6 +142,13 @@ export default function GroupScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTargetGroup, setDeleteTargetGroup] = useState<Group | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [leaveTargetGroup, setLeaveTargetGroup] = useState<Group | null>(null);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const [showLeaveSuccessModal, setShowLeaveSuccessModal] = useState(false);
+  const [isInviting, setIsInviting] = useState(false);
+  const [showDeleteFeedModal, setShowDeleteFeedModal] = useState(false);
+  const [isDeletingFeed, setIsDeletingFeed] = useState(false);
 
   const [isCreating, setIsCreating] = useState(false);
 
@@ -225,11 +242,13 @@ export default function GroupScreen() {
       setIsCreating(true);
 
       // 서버 API 호출
-      await createGroup({
+      const newGroup = await createGroup({
         name: newGroupName,
         groupType: newGroupType,
       });
 
+      // 새로 생성된 그룹을 선택 상태로 설정
+      setSelectedGroup(newGroup);
       setCreatedGroupName(newGroupName);
       setNewGroupName("");
       setNewGroupType('FAMILY');
@@ -292,22 +311,8 @@ export default function GroupScreen() {
           handleDeleteGroup(menuTargetGroup);
           break;
         case "leave":
-          Alert.alert("그룹 나가기", `"${menuTargetGroup.name}" 그룹에서 나가시겠습니까?`, [
-            { text: "취소", style: "cancel" },
-            { text: "나가기", style: "destructive", onPress: async () => {
-              try {
-                // TODO: 실제로는 그룹 나가기 API를 호출해야 함
-                await deleteGroup(menuTargetGroup.id);
-                Alert.alert("완료", "그룹에서 나갔습니다.");
-              } catch (error) {
-                console.error("그룹 나가기 실패:", error);
-                Alert.alert(
-                  "오류",
-                  error instanceof Error ? error.message : "그룹 나가기에 실패했습니다."
-                );
-              }
-            }},
-          ]);
+          setLeaveTargetGroup(menuTargetGroup);
+          setShowLeaveModal(true);
           break;
       }
     });
@@ -315,10 +320,6 @@ export default function GroupScreen() {
 
   const handleGroupPress = (group: Group) => {
     setSelectedGroup(group);
-  };
-
-  const handleNotifications = () => {
-    router.push("/notifications");
   };
 
   const handleQuickAction = (action: string) => {
@@ -358,10 +359,40 @@ export default function GroupScreen() {
     setShowInviteModal(true);
   };
 
-  const handleCopyInviteLink = () => {
-    // 실제로는 클립보드에 복사
-    Alert.alert("복사 완료", "초대 링크가 복사되었습니다!");
-    setShowInviteModal(false);
+  const handleInviteShare = async () => {
+    if (!selectedGroup) return;
+
+    try {
+      setIsInviting(true);
+
+      // API에서 초대 코드 받기
+      const inviteCode = await getGroupInviteCode(selectedGroup.id);
+
+      // 웹 폴백 URL (앱 미설치 시 웹페이지 표시)
+      // 로컬: http://localhost:8080/group/invite/{code}
+      // 프로덕션: https://api.shortkki.com/group/invite/{code}
+      const webFallbackUrl = `${API_BASE_URL}/group/invite/${inviteCode}`;
+
+      // 시스템 공유 시트 열기
+      await Share.share(
+        Platform.OS === "ios"
+          ? {
+              message: `${selectedGroup.name} 그룹에 초대합니다!`,
+              url: webFallbackUrl,
+            }
+          : {
+              message: `${selectedGroup.name} 그룹에 초대합니다!\n${webFallbackUrl}`,
+            }
+      );
+      setShowInviteModal(false);
+    } catch (err) {
+      // 사용자가 공유를 취소한 경우는 에러로 처리하지 않음
+      if ((err as Error).message !== "User did not share") {
+        Alert.alert("오류", "초대 링크를 생성할 수 없습니다. 다시 시도해주세요.");
+      }
+    } finally {
+      setIsInviting(false);
+    }
   };
 
   const handleFeedMenuPress = (feedId: string) => {
@@ -378,36 +409,32 @@ export default function GroupScreen() {
             groupId: selectedGroup?.id,
             groupName: selectedGroup?.name,
             feedId: selectedFeedId,
-            isEdit: "true"
+            isEdit: "true",
           },
         });
       } else if (action === "delete") {
-        Alert.alert(
-          "게시물 삭제",
-          "이 게시물을 삭제하시겠습니까?",
-          [
-            { text: "취소", style: "cancel" },
-            {
-              text: "삭제",
-              style: "destructive",
-              onPress: async () => {
-                if (!selectedFeedId) return;
-                try {
-                  await deleteFeed(selectedFeedId);
-                  Alert.alert("삭제 완료", "게시물이 삭제되었습니다.");
-                } catch (error) {
-                  console.error("피드 삭제 실패:", error);
-                  Alert.alert(
-                    "오류",
-                    error instanceof Error ? error.message : "게시물 삭제에 실패했습니다."
-                  );
-                }
-              },
-            },
-          ]
-        );
+        setShowDeleteFeedModal(true);
       }
     });
+  };
+
+  const handleDeleteFeed = async () => {
+    if (!selectedFeedId || isDeletingFeed) return;
+
+    try {
+      setIsDeletingFeed(true);
+      await deleteFeed(selectedFeedId);
+      setShowDeleteFeedModal(false);
+      setSelectedFeedId(null);
+    } catch (error) {
+      console.error("피드 삭제 실패:", error);
+      Alert.alert(
+        "오류",
+        error instanceof Error ? error.message : "게시물 삭제에 실패했습니다."
+      );
+    } finally {
+      setIsDeletingFeed(false);
+    }
   };
 
   const handleCreateFeed = () => {
@@ -446,7 +473,7 @@ export default function GroupScreen() {
                 zIndex: 1,
               }}
             >
-              <Text style={{ fontSize: 16, color: Colors.primary[500] }}>← 뒤로</Text>
+              <ChevronLeft size={28} color={Colors.neutral[700]} />
             </Pressable>
             <Text
               style={{
@@ -459,6 +486,46 @@ export default function GroupScreen() {
               {selectedGroup.name}
             </Text>
           </View>
+
+          {/* 그룹 설명 */}
+          {selectedGroup.description && (
+            <View
+              style={{
+                marginHorizontal: Spacing.xl,
+                marginVertical: Spacing.sm,
+                backgroundColor: Colors.neutral[100],
+                borderRadius: BorderRadius.xl,
+                padding: Spacing.md,
+                flexDirection: "row",
+                alignItems: "flex-start",
+                gap: Spacing.sm,
+              }}
+            >
+              <View
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 14,
+                  backgroundColor: Colors.neutral[0],
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <MessageCircle size={16} color={Colors.neutral[500]} />
+              </View>
+              <Text
+                style={{
+                  flex: 1,
+                  fontSize: 14,
+                  color: Colors.neutral[700],
+                  lineHeight: 20,
+                }}
+                numberOfLines={2}
+              >
+                {selectedGroup.description}
+              </Text>
+            </View>
+          )}
 
           {/* Quick Actions */}
           <View
@@ -506,84 +573,174 @@ export default function GroupScreen() {
           {/* Feed */}
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: Spacing.xl, flexGrow: 1 }}
+            contentContainerStyle={{ flexGrow: 1 }}
             showsVerticalScrollIndicator={false}
           >
-            {feeds.length === 0 ? (
-              /* 축하 피드 (로컬 전용) */
-              <View
-                style={{
-                  backgroundColor: Colors.primary[50],
-                  borderRadius: BorderRadius.xl,
-                  marginBottom: Spacing.md,
-                  borderWidth: 1,
-                  borderColor: Colors.primary[100],
-                  overflow: "hidden",
-                }}
+            {/* 멤버 스토리 영역 */}
+            <View style={{ paddingVertical: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.neutral[100] }}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.lg }}
               >
+                {members.length > 0 ? (
+                  members.map((member, index) => (
+                    <View key={member.id} style={{ alignItems: "center", width: 64 }}>
+                      {/* 그라데이션 테두리 원 */}
+                      <View
+                        style={{
+                          width: 64,
+                          height: 64,
+                          borderRadius: 32,
+                          padding: 3,
+                          backgroundColor: "transparent",
+                          borderWidth: 2,
+                          borderColor: index % 2 === 0 ? "#FF6B6B" : Colors.primary[400],
+                        }}
+                      >
+                        <View
+                          style={{
+                            flex: 1,
+                            borderRadius: 30,
+                            backgroundColor: Colors.neutral[200],
+                            justifyContent: "center",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Text style={{ fontSize: 20, fontWeight: "700", color: Colors.neutral[500] }}>
+                            {member.name.charAt(0)}
+                          </Text>
+                        </View>
+                      </View>
+                      {/* 멤버 이름 */}
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: Colors.neutral[600],
+                          marginTop: 6,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {member.name.length > 4 ? member.name.slice(0, 4) + ".." : member.name}
+                      </Text>
+                    </View>
+                  ))
+                ) : (
+                  // 멤버가 없을 때 플레이스홀더
+                  [1, 2, 3, 4, 5].map((item, index) => (
+                    <View key={item} style={{ alignItems: "center", width: 64 }}>
+                      <View
+                        style={{
+                          width: 64,
+                          height: 64,
+                          borderRadius: 32,
+                          padding: 3,
+                          backgroundColor: "transparent",
+                          borderWidth: 2,
+                          borderColor: index % 2 === 0 ? "#FF6B6B" : Colors.primary[400],
+                        }}
+                      >
+                        <View
+                          style={{
+                            flex: 1,
+                            borderRadius: 30,
+                            backgroundColor: Colors.neutral[200],
+                          }}
+                        />
+                      </View>
+                      <View
+                        style={{
+                          width: 48,
+                          height: 10,
+                          backgroundColor: Colors.neutral[200],
+                          borderRadius: 4,
+                          marginTop: 8,
+                        }}
+                      />
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            </View>
+
+            {/* 피드 목록 */}
+            {feeds.length === 0 ? (
+              /* 축하 피드 (그룹 생성 시) */
+              <View style={{ borderBottomWidth: 1, borderBottomColor: Colors.neutral[100] }}>
                 <View style={{ padding: Spacing.lg }}>
                   {/* 헤더 */}
                   <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.md }}>
                     <View
                       style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 22,
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
                         backgroundColor: Colors.primary[500],
                         justifyContent: "center",
                         alignItems: "center",
                       }}
                     >
-                      <PartyPopper size={22} color="#FFFFFF" />
+                      <PartyPopper size={18} color="#FFFFFF" />
                     </View>
-                    <View style={{ flex: 1, marginLeft: Spacing.md }}>
-                      <Text style={{ fontSize: 16, fontWeight: "700", color: Colors.neutral[900] }}>
-                        숏끼
-                      </Text>
-                      <Text style={{ fontSize: 13, color: Colors.neutral[400], marginTop: 2 }}>
-                        방금 전
-                      </Text>
-                    </View>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: "600",
+                        color: Colors.neutral[900],
+                        marginLeft: Spacing.sm,
+                      }}
+                    >
+                      숏끼
+                    </Text>
                   </View>
 
-                  {/* 콘텐츠 */}
+                  {/* 콘텐츠 카드 */}
                   <View
                     style={{
-                      backgroundColor: "#FFFFFF",
-                      borderRadius: BorderRadius.lg,
-                      padding: Spacing.lg,
+                      backgroundColor: Colors.primary[50],
+                      borderRadius: BorderRadius.xl,
+                      padding: Spacing.xl,
                       alignItems: "center",
+                      marginBottom: Spacing.md,
                     }}
                   >
-                    <Text style={{ fontSize: 32, marginBottom: Spacing.sm }}>🎉</Text>
+                    <Text style={{ fontSize: 40, marginBottom: Spacing.sm }}>🎉</Text>
                     <Text style={{ fontSize: 18, fontWeight: "700", color: Colors.neutral[900], marginBottom: Spacing.xs }}>
                       그룹이 생성되었어요!
                     </Text>
                     <Text style={{ fontSize: 14, color: Colors.neutral[500], textAlign: "center", lineHeight: 20 }}>
-                      멤버를 초대하고 함께 식단을 공유해보세요.{"\n"}첫 번째 피드를 작성해볼까요?
+                      멤버를 초대하고 함께 식단을 공유해보세요.
                     </Text>
                   </View>
 
                   {/* 액션 버튼들 */}
-                  <View style={{ flexDirection: "row", marginTop: Spacing.md, gap: Spacing.sm }}>
+                  <View style={{ flexDirection: "row", gap: Spacing.sm }}>
                     <TouchableOpacity
-                      onPress={() => setShowInviteModal(true)}
+                      onPress={handleInviteShare}
+                      disabled={isInviting}
                       activeOpacity={0.8}
                       style={{
                         flex: 1,
                         flexDirection: "row",
                         alignItems: "center",
                         justifyContent: "center",
-                        backgroundColor: "#FFFFFF",
-                        paddingVertical: Spacing.sm,
-                        borderRadius: BorderRadius.md,
+                        backgroundColor: Colors.neutral[100],
+                        paddingVertical: Spacing.md,
+                        borderRadius: BorderRadius.lg,
                         gap: 6,
+                        opacity: isInviting ? 0.6 : 1,
                       }}
                     >
-                      <UserPlus size={16} color={Colors.primary[500]} />
-                      <Text style={{ fontSize: 14, fontWeight: "600", color: Colors.primary[500] }}>
-                        멤버 초대
-                      </Text>
+                      {isInviting ? (
+                        <ActivityIndicator size="small" color={Colors.primary[500]} />
+                      ) : (
+                        <>
+                          <UserPlus size={18} color={Colors.primary[500]} />
+                          <Text style={{ fontSize: 14, fontWeight: "600", color: Colors.primary[500] }}>
+                            멤버 초대
+                          </Text>
+                        </>
+                      )}
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={handleCreateFeed}
@@ -594,12 +751,12 @@ export default function GroupScreen() {
                         alignItems: "center",
                         justifyContent: "center",
                         backgroundColor: Colors.primary[500],
-                        paddingVertical: Spacing.sm,
-                        borderRadius: BorderRadius.md,
+                        paddingVertical: Spacing.md,
+                        borderRadius: BorderRadius.lg,
                         gap: 6,
                       }}
                     >
-                      <PenSquare size={16} color="#FFFFFF" />
+                      <PenSquare size={18} color="#FFFFFF" />
                       <Text style={{ fontSize: 14, fontWeight: "600", color: "#FFFFFF" }}>
                         피드 작성
                       </Text>
@@ -613,16 +770,13 @@ export default function GroupScreen() {
                 key={item.id}
                 style={{
                   backgroundColor: Colors.neutral[0],
-                  borderRadius: BorderRadius.xl,
-                  marginBottom: Spacing.md,
-                  borderWidth: 1,
-                  borderColor: Colors.neutral[100],
-                  overflow: "hidden",
+                  borderBottomWidth: 1,
+                  borderBottomColor: Colors.neutral[100],
                 }}
               >
                 {item.type === "post" ? (
-                  // 사용자 생성 피드 (숏끼 스타일)
-                  <View style={{ padding: Spacing.md }}>
+                  // 사용자 생성 피드
+                  <View style={{ padding: Spacing.lg }}>
                     {/* Post Header */}
                     <View
                       style={{
@@ -633,17 +787,17 @@ export default function GroupScreen() {
                     >
                       <View
                         style={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: 22,
-                          backgroundColor: Colors.primary[500],
+                          width: 36,
+                          height: 36,
+                          borderRadius: 18,
+                          backgroundColor: Colors.neutral[300],
                           justifyContent: "center",
                           alignItems: "center",
                         }}
                       >
                         <Text
                           style={{
-                            fontSize: 18,
+                            fontSize: 14,
                             fontWeight: "bold",
                             color: "#FFFFFF",
                           }}
@@ -651,26 +805,17 @@ export default function GroupScreen() {
                           {item.userAvatar}
                         </Text>
                       </View>
-                      <View style={{ flex: 1, marginLeft: Spacing.md }}>
-                        <Text
-                          style={{
-                            fontSize: 16,
-                            fontWeight: "700",
-                            color: Colors.neutral[900],
-                          }}
-                        >
-                          {item.user}
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 13,
-                            color: Colors.neutral[400],
-                            marginTop: 2,
-                          }}
-                        >
-                          {item.time}
-                        </Text>
-                      </View>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: "600",
+                          color: Colors.neutral[900],
+                          marginLeft: Spacing.sm,
+                        }}
+                      >
+                        {item.user}
+                      </Text>
+                      <View style={{ flex: 1 }} />
                       <TouchableOpacity
                         onPress={() => handleFeedMenuPress(item.id)}
                         style={{ padding: Spacing.xs }}
@@ -679,24 +824,11 @@ export default function GroupScreen() {
                       </TouchableOpacity>
                     </View>
 
-                    {/* Post Content */}
-                    <Text
-                      style={{
-                        fontSize: 15,
-                        color: Colors.neutral[800],
-                        lineHeight: 22,
-                        marginBottom: Spacing.md,
-                      }}
-                    >
-                      {item.content}
-                    </Text>
-
                     {/* Post Images */}
                     {item.images && item.images.length > 0 && (
                       <View
                         style={{
-                          borderRadius: BorderRadius.xl,
-                          overflow: "hidden",
+                          marginHorizontal: -Spacing.lg,
                           marginBottom: Spacing.md,
                         }}
                       >
@@ -713,16 +845,15 @@ export default function GroupScreen() {
                           <ScrollView
                             horizontal
                             showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={{ gap: Spacing.sm }}
+                            contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}
                           >
                             {item.images.map((imageUri, imgIndex) => (
                               <Image
                                 key={imgIndex}
                                 source={{ uri: imageUri }}
                                 style={{
-                                  width: 160,
-                                  height: 160,
-                                  borderRadius: BorderRadius.lg,
+                                  width: 200,
+                                  height: 200,
                                 }}
                                 contentFit="cover"
                               />
@@ -804,43 +935,59 @@ export default function GroupScreen() {
                       </TouchableOpacity>
                     )}
 
-                    {/* Like Button */}
-                    <TouchableOpacity
-                      onPress={() => toggleLike(item.id)}
-                      activeOpacity={0.7}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        alignSelf: "flex-start",
-                        backgroundColor: item.isLiked ? Colors.primary[50] : Colors.neutral[50],
-                        paddingHorizontal: Spacing.md,
-                        paddingVertical: Spacing.sm,
-                        borderRadius: BorderRadius.full,
-                      }}
-                    >
-                      <Heart
-                        size={18}
-                        color={item.isLiked ? Colors.primary[500] : Colors.neutral[500]}
-                        fill={item.isLiked ? Colors.primary[500] : "transparent"}
-                      />
+                    {/* Content Text */}
+                    {item.content && (
                       <Text
                         style={{
-                          fontSize: 13,
-                          fontWeight: "600",
-                          color: item.isLiked ? Colors.primary[500] : Colors.neutral[600],
-                          marginLeft: 6,
+                          fontSize: 14,
+                          color: Colors.neutral[800],
+                          lineHeight: 20,
+                          marginBottom: Spacing.md,
                         }}
+                        numberOfLines={2}
                       >
-                        {item.likes}
+                        {item.content}
                       </Text>
-                    </TouchableOpacity>
+                    )}
+
+                    {/* Action Buttons */}
+                    {/* 좋아요 버튼 */}
+                    <View style={{ flexDirection: "row", gap: Spacing.md }}>
+                      <TouchableOpacity
+                        onPress={() => toggleLike(item.id)}
+                        activeOpacity={0.7}
+                      >
+                        <Heart
+                          size={24}
+                          color={item.isLiked ? Colors.primary[500] : Colors.neutral[800]}
+                          fill={item.isLiked ? Colors.primary[500] : "transparent"}
+                        />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 ) : null}
               </View>
             ))
             )}
 
-            <View style={{ height: 100 }} />
+            {/* 하단 메시지 */}
+            <View style={{ alignItems: "center", paddingVertical: Spacing.xl * 2 }}>
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: Colors.neutral[200],
+                  marginBottom: Spacing.sm,
+                }}
+              />
+              <Text style={{ fontSize: 14, color: Colors.neutral[400] }}>
+                오늘의 모든 피드를 확인했습니다
+              </Text>
+            </View>
+
+            <View style={{ height: 80 }} />
           </ScrollView>
 
           {/* 피드 작성 FAB */}
@@ -946,6 +1093,146 @@ export default function GroupScreen() {
             </Animated.View>
           </View>
         </Modal>
+
+        {/* 피드 삭제 확인 모달 */}
+        <Modal visible={showDeleteFeedModal} transparent animationType="fade">
+          <Pressable
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+            onPress={() => !isDeletingFeed && setShowDeleteFeedModal(false)}
+          >
+            <Pressable
+              style={{
+                backgroundColor: Colors.neutral[0],
+                borderRadius: 24,
+                padding: 28,
+                marginHorizontal: 32,
+                width: "85%",
+                maxWidth: 340,
+                alignItems: "center",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 10 },
+                shadowOpacity: 0.15,
+                shadowRadius: 20,
+                elevation: 10,
+              }}
+              onPress={(e) => e.stopPropagation()}
+            >
+              {/* 경고 아이콘 */}
+              <View
+                style={{
+                  width: 72,
+                  height: 72,
+                  borderRadius: 36,
+                  backgroundColor: "#FEE2E2",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginBottom: 20,
+                }}
+              >
+                <View
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 28,
+                    backgroundColor: Colors.error.main,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Trash2 size={28} color="#FFFFFF" strokeWidth={2.5} />
+                </View>
+              </View>
+
+              {/* 타이틀 */}
+              <Text
+                style={{
+                  fontSize: 20,
+                  fontWeight: "700",
+                  color: Colors.neutral[900],
+                  marginBottom: 8,
+                }}
+              >
+                게시물 삭제
+              </Text>
+
+              {/* 설명 */}
+              <Text
+                style={{
+                  fontSize: 15,
+                  color: Colors.neutral[500],
+                  textAlign: "center",
+                  lineHeight: 22,
+                  marginBottom: 24,
+                }}
+              >
+                이 게시물을 삭제하시겠습니까?{"\n"}삭제된 게시물은 복구할 수 없습니다.
+              </Text>
+
+              {/* 버튼들 */}
+              <View style={{ width: "100%", gap: 10 }}>
+                {/* 삭제 버튼 */}
+                <TouchableOpacity
+                  onPress={handleDeleteFeed}
+                  disabled={isDeletingFeed}
+                  activeOpacity={0.8}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: isDeletingFeed ? Colors.neutral[300] : Colors.error.main,
+                    paddingVertical: 14,
+                    borderRadius: 14,
+                    gap: 8,
+                  }}
+                >
+                  {isDeletingFeed ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Trash2 size={18} color="#FFFFFF" />
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          fontWeight: "600",
+                          color: "#FFFFFF",
+                        }}
+                      >
+                        삭제하기
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                {/* 취소 버튼 */}
+                <TouchableOpacity
+                  onPress={() => setShowDeleteFeedModal(false)}
+                  disabled={isDeletingFeed}
+                  activeOpacity={0.8}
+                  style={{
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingVertical: 12,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      fontWeight: "500",
+                      color: Colors.neutral[400],
+                    }}
+                  >
+                    취소
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </View>
     );
   }
@@ -976,11 +1263,8 @@ export default function GroupScreen() {
             그룹
           </Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.md }}>
-            <TouchableOpacity onPress={handleNotifications} activeOpacity={0.7}>
-              <Bell size={24} color={Colors.neutral[600]} />
-            </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => setShowCreateModal(true)}
+              onPress={() => router.push("/group-edit")}
               activeOpacity={0.8}
               style={{
                 flexDirection: "row",
@@ -1107,7 +1391,7 @@ export default function GroupScreen() {
                 아직 참여한 그룹이 없습니다
               </Text>
               <Pressable
-                onPress={() => setShowCreateModal(true)}
+                onPress={() => router.push("/group-edit")}
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
@@ -1472,7 +1756,7 @@ export default function GroupScreen() {
             justifyContent: "center",
             alignItems: "center",
           }}
-          onPress={() => setShowInviteModal(false)}
+          onPress={() => !isInviting && setShowInviteModal(false)}
         >
           <Pressable
             style={{
@@ -1501,101 +1785,59 @@ export default function GroupScreen() {
               >
                 멤버 초대
               </Text>
-              <Pressable onPress={() => setShowInviteModal(false)}>
+              <Pressable
+                onPress={() => !isInviting && setShowInviteModal(false)}
+                disabled={isInviting}
+              >
                 <X size={24} color={Colors.neutral[400]} />
               </Pressable>
             </View>
 
-            {/* 초대 링크 */}
+            {/* 초대 안내 */}
             <Text
               style={{
-                fontSize: Typography.fontSize.sm,
+                fontSize: Typography.fontSize.base,
                 color: Colors.neutral[600],
-                marginBottom: Spacing.sm,
+                textAlign: "center",
+                marginBottom: Spacing.lg,
+                lineHeight: 22,
               }}
             >
-              초대 링크
+              초대 링크를 공유하여{"\n"}멤버를 초대해보세요
             </Text>
-            <View
+
+            {/* 공유하기 버튼 */}
+            <TouchableOpacity
+              onPress={handleInviteShare}
+              activeOpacity={0.8}
+              disabled={isInviting}
               style={{
-                backgroundColor: Colors.neutral[50],
-                borderWidth: 1,
-                borderColor: Colors.neutral[200],
-                borderRadius: BorderRadius.lg,
-                padding: Spacing.md,
                 flexDirection: "row",
                 alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: isInviting ? Colors.neutral[300] : Colors.primary[500],
+                borderRadius: BorderRadius.lg,
+                paddingVertical: Spacing.md,
+                gap: Spacing.sm,
               }}
             >
-              <Text
-                style={{
-                  flex: 1,
-                  fontSize: Typography.fontSize.sm,
-                  color: Colors.neutral[600],
-                }}
-                numberOfLines={1}
-              >
-                shortkki.com/invite/{selectedGroup?.id || "abc123"}
-              </Text>
-            </View>
-
-            {/* 버튼들 */}
-            <View style={{ gap: Spacing.sm, marginTop: Spacing.lg }}>
-              {/* 링크 복사 */}
-              <TouchableOpacity
-                onPress={handleCopyInviteLink}
-                activeOpacity={0.8}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: Colors.primary[500],
-                  borderRadius: BorderRadius.lg,
-                  paddingVertical: Spacing.md,
-                  gap: Spacing.sm,
-                }}
-              >
-                <Copy size={18} color="#FFFFFF" />
-                <Text
-                  style={{
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: "600",
-                    color: "#FFFFFF",
-                  }}
-                >
-                  링크 복사
-                </Text>
-              </TouchableOpacity>
-
-              {/* 공유하기 */}
-              <TouchableOpacity
-                onPress={() => {
-                  setShowInviteModal(false);
-                  Alert.alert("공유", "공유 기능이 호출되었습니다.");
-                }}
-                activeOpacity={0.8}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: Colors.neutral[100],
-                  borderRadius: BorderRadius.lg,
-                  paddingVertical: Spacing.md,
-                  gap: Spacing.sm,
-                }}
-              >
-                <Share2 size={18} color={Colors.neutral[700]} />
-                <Text
-                  style={{
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: "600",
-                    color: Colors.neutral[700],
-                  }}
-                >
-                  다른 앱으로 공유
-                </Text>
-              </TouchableOpacity>
-            </View>
+              {isInviting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Share2 size={18} color="#FFFFFF" />
+                  <Text
+                    style={{
+                      fontSize: Typography.fontSize.base,
+                      fontWeight: "600",
+                      color: "#FFFFFF",
+                    }}
+                  >
+                    초대 링크 공유하기
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
           </Pressable>
         </Pressable>
       </Modal>
@@ -1890,6 +2132,296 @@ export default function GroupScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 그룹 나가기 확인 모달 */}
+      <Modal visible={showLeaveModal} transparent animationType="fade">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={() => !isLeaving && setShowLeaveModal(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: "#FFFFFF",
+              borderRadius: 24,
+              padding: 28,
+              marginHorizontal: 40,
+              alignItems: "center",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.15,
+              shadowRadius: 20,
+              elevation: 10,
+              width: "85%",
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* 아이콘 */}
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: Colors.warning.light,
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <LogOut size={36} color={Colors.warning.main} />
+            </View>
+
+            {/* 타이틀 */}
+            <Text
+              style={{
+                fontSize: 20,
+                fontWeight: "800",
+                color: Colors.neutral[900],
+                marginBottom: 8,
+              }}
+            >
+              그룹에서 나갈까요?
+            </Text>
+
+            {/* 그룹 정보 */}
+            {leaveTargetGroup && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: Colors.neutral[100],
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  marginBottom: 12,
+                  width: "100%",
+                  justifyContent: "center",
+                }}
+              >
+                <Users size={18} color={Colors.neutral[600]} />
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontWeight: "600",
+                    color: Colors.neutral[800],
+                    marginLeft: 8,
+                  }}
+                  numberOfLines={1}
+                >
+                  {leaveTargetGroup.name}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: Colors.neutral[500],
+                    marginLeft: 8,
+                  }}
+                >
+                  · 멤버 {leaveTargetGroup.memberCount}명
+                </Text>
+              </View>
+            )}
+
+            {/* 안내 메시지 */}
+            <Text
+              style={{
+                fontSize: 14,
+                color: Colors.neutral[500],
+                textAlign: "center",
+                lineHeight: 20,
+              }}
+            >
+              그룹을 나가면 피드와 레시피북에{"\n"}
+              더 이상 접근할 수 없습니다.
+            </Text>
+
+            {/* 버튼들 */}
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 12,
+                marginTop: 24,
+                width: "100%",
+              }}
+            >
+              {/* 취소 버튼 */}
+              <TouchableOpacity
+                onPress={() => {
+                  setShowLeaveModal(false);
+                  setLeaveTargetGroup(null);
+                }}
+                disabled={isLeaving}
+                activeOpacity={0.8}
+                style={{
+                  flex: 1,
+                  backgroundColor: Colors.neutral[100],
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontWeight: "600",
+                    color: Colors.neutral[700],
+                  }}
+                >
+                  취소
+                </Text>
+              </TouchableOpacity>
+
+              {/* 나가기 버튼 */}
+              <TouchableOpacity
+                onPress={async () => {
+                  if (!leaveTargetGroup) return;
+                  setIsLeaving(true);
+                  try {
+                    await deleteGroup(leaveTargetGroup.id);
+                    setShowLeaveModal(false);
+                    setShowLeaveSuccessModal(true);
+                  } catch (error) {
+                    console.error("그룹 나가기 실패:", error);
+                    Alert.alert(
+                      "오류",
+                      error instanceof Error ? error.message : "그룹 나가기에 실패했습니다."
+                    );
+                  } finally {
+                    setIsLeaving(false);
+                  }
+                }}
+                disabled={isLeaving}
+                activeOpacity={0.8}
+                style={{
+                  flex: 1,
+                  backgroundColor: isLeaving ? Colors.neutral[300] : Colors.warning.main,
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: "center",
+                  flexDirection: "row",
+                  justifyContent: "center",
+                  gap: 6,
+                }}
+              >
+                <LogOut size={18} color="#FFFFFF" />
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontWeight: "700",
+                    color: "#FFFFFF",
+                  }}
+                >
+                  {isLeaving ? "나가는 중..." : "나가기"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 그룹 나가기 완료 모달 */}
+      <Modal visible={showLeaveSuccessModal} transparent animationType="fade">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={() => {
+            setShowLeaveSuccessModal(false);
+            setLeaveTargetGroup(null);
+          }}
+        >
+          <Pressable
+            style={{
+              backgroundColor: "#FFFFFF",
+              borderRadius: 24,
+              padding: 28,
+              marginHorizontal: 40,
+              alignItems: "center",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.15,
+              shadowRadius: 20,
+              elevation: 10,
+              width: "85%",
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* 체크 아이콘 */}
+            <View
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: Colors.success.light,
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <Check size={36} color={Colors.success.main} />
+            </View>
+
+            {/* 타이틀 */}
+            <Text
+              style={{
+                fontSize: 20,
+                fontWeight: "800",
+                color: Colors.neutral[900],
+                marginBottom: 8,
+              }}
+            >
+              그룹에서 나왔어요
+            </Text>
+
+            {/* 안내 메시지 */}
+            <Text
+              style={{
+                fontSize: 14,
+                color: Colors.neutral[500],
+                textAlign: "center",
+                lineHeight: 20,
+                marginBottom: 24,
+              }}
+            >
+              {leaveTargetGroup?.name ? `"${leaveTargetGroup.name}" ` : ""}그룹에서{"\n"}
+              성공적으로 나왔습니다.
+            </Text>
+
+            {/* 확인 버튼 */}
+            <TouchableOpacity
+              onPress={() => {
+                setShowLeaveSuccessModal(false);
+                setLeaveTargetGroup(null);
+              }}
+              activeOpacity={0.8}
+              style={{
+                width: "100%",
+                backgroundColor: Colors.primary[500],
+                paddingVertical: 14,
+                borderRadius: 12,
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 15,
+                  fontWeight: "700",
+                  color: "#FFFFFF",
+                }}
+              >
+                확인
+              </Text>
+            </TouchableOpacity>
           </Pressable>
         </Pressable>
       </Modal>
