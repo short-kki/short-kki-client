@@ -16,8 +16,22 @@ import {
   TextInput,
   Platform,
   KeyboardAvoidingView,
+  Linking,
+  BackHandler,
 } from "react-native";
+import RAnimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  useAnimatedScrollHandler,
+  useAnimatedReaction,
+  withTiming,
+  interpolate,
+  Extrapolation,
+  runOnJS,
+} from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -44,8 +58,10 @@ import {
   CheckSquare,
   Volume2,
   VolumeX,
+  ExternalLink,
+  Minimize2,
 } from "lucide-react-native";
-import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/design-system";
 import { recipeApi, type RecipeResponse } from "@/services/recipeApi";
 import { API_BASE_URL } from "@/constants/oauth";
 import { api } from "@/services/api";
@@ -54,7 +70,10 @@ import { FeedbackToast, useFeedbackToast, truncateTitle } from "@/components/ui/
 import { YoutubeView, useYouTubePlayer, useYouTubeEvent, PlayerState } from "react-native-youtube-bridge";
 import { extractYoutubeId } from "@/utils/youtube";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const VIDEO_HEIGHT = SCREEN_WIDTH * 0.85;
+const PLAYER_WIDTH = VIDEO_HEIGHT * (9 / 16); // 세로 영상이므로 9:16
+const FULLSCREEN_THRESHOLD = 55; // 55px 이상 당기면 풀스크린 스냅
 const BOOK_LIST_ITEM_HEIGHT = 73; // paddingVertical(14*2) + icon(44) + border(1)
 const BOOK_LIST_VISIBLE_COUNT = 3;
 
@@ -65,6 +84,14 @@ const FEEDBACK_TYPES = [
   { id: "SPAM_AD", label: "스팸 / 광고", icon: Megaphone, description: "홍보 목적의 콘텐츠이거나 반복 게시물이에요" },
   { id: "OTHER", label: "기타", icon: HelpCircle, description: "위 항목에 해당하지 않는 의견이에요" },
 ] as const;
+
+const DIFFICULTY_LABELS: Record<string, string> = {
+  BEGINNER: "초급",
+  INTERMEDIATE: "중급",
+  ADVANCED: "고급",
+  ETC: "기타",
+};
+
 
 // 기본 레시피 값 (로딩 전 또는 에러 시)
 const DEFAULT_RECIPE: RecipeResponse = {
@@ -116,12 +143,24 @@ export default function RecipeDetailScreen() {
     setError(null);
 
     console.log("[RecipeDetail] Calling GET /api/v1/recipes/" + id);
-    recipeApi.getById(id).then((data) => {
+    Promise.all([
+      recipeApi.getById(id),
+      api.get<{ data: number[] | { recipeBookIds?: number[] } }>(
+        `/api/v1/recipebooks/recipes/${id}`
+      ).catch(() => null),
+    ]).then(([data, bookmarkRes]) => {
       if (cancelled) return;
       console.log("[RecipeDetail] API OK - title:", data?.title);
       setRecipe(data);
       setServings(data.servingSize);
-      setOwnedBookIds((data.ownedRecipeBookIds || []).map((bookId) => String(bookId)));
+      // 북마크 확인 API 응답이 있으면 그걸 우선 사용
+      if (bookmarkRes?.data) {
+        const payload = bookmarkRes.data;
+        const savedBookIds = Array.isArray(payload) ? payload : (payload?.recipeBookIds ?? []);
+        setOwnedBookIds((savedBookIds || []).map((bookId) => String(bookId)));
+      } else {
+        setOwnedBookIds((data.ownedRecipeBookIds || []).map((bookId) => String(bookId)));
+      }
       setLoading(false);
     }).catch((err: any) => {
       if (cancelled) return;
@@ -161,6 +200,132 @@ export default function RecipeDetailScreen() {
   const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } =
     useFeedbackToast(1600);
 
+  // 히어로 스트레치 + 풀스크린
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const isFullscreenShared = useSharedValue(false);
+  const scrollY = useSharedValue(0);
+  const pullOffset = useSharedValue(0); // 0=일반, SCREEN_HEIGHT-VIDEO_HEIGHT=풀스크린
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
+
+  const enterFullscreenJS = useCallback(() => {
+    setIsFullscreen(true);
+    StatusBar.setHidden(true, 'fade');
+  }, []);
+
+  const exitFullscreenJS = useCallback(() => {
+    setIsFullscreen(false);
+    StatusBar.setHidden(false, 'fade');
+  }, []);
+
+  const nativeGestureRef = useRef<any>(null);
+
+  const pullGesture = Gesture.Pan()
+    .activeOffsetY([-10, 10])
+    .onUpdate((e) => {
+      'worklet';
+      if (isFullscreenShared.value) {
+        // 풀스크린: 위로 스와이프 → 축소
+        if (e.translationY < 0) {
+          const target = (SCREEN_HEIGHT - VIDEO_HEIGHT) + e.translationY * 0.85;
+          pullOffset.value = Math.max(0, target);
+        }
+      } else {
+        // 일반: 아래로 당기기 → 스트레치
+        if (scrollY.value <= 0 && e.translationY > 0) {
+          pullOffset.value = Math.min(
+            e.translationY * 0.85,
+            SCREEN_HEIGHT - VIDEO_HEIGHT
+          );
+        }
+      }
+    })
+    .onEnd((e) => {
+      'worklet';
+      if (isFullscreenShared.value) {
+        // 풀스크린 해제 판정
+        if (-e.translationY > 100 || e.velocityY < -500) {
+          pullOffset.value = withTiming(0, { duration: 250 });
+          isFullscreenShared.value = false;
+          runOnJS(exitFullscreenJS)();
+        } else {
+          pullOffset.value = withTiming(SCREEN_HEIGHT - VIDEO_HEIGHT, { duration: 200 });
+        }
+      } else {
+        // 풀스크린 진입 판정
+        if (pullOffset.value > FULLSCREEN_THRESHOLD) {
+          pullOffset.value = withTiming(SCREEN_HEIGHT - VIDEO_HEIGHT, { duration: 250 });
+          isFullscreenShared.value = true;
+          runOnJS(enterFullscreenJS)();
+        } else {
+          pullOffset.value = withTiming(0, { duration: 250 });
+        }
+      }
+    })
+    .simultaneousWithExternalGesture(nativeGestureRef);
+
+  const nativeScrollGesture = Gesture.Native().withRef(nativeGestureRef);
+
+  // 히어로 컨테이너 높이 애니메이션
+  const heroAnimatedStyle = useAnimatedStyle(() => {
+    const stretch = Math.max(0, pullOffset.value);
+    return {
+      width: SCREEN_WIDTH,
+      height: VIDEO_HEIGHT + stretch,
+      backgroundColor: '#000',
+    };
+  });
+
+  // 히어로 내부 콘텐츠 스케일 (썸네일/영상이 같이 커지도록)
+  const heroContentScaleStyle = useAnimatedStyle(() => {
+    const stretch = Math.max(0, pullOffset.value);
+    const scale = stretch > 0 ? (VIDEO_HEIGHT + stretch) / VIDEO_HEIGHT : 1;
+    return {
+      transform: [{ scale }],
+    };
+  });
+
+  // 헤더 스크롤 반응 (히어로 지나면 흰 배경 + 어두운 아이콘)
+  const [isHeaderDark, setIsHeaderDark] = useState(false);
+
+  useAnimatedReaction(
+    () => scrollY.value > (VIDEO_HEIGHT - 100),
+    (isDark, prev) => {
+      if (isDark !== prev) {
+        runOnJS(setIsHeaderDark)(isDark);
+      }
+    },
+  );
+
+  const headerBgStyle = useAnimatedStyle(() => {
+    const progress = interpolate(
+      scrollY.value,
+      [VIDEO_HEIGHT - 120, VIDEO_HEIGHT - 60],
+      [0, 1],
+      Extrapolation.CLAMP,
+    );
+    return {
+      backgroundColor: `rgba(255, 255, 255, ${progress})`,
+    };
+  });
+
+  // Android 뒤로가기
+  useEffect(() => {
+    if (Platform.OS === 'android' && isFullscreen) {
+      const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+        pullOffset.value = withTiming(0, { duration: 250 });
+        isFullscreenShared.value = false;
+        exitFullscreenJS();
+        return true;
+      });
+      return () => handler.remove();
+    }
+  }, [isFullscreen, exitFullscreenJS]);
+
   // 비디오 관련 상태
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
@@ -170,8 +335,6 @@ export default function RecipeDetailScreen() {
   const videoId = recipe?.sourceUrl ? extractYoutubeId(recipe.sourceUrl) : null;
 
   // YouTube Player 설정
-  const VIDEO_HEIGHT = SCREEN_WIDTH * 0.75;
-  const playerWidth = VIDEO_HEIGHT * (9 / 16); // 세로 영상이므로 9:16
   const player = useYouTubePlayer(videoId || "", {
     autoplay: false,
     muted: isMuted,
@@ -491,23 +654,97 @@ export default function RecipeDetailScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: Colors.neutral[50] }}>
-        <ActivityIndicator size="large" color={Colors.primary[500]} />
+      <View style={{ flex: 1, backgroundColor: Colors.neutral[50] }}>
+        <StatusBar barStyle="dark-content" />
+        {/* Skeleton hero */}
+        <View style={{ width: SCREEN_WIDTH, height: VIDEO_HEIGHT, backgroundColor: Colors.neutral[200] }} />
+        {/* Skeleton content */}
+        <View style={{ padding: Spacing.xl }}>
+          {/* Author skeleton */}
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.lg }}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.neutral[200] }} />
+            <View style={{ marginLeft: Spacing.md }}>
+              <View style={{ width: 120, height: 14, borderRadius: 7, backgroundColor: Colors.neutral[200] }} />
+              <View style={{ width: 80, height: 10, borderRadius: 5, backgroundColor: Colors.neutral[200], marginTop: 6 }} />
+            </View>
+          </View>
+          {/* Description skeleton */}
+          <View style={{ width: "100%", height: 14, borderRadius: 7, backgroundColor: Colors.neutral[200], marginBottom: 8 }} />
+          <View style={{ width: "70%", height: 14, borderRadius: 7, backgroundColor: Colors.neutral[200], marginBottom: Spacing.lg }} />
+          {/* Tags skeleton */}
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: Spacing.xl }}>
+            {[80, 60, 90].map((w, i) => (
+              <View key={i} style={{ width: w, height: 28, borderRadius: BorderRadius.full, backgroundColor: Colors.neutral[200] }} />
+            ))}
+          </View>
+          {/* Ingredients card skeleton */}
+          <View style={{ height: 200, borderRadius: BorderRadius.xl, backgroundColor: Colors.neutral[200] }} />
+        </View>
+        {/* Center spinner */}
+        <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={Colors.primary[500]} />
+        </View>
       </View>
     );
   }
 
   if (error || !recipe) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: Colors.neutral[50] }}>
-        <Text style={{ color: Colors.neutral[500] }}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: Colors.neutral[50], padding: Spacing.xl }}>
+        <View
+          style={{
+            width: 72,
+            height: 72,
+            borderRadius: 36,
+            backgroundColor: Colors.neutral[100],
+            justifyContent: "center",
+            alignItems: "center",
+            marginBottom: Spacing.lg,
+          }}
+        >
+          <AlertTriangle size={36} color={Colors.neutral[400]} />
+        </View>
+        <Text
+          style={{
+            fontSize: Typography.fontSize.lg,
+            fontWeight: Typography.fontWeight.bold,
+            color: Colors.neutral[900],
+            marginBottom: Spacing.sm,
+            textAlign: "center",
+          }}
+        >
+          레시피를 불러올 수 없어요
+        </Text>
+        <Text
+          style={{
+            fontSize: Typography.fontSize.base,
+            color: Colors.neutral[500],
+            textAlign: "center",
+            lineHeight: 22,
+            marginBottom: Spacing.xl,
+          }}
+        >
           {error || "레시피 정보를 찾을 수 없습니다."}
         </Text>
         <TouchableOpacity
           onPress={() => router.back()}
-          style={{ marginTop: 20, padding: 10 }}
+          activeOpacity={0.8}
+          style={{
+            backgroundColor: Colors.primary[500],
+            paddingVertical: Spacing.md,
+            paddingHorizontal: Spacing["2xl"],
+            borderRadius: BorderRadius.lg,
+          }}
         >
-          <Text style={{ color: Colors.primary[500] }}>뒤로가기</Text>
+          <Text
+            style={{
+              fontSize: Typography.fontSize.base,
+              fontWeight: Typography.fontWeight.semiBold,
+              color: "#FFFFFF",
+            }}
+          >
+            뒤로가기
+          </Text>
         </TouchableOpacity>
       </View>
     );
@@ -517,16 +754,22 @@ export default function RecipeDetailScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[50] }}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={isHeaderDark ? "dark-content" : "light-content"} />
 
-      {/* Header */}
-      <View
-        style={{
-          paddingTop: insets.top,
-          backgroundColor: "#FFFFFF",
-          borderBottomWidth: 1,
-          borderBottomColor: Colors.neutral[100],
-        }}
+      {/* 스크롤 반응 헤더: 히어로 위에서는 투명+흰색, 콘텐츠에서는 흰 배경+어두운 아이콘 */}
+      {!isFullscreen && (
+      <RAnimated.View
+        style={[
+          {
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 20,
+            paddingTop: insets.top,
+          },
+          headerBgStyle,
+        ]}
       >
         <View
           style={{
@@ -543,85 +786,97 @@ export default function RecipeDetailScreen() {
               width: 40,
               height: 40,
               borderRadius: 20,
+              backgroundColor: isHeaderDark ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.35)",
               justifyContent: "center",
               alignItems: "center",
             }}
           >
-            <ChevronLeft size={24} color={Colors.neutral[700]} />
+            <ChevronLeft size={24} color={isHeaderDark ? Colors.neutral[800] : "#FFFFFF"} />
           </Pressable>
-          <TouchableOpacity
-            onPress={openMoreSheet}
-            activeOpacity={0.8}
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <MoreVertical size={24} color={Colors.neutral[700]} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Recipe Video or Image */}
-        <View style={{ width: SCREEN_WIDTH, height: VIDEO_HEIGHT, backgroundColor: Colors.neutral[900] }}>
-          {videoId ? (
-            <>
-              {/* YouTube Player */}
-              <View
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {recipe?.recipeSource === "IMPORT" && recipe?.sourceUrl && (
+              <Pressable
+                onPress={() => Linking.openURL(recipe.sourceUrl!)}
                 style={{
-                  width: SCREEN_WIDTH,
-                  height: VIDEO_HEIGHT,
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: isHeaderDark ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.35)",
                   justifyContent: "center",
                   alignItems: "center",
-                  overflow: "hidden",
                 }}
               >
-                <YoutubeView
-                  player={player}
-                  width={playerWidth}
-                  height={VIDEO_HEIGHT}
-                  style={{ backgroundColor: "#000" }}
-                  webViewStyle={{ backgroundColor: "#000" }}
-                  webViewProps={{
-                    allowsInlineMediaPlayback: true,
-                    mediaPlaybackRequiresUserAction: false,
-                    scrollEnabled: false,
-                  }}
-                />
-              </View>
+                <ExternalLink size={20} color={isHeaderDark ? Colors.neutral[800] : "#FFFFFF"} />
+              </Pressable>
+            )}
+            <TouchableOpacity
+              onPress={openMoreSheet}
+              activeOpacity={0.8}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: isHeaderDark ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.35)",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <MoreVertical size={24} color={isHeaderDark ? Colors.neutral[800] : "#FFFFFF"} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </RAnimated.View>
+      )}
 
-              {/* 재생/일시정지 오버레이 */}
-              {!isVideoPlaying && (
-                <Pressable
-                  onPress={togglePlayPause}
+      <GestureDetector gesture={pullGesture}>
+      <GestureDetector gesture={nativeScrollGesture}>
+      <RAnimated.ScrollView
+        showsVerticalScrollIndicator={false}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+        scrollEnabled={!isFullscreen}
+      >
+        {/* Recipe Video or Image */}
+        <RAnimated.View style={[heroAnimatedStyle, { overflow: 'hidden' }]}>
+          {/* 스케일 래퍼: 컨테이너가 늘어나면 콘텐츠도 같이 커짐 */}
+          <RAnimated.View
+            style={[
+              {
+                width: SCREEN_WIDTH,
+                height: VIDEO_HEIGHT,
+                transformOrigin: 'center top',
+              },
+              heroContentScaleStyle,
+            ]}
+          >
+            {videoId ? (
+              <>
+                {/* YouTube Player */}
+                <View
                   style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
+                    width: SCREEN_WIDTH,
+                    height: VIDEO_HEIGHT,
                     justifyContent: "center",
                     alignItems: "center",
-                    zIndex: 5,
+                    overflow: "hidden",
                   }}
                 >
-                  {/* 썸네일 배경 */}
-                  <Image
-                    source={{ uri: `https://i.ytimg.com/vi/${videoId}/hq720.jpg` }}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: SCREEN_WIDTH,
-                      height: VIDEO_HEIGHT,
+                  <YoutubeView
+                    player={player}
+                    width={PLAYER_WIDTH}
+                    height={VIDEO_HEIGHT}
+                    style={{ backgroundColor: "#000" }}
+                    webViewStyle={{ backgroundColor: "#000" }}
+                    webViewProps={{
+                      allowsInlineMediaPlayback: true,
+                      mediaPlaybackRequiresUserAction: false,
+                      scrollEnabled: false,
                     }}
-                    contentFit="cover"
                   />
-                  {/* 어두운 오버레이 */}
+                </View>
+
+                {/* 미재생 시 썸네일 오버레이 (네이티브 플레이어 UI 가리기) */}
+                {!isVideoPlaying && (
                   <View
                     style={{
                       position: "absolute",
@@ -629,153 +884,199 @@ export default function RecipeDetailScreen() {
                       left: 0,
                       right: 0,
                       bottom: 0,
-                      backgroundColor: "rgba(0,0,0,0.3)",
                     }}
-                  />
-                  {/* 재생 버튼 */}
-                  <View
-                    style={{
-                      width: 64,
-                      height: 64,
-                      borderRadius: 32,
-                      backgroundColor: "rgba(0,0,0,0.6)",
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
+                    pointerEvents="none"
                   >
-                    <Play size={32} color="#FFFFFF" fill="#FFFFFF" />
+                    <Image
+                      source={{ uri: `https://i.ytimg.com/vi/${videoId}/hq720.jpg` }}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: SCREEN_WIDTH,
+                        height: VIDEO_HEIGHT,
+                      }}
+                      contentFit="cover"
+                    />
+                    <View
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: "rgba(0,0,0,0.3)",
+                      }}
+                    />
                   </View>
-                </Pressable>
-              )}
+                )}
+              </>
+            ) : (
+              /* 이미지 폴백 (비디오 없을 때) */
+              <Image
+                source={{ uri: getImageUrl(recipe.mainImgUrl) }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="cover"
+              />
+            )}
+          </RAnimated.View>
 
-              {/* 음소거 토글 버튼 */}
-              {isVideoPlaying && (
-                <TouchableOpacity
-                  onPress={toggleMute}
-                  activeOpacity={0.8}
+          {/* 탭 오버레이 - 스케일 래퍼 바깥이라 버튼 크기 유지 */}
+          {videoId && (
+            <Pressable
+              onPress={togglePlayPause}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                justifyContent: "center",
+                alignItems: "center",
+                zIndex: 5,
+              }}
+            >
+              {/* 미재생 시 재생 버튼 */}
+              {!isVideoPlaying && (
+                <View
                   style={{
-                    position: "absolute",
-                    bottom: 16,
-                    right: 16,
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
+                    width: 64,
+                    height: 64,
+                    borderRadius: 32,
                     backgroundColor: "rgba(0,0,0,0.6)",
                     justifyContent: "center",
                     alignItems: "center",
-                    zIndex: 10,
                   }}
                 >
-                  {isMuted ? (
-                    <VolumeX size={20} color="#FFFFFF" />
-                  ) : (
-                    <Volume2 size={20} color="#FFFFFF" />
-                  )}
-                </TouchableOpacity>
+                  <Play size={32} color="#FFFFFF" fill="#FFFFFF" />
+                </View>
               )}
+            </Pressable>
+          )}
 
-              {/* 일시정지 버튼 (재생 중일 때) */}
-              {isVideoPlaying && (
-                <TouchableOpacity
-                  onPress={togglePlayPause}
-                  activeOpacity={0.8}
-                  style={{
-                    position: "absolute",
-                    bottom: 16,
-                    left: 16,
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: "rgba(0,0,0,0.6)",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    zIndex: 10,
-                  }}
-                >
-                  <View style={{ width: 14, height: 14, flexDirection: "row", justifyContent: "space-between" }}>
-                    <View style={{ width: 4, height: 14, backgroundColor: "#FFFFFF", borderRadius: 1 }} />
-                    <View style={{ width: 4, height: 14, backgroundColor: "#FFFFFF", borderRadius: 1 }} />
-                  </View>
-                </TouchableOpacity>
+          {/* 음소거 토글 버튼 - 스케일 래퍼 바깥 */}
+          {videoId && isVideoPlaying && (
+            <TouchableOpacity
+              onPress={toggleMute}
+              activeOpacity={0.8}
+              style={{
+                position: "absolute",
+                bottom: 16,
+                right: 16,
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: "rgba(0,0,0,0.6)",
+                justifyContent: "center",
+                alignItems: "center",
+                zIndex: 10,
+              }}
+            >
+              {isMuted ? (
+                <VolumeX size={20} color="#FFFFFF" />
+              ) : (
+                <Volume2 size={20} color="#FFFFFF" />
               )}
-            </>
-          ) : (
-            /* 이미지 폴백 (비디오 없을 때) */
-            <Image
-              source={{ uri: getImageUrl(recipe.mainImgUrl) }}
-              style={{ width: "100%", height: "100%" }}
-              contentFit="cover"
+            </TouchableOpacity>
+          )}
+
+          {/* Top gradient for header readability */}
+          {!isFullscreen && (
+            <LinearGradient
+              colors={["rgba(0,0,0,0.4)", "transparent"]}
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: 0,
+                height: 120,
+              }}
+              pointerEvents="none"
             />
           )}
-        </View>
+
+          {/* 풀스크린 닫기 버튼 */}
+          {isFullscreen && (
+            <TouchableOpacity
+              onPress={() => {
+                pullOffset.value = withTiming(0, { duration: 250 });
+                isFullscreenShared.value = false;
+                exitFullscreenJS();
+              }}
+              activeOpacity={0.8}
+              style={{
+                position: "absolute",
+                top: 48,
+                right: 16,
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: "rgba(0,0,0,0.5)",
+                justifyContent: "center",
+                alignItems: "center",
+                zIndex: 30,
+              }}
+            >
+              <Minimize2 size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
+
+        </RAnimated.View>
 
         {/* Content Section */}
-        <View style={{ padding: Spacing.xl }}>
-          {/* Title & Bookmark */}
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <View style={{ flex: 1, marginRight: Spacing.md }}>
-              <Text
-                style={{
-                  fontSize: Typography.fontSize["2xl"],
-                  fontWeight: Typography.fontWeight.bold,
-                  color: Colors.neutral[900],
-                  lineHeight: 32,
-                }}
-              >
-                {recipe.title}
+        <View style={{ padding: Spacing.xl, backgroundColor: Colors.neutral[0] }}>
+          {/* Title */}
+          <Text
+            style={{
+              fontSize: Typography.fontSize["2xl"],
+              fontWeight: Typography.fontWeight.bold,
+              color: Colors.neutral[900],
+              lineHeight: 34,
+            }}
+            numberOfLines={2}
+          >
+            {recipe.title}
+          </Text>
+
+          {/* Quick stats row */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: Spacing.base }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Clock size={15} color={Colors.neutral[400]} />
+              <Text style={{ fontSize: Typography.fontSize.sm, color: Colors.neutral[600], fontWeight: Typography.fontWeight.medium }}>
+                {recipe.cookingTime}분
               </Text>
-              <View style={{ flexDirection: "row", alignItems: "center", marginTop: Spacing.sm, gap: 8 }}>
-                <View
-                  style={{
-                    backgroundColor: Colors.primary[100],
-                    paddingHorizontal: 8,
-                    paddingVertical: 4,
-                    borderRadius: 4,
-                  }}
-                >
-                  <Text style={{ color: Colors.primary[600], fontSize: 12, fontWeight: "600" }}>
-                    {recipe.difficulty}
-                  </Text>
-                </View>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    backgroundColor: Colors.neutral[100],
-                    paddingHorizontal: 8,
-                    paddingVertical: 4,
-                    borderRadius: 4,
-                    gap: 4,
-                  }}
-                >
-                  <Clock size={12} color={Colors.neutral[500]} />
-                  <Text style={{ color: Colors.neutral[600], fontSize: 12, fontWeight: "600" }}>
-                    {recipe.cookingTime}분
-                  </Text>
-                </View>
-              </View>
             </View>
-            <View style={{ alignItems: "center" }}>
-              <View
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 24,
-                  backgroundColor: isOwned ? Colors.primary[50] : Colors.neutral[100],
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <Bookmark
-                  size={24}
-                  color={isOwned ? Colors.primary[500] : Colors.neutral[400]}
-                  fill={isOwned ? Colors.primary[500] : "transparent"}
-                />
-              </View>
-              <Text style={{ fontSize: 11, color: Colors.neutral[500], marginTop: 4 }}>
+            <View style={{ width: 1, height: 12, backgroundColor: Colors.neutral[200] }} />
+            <Text style={{ fontSize: Typography.fontSize.sm, color: Colors.neutral[600], fontWeight: Typography.fontWeight.medium }}>
+              {DIFFICULTY_LABELS[recipe.difficulty] || recipe.difficulty}
+            </Text>
+            <View style={{ flex: 1 }} />
+            {/* Bookmark button with count */}
+            <Pressable
+              onPress={openBookmarkSheet}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                height: 36,
+                paddingHorizontal: 12,
+                borderRadius: 18,
+                backgroundColor: isOwned ? Colors.primary[50] : Colors.neutral[100],
+              }}
+            >
+              <Bookmark
+                size={17}
+                color={isOwned ? Colors.primary[500] : Colors.neutral[400]}
+                fill={isOwned ? Colors.primary[500] : "transparent"}
+              />
+              <Text style={{
+                fontSize: Typography.fontSize.sm,
+                color: isOwned ? Colors.primary[500] : Colors.neutral[500],
+                fontWeight: Typography.fontWeight.semiBold,
+              }}>
                 {formatCount(recipe.bookmarkCount)}
               </Text>
-            </View>
+            </Pressable>
           </View>
 
           {/* Description */}
@@ -785,7 +1086,7 @@ export default function RecipeDetailScreen() {
                 fontSize: Typography.fontSize.base,
                 color: Colors.neutral[600],
                 lineHeight: 24,
-                marginTop: Spacing.md,
+                marginTop: Spacing.base,
               }}
             >
               {recipe.description}
@@ -793,146 +1094,332 @@ export default function RecipeDetailScreen() {
           )}
 
           {/* Tags */}
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: Spacing.lg }}>
-            {recipe.tags && recipe.tags.map((tag, index) => (
-              <View
-                key={index}
-                style={{
+          {recipe.tags && recipe.tags.length > 0 && (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: Spacing.base }}>
+              {recipe.tags.map((tag, index) => (
+                <View
+                  key={index}
+                  style={{
+                    backgroundColor: Colors.neutral[100],
+                    paddingHorizontal: 12,
+                    paddingVertical: 5,
+                    borderRadius: BorderRadius.full,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: Typography.fontSize.sm,
+                      color: Colors.neutral[600],
+                    }}
+                  >
+                    #{tag}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Author / Creator Info */}
+          <View style={{
+            backgroundColor: Colors.neutral[0],
+            borderRadius: BorderRadius.xl,
+            borderWidth: 1,
+            borderColor: Colors.neutral[200],
+            padding: Spacing.base,
+            marginTop: Spacing.lg,
+            flexDirection: "row",
+            alignItems: "center",
+          }}>
+            {/* 왼쪽: 작성자 */}
+            <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
+              {recipe.authorProfileImgUrl ? (
+                <Image
+                  source={{ uri: getImageUrl(recipe.authorProfileImgUrl) }}
+                  style={{
+                    width: 40, height: 40, borderRadius: 20,
+                    borderWidth: 2, borderColor: Colors.primary[100],
+                    backgroundColor: Colors.neutral[200],
+                  }}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={{
+                  width: 40, height: 40, borderRadius: 20,
+                  borderWidth: 2, borderColor: Colors.primary[100],
                   backgroundColor: Colors.neutral[100],
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  borderRadius: BorderRadius.full,
-                }}
-              >
-                <Text style={{ fontSize: 13, color: Colors.neutral[600] }}>#{tag}</Text>
+                  justifyContent: "center", alignItems: "center",
+                }}>
+                  <ChefHat size={18} color={Colors.neutral[400]} />
+                </View>
+              )}
+              <View style={{ flex: 1, marginLeft: Spacing.sm }}>
+                <Text style={{
+                  fontSize: Typography.fontSize.xs,
+                  color: Colors.neutral[400],
+                }}>
+                  작성자
+                </Text>
+                <Text style={{
+                  fontSize: Typography.fontSize.sm,
+                  fontWeight: Typography.fontWeight.semiBold,
+                  color: Colors.neutral[700],
+                  marginTop: 2,
+                }} numberOfLines={1}>
+                  {recipe.authorName || "알 수 없음"}
+                </Text>
               </View>
-            ))}
+            </View>
+
+            {/* 구분선 (IMPORT일 때만) */}
+            {recipe.recipeSource === "IMPORT" && recipe.creatorName && (
+              <>
+                <View style={{
+                  width: 1,
+                  height: 36,
+                  backgroundColor: Colors.neutral[200],
+                  marginHorizontal: Spacing.sm,
+                }} />
+
+                {/* 오른쪽: 원작자 */}
+                <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
+                  {recipe.creatorProfileImgUrl ? (
+                    <Image
+                      source={{ uri: getImageUrl(recipe.creatorProfileImgUrl) }}
+                      style={{
+                        width: 40, height: 40, borderRadius: 20,
+                        borderWidth: 2, borderColor: Colors.neutral[200],
+                        backgroundColor: Colors.neutral[200],
+                      }}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <View style={{
+                      width: 40, height: 40, borderRadius: 20,
+                      borderWidth: 2, borderColor: Colors.neutral[200],
+                      backgroundColor: Colors.neutral[100],
+                      justifyContent: "center", alignItems: "center",
+                    }}>
+                      <ChefHat size={18} color={Colors.neutral[400]} />
+                    </View>
+                  )}
+                  <View style={{ flex: 1, marginLeft: Spacing.sm }}>
+                    <Text style={{
+                      fontSize: Typography.fontSize.xs,
+                      color: Colors.neutral[400],
+                    }}>
+                      원작자
+                    </Text>
+                    <Text style={{
+                      fontSize: Typography.fontSize.sm,
+                      fontWeight: Typography.fontWeight.semiBold,
+                      color: Colors.neutral[700],
+                      marginTop: 2,
+                    }} numberOfLines={1}>
+                      {recipe.creatorName}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
           </View>
 
-          {/* Divider */}
-          <View style={{ height: 1, backgroundColor: Colors.neutral[200], marginVertical: Spacing.xl }} />
+          {/* Thick Section Divider */}
+          <View
+            style={{
+              height: 8,
+              backgroundColor: Colors.neutral[100],
+              marginHorizontal: -Spacing.xl,
+              marginTop: Spacing.xl,
+              marginBottom: Spacing.xl,
+            }}
+          />
 
-          {/* Ingredients Section */}
-          <View>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <Text style={{ fontSize: Typography.fontSize.xl, fontWeight: Typography.fontWeight.bold, color: Colors.neutral[900] }}>
+          {/* Ingredients Card */}
+          <View
+            style={{
+              backgroundColor: Colors.neutral[0],
+              borderRadius: BorderRadius.xl,
+              borderWidth: 1,
+              borderColor: Colors.neutral[200],
+              overflow: "hidden",
+            }}
+          >
+            {/* Card Header */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                paddingHorizontal: Spacing.base,
+                paddingVertical: Spacing.md,
+                borderBottomWidth: 1,
+                borderBottomColor: Colors.neutral[100],
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: Typography.fontSize.lg,
+                  fontWeight: Typography.fontWeight.bold,
+                  color: Colors.neutral[900],
+                }}
+              >
                 재료
               </Text>
-              {/* Servings Adjuster */}
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
+
+              {/* Servings Adjuster Pill */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: Colors.neutral[0],
+                  borderRadius: BorderRadius.full,
+                  borderWidth: 1,
+                  borderColor: Colors.neutral[200],
+                  paddingHorizontal: 4,
+                  paddingVertical: 2,
+                }}
+              >
                 <Pressable
                   onPress={() => adjustServings(-1)}
                   style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 16,
-                    backgroundColor: Colors.neutral[100],
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
                     justifyContent: "center",
                     alignItems: "center",
                   }}
                 >
-                  <Text style={{ fontSize: 18, color: Colors.neutral[600] }}>−</Text>
+                  <Text style={{ fontSize: 18, color: Colors.neutral[500], fontWeight: "600" }}>−</Text>
                 </Pressable>
-                <View style={{ flexDirection: "row", alignItems: "center", marginHorizontal: Spacing.sm }}>
-                  <Users size={16} color={Colors.neutral[500]} />
-                  <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.neutral[700], marginLeft: 4 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginHorizontal: Spacing.sm,
+                    gap: 4,
+                  }}
+                >
+                  <Users size={14} color={Colors.primary[500]} />
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: Colors.primary[500] }}>
                     {servings}인분
                   </Text>
                 </View>
                 <Pressable
                   onPress={() => adjustServings(1)}
                   style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 16,
-                    backgroundColor: Colors.neutral[100],
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
                     justifyContent: "center",
                     alignItems: "center",
                   }}
                 >
-                  <Text style={{ fontSize: 18, color: Colors.neutral[600] }}>+</Text>
+                  <Text style={{ fontSize: 18, color: Colors.neutral[500], fontWeight: "600" }}>+</Text>
                 </Pressable>
               </View>
             </View>
 
             {/* Ingredients List */}
-            <View style={{ marginTop: Spacing.md }}>
-              {recipe.ingredients.map((ingredient, index) => (
-                <View
-                  key={index}
+            {recipe.ingredients.map((ingredient, index) => (
+              <View
+                key={index}
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  paddingVertical: Spacing.md,
+                  paddingHorizontal: Spacing.base,
+                  borderBottomWidth: index < recipe.ingredients.length - 1 ? 1 : 0,
+                  borderBottomColor: Colors.neutral[100],
+                }}
+              >
+                <Text style={{ fontSize: Typography.fontSize.base, color: Colors.neutral[800] }}>
+                  {ingredient.name}
+                </Text>
+                <Text
                   style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    paddingVertical: Spacing.sm,
-                    borderBottomWidth: index < recipe.ingredients.length - 1 ? 1 : 0,
-                    borderBottomColor: Colors.neutral[100],
+                    fontSize: Typography.fontSize.base,
+                    color: Colors.neutral[500],
+                    fontWeight: Typography.fontWeight.medium,
                   }}
                 >
-                  <Text style={{ fontSize: 15, color: Colors.neutral[800] }}>
-                    {ingredient.name}
-                  </Text>
-                  <Text style={{ fontSize: 15, color: Colors.neutral[500], fontWeight: "500" }}>
-                    {getAdjustedAmount(ingredient.amount, ingredient.unit)}
-                  </Text>
-                </View>
-              ))}
-            </View>
+                  {getAdjustedAmount(ingredient.amount, ingredient.unit)}
+                </Text>
+              </View>
+            ))}
           </View>
 
-          {/* Divider */}
-          <View style={{ height: 1, backgroundColor: Colors.neutral[200], marginVertical: Spacing.xl }} />
+          {/* Thick Section Divider */}
+          <View
+            style={{
+              height: 8,
+              backgroundColor: Colors.neutral[100],
+              marginHorizontal: -Spacing.xl,
+              marginTop: Spacing.xl,
+              marginBottom: Spacing.xl,
+            }}
+          />
 
           {/* Steps Section */}
           <View>
-            <Text style={{ fontSize: Typography.fontSize.xl, fontWeight: Typography.fontWeight.bold, color: Colors.neutral[900] }}>
-              조리순서
-            </Text>
-            <View style={{ marginTop: Spacing.md }}>
-              {recipe.steps.map((step, index) => (
-                <View
-                  key={index}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: Spacing.xl }}>
+              <Text
+                style={{
+                  fontSize: Typography.fontSize.lg,
+                  fontWeight: Typography.fontWeight.bold,
+                  color: Colors.neutral[900],
+                }}
+              >
+                조리순서
+              </Text>
+              <Text style={{ fontSize: Typography.fontSize.sm, color: Colors.neutral[400] }}>
+                {recipe.steps.length}단계
+              </Text>
+            </View>
+
+            {recipe.steps.map((step, index) => (
+              <View
+                key={index}
+                style={{
+                  paddingBottom: index < recipe.steps.length - 1 ? Spacing.xl : 0,
+                  marginBottom: index < recipe.steps.length - 1 ? Spacing.xl : 0,
+                  borderBottomWidth: index < recipe.steps.length - 1 ? 1 : 0,
+                  borderBottomColor: Colors.neutral[100],
+                }}
+              >
+                <Text
                   style={{
-                    flexDirection: "row",
-                    marginBottom: Spacing.md,
+                    fontSize: Typography.fontSize.xs,
+                    fontWeight: Typography.fontWeight.bold,
+                    color: Colors.primary[500],
+                    letterSpacing: 0.5,
+                    marginBottom: Spacing.sm,
                   }}
                 >
-                  <View
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 14,
-                      backgroundColor: Colors.primary[500],
-                      justifyContent: "center",
-                      alignItems: "center",
-                      marginRight: Spacing.md,
-                    }}
-                  >
-                    <Text style={{ color: "#FFFFFF", fontWeight: "bold", fontSize: 14 }}>
-                      {step.stepOrder || index + 1}
-                    </Text>
-                  </View>
-                  <Text
-                    style={{
-                      flex: 1,
-                      fontSize: 15,
-                      color: Colors.neutral[700],
-                      lineHeight: 24,
-                    }}
-                  >
-                    {step.description}
-                  </Text>
-                </View>
-              ))}
-            </View>
+                  STEP {step.stepOrder || index + 1}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.base,
+                    color: Colors.neutral[700],
+                    lineHeight: 24,
+                  }}
+                >
+                  {step.description}
+                </Text>
+              </View>
+            ))}
           </View>
 
           {/* Bottom Padding */}
           <View style={{ height: 100 }} />
         </View>
-      </ScrollView>
+      </RAnimated.ScrollView>
+      </GestureDetector>
+      </GestureDetector>
 
       {/* Bottom Action Bar */}
+      {!isFullscreen && (
       <View
         style={{
           position: "absolute",
@@ -943,8 +1430,7 @@ export default function RecipeDetailScreen() {
           paddingHorizontal: Spacing.xl,
           paddingTop: Spacing.md,
           paddingBottom: insets.bottom + Spacing.md,
-          borderTopWidth: 1,
-          borderTopColor: Colors.neutral[100],
+          ...Shadows.lg,
           flexDirection: "row",
           gap: Spacing.sm,
         }}
@@ -957,9 +1443,11 @@ export default function RecipeDetailScreen() {
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: Colors.neutral[100],
+            backgroundColor: Colors.neutral[0],
             paddingVertical: Spacing.md,
             borderRadius: BorderRadius.lg,
+            borderWidth: 1.5,
+            borderColor: Colors.neutral[200],
             gap: 6,
           }}
         >
@@ -976,9 +1464,11 @@ export default function RecipeDetailScreen() {
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: Colors.neutral[100],
+            backgroundColor: Colors.neutral[0],
             paddingVertical: Spacing.md,
             borderRadius: BorderRadius.lg,
+            borderWidth: 1.5,
+            borderColor: Colors.neutral[200],
             gap: 6,
           }}
         >
@@ -1007,6 +1497,7 @@ export default function RecipeDetailScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+      )}
 
       {/* 레시피북 선택 Bottom Sheet */}
       <Modal

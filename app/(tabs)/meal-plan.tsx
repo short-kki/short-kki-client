@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -266,6 +266,7 @@ export default function MealPlanScreen() {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const router = useRouter();
+  const params = useLocalSearchParams<{ date?: string; tab?: "personal" | "group" }>();
 
   const today = useMemo(() => {
     const d = new Date();
@@ -273,16 +274,31 @@ export default function MealPlanScreen() {
     return d;
   }, []);
 
-  const [selectedDate, setSelectedDate] = useState(formatDateId(today));
-  const [currentWeekStart, setCurrentWeekStart] = useState(() => getStartOfWeek(today));
+  const initialDate = params.date ?? formatDateId(today);
+  const initialWeekStart = useMemo(() => {
+    if (params.date) {
+      const [y, m, d] = params.date.split("-").map(Number);
+      return getStartOfWeek(new Date(y, m - 1, d));
+    }
+    return getStartOfWeek(today);
+  }, [params.date, today]);
+
+  const [selectedDate, setSelectedDate] = useState(initialDate);
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => initialWeekStart);
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
-  const [viewMonth, setViewMonth] = useState({ year: today.getFullYear(), month: today.getMonth() });
+  const [viewMonth, setViewMonth] = useState(() => {
+    if (params.date) {
+      const [y, m] = params.date.split("-").map(Number);
+      return { year: y, month: m - 1 };
+    }
+    return { year: today.getFullYear(), month: today.getMonth() };
+  });
   const [localMeals, setLocalMeals] = useState<Record<string, CalendarMeal[]>>({});
   const [localGroupMeals, setLocalGroupMeals] = useState<Record<string, Record<string, CalendarMeal[]>>>({});
   const [showQueue, setShowQueue] = useState(false);
   const [showPersonalMeals, setShowPersonalMeals] = useState(true);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-  const [mealPlanTab, setMealPlanTab] = useState<"personal" | "group">("personal");
+  const [mealPlanTab, setMealPlanTab] = useState<"personal" | "group">(params.tab ?? "personal");
   const [menuTarget, setMenuTarget] = useState<
     | { mealId: string; source: "personal" }
     | { mealId: string; source: "group"; groupId: string }
@@ -290,6 +306,20 @@ export default function MealPlanScreen() {
   >(null);
   const [showGroupDeleteConfirm, setShowGroupDeleteConfirm] = useState(false);
   const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } = useFeedbackToast();
+
+  // 외부에서 파라미터로 진입 시 날짜/탭 반영
+  useEffect(() => {
+    if (params.date) {
+      setSelectedDate(params.date);
+      const [y, m, d] = params.date.split("-").map(Number);
+      const target = new Date(y, m - 1, d);
+      setCurrentWeekStart(getStartOfWeek(target));
+      setViewMonth({ year: y, month: m - 1 });
+    }
+    if (params.tab) {
+      setMealPlanTab(params.tab);
+    }
+  }, [params.date, params.tab]);
 
   // 조회 기간 계산: 항상 월 단위로 fetch → 같은 월 내 주간 이동 시 refetch 없음
   const dateRange = useMemo(() => {
