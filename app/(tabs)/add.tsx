@@ -39,6 +39,7 @@ interface ApiResponse<T> {
 
 interface ApiSourcePreview {
   sourceContentId: number;
+  recipeId: number | null;
   platform: string;
   contentType: string;
   canonicalUrl: string;
@@ -50,6 +51,7 @@ interface ApiSourcePreview {
 
 interface ApiImportPreview {
   sourceContentId: number;
+  recipeId: number | null;
   platform: string;
   contentType: string;
   canonicalUrl: string;
@@ -75,6 +77,7 @@ interface ParsedRecipe {
   authorThumbnail?: string | null;
   duration: string;
   source: string;
+  recipeId?: number | null;
 }
 
 const formatPlatformLabel = (platform?: string) => {
@@ -127,6 +130,7 @@ const parseRecipeFromUrl = async (url: string): Promise<ParsedRecipe | null> => 
     authorThumbnail: response.data.creatorThumbnailUrl ?? null,
     duration: response.data.contentType,
     source: formatPlatformLabel(response.data.platform),
+    recipeId: response.data.recipeId ?? null,
   };
 };
 
@@ -152,6 +156,11 @@ export default function AddRecipeScreen() {
     try {
       const result = await parseRecipeFromUrl(url);
       if (result) {
+        if (result.recipeId) {
+          showToast("이미 등록된 레시피로 이동합니다");
+          router.push(`/recipe/${result.recipeId}`);
+          return;
+        }
         setParsedRecipe(result);
       } else {
         Alert.alert("오류", "레시피 정보를 가져올 수 없습니다.\nURL을 확인해주세요.");
@@ -174,11 +183,17 @@ export default function AddRecipeScreen() {
         return;
       }
 
-      await api.post<ApiResponse<ApiImportResponse>>("/api/v1/recipe/import", {
+      const response = await api.post<ApiResponse<ApiImportResponse>>("/api/v1/recipe/import", {
         sourceUrl,
       });
 
-      showToast("레시피 생성 중이에요, 잠시만 기다려주세요");
+      if (response?.data?.recipeId && response?.data?.importHistoryId == null) {
+        showToast("이미 등록된 레시피로 이동합니다");
+        router.push(`/recipe/${response.data.recipeId}`);
+        return;
+      }
+
+      showToast("레시피 생성 중 입니다. 잠시만 기다려주세요");
       setUrl("");
       setParsedRecipe(null);
       setMode("select");
