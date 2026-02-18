@@ -366,7 +366,7 @@ export default function RecipeBookScreen() {
       if (success) {
         setShowDeleteModal(false);
         setDeleteTargetBook(null);
-        showToast(`"${truncateTitle(bookName)}" 레시피북이 삭제되었습니다`);
+        showToast(`"${truncateTitle(bookName)}" 레시피북이 삭제됐어요!`);
       } else {
         Alert.alert("오류", "레시피북 삭제에 실패했습니다.");
       }
@@ -398,7 +398,7 @@ export default function RecipeBookScreen() {
     if (success) {
       setNewBookName("");
       setShowCreateModal(false);
-      showToast(`"${truncateTitle(bookName)}" 레시피북이 생성되었습니다`);
+      showToast(`"${truncateTitle(bookName)}" 레시피북이 생성됐어요!`);
     } else {
       Alert.alert("오류", "레시피북 생성에 실패했습니다. 다시 시도해주세요.");
     }
@@ -416,7 +416,7 @@ export default function RecipeBookScreen() {
       setEditingBook(null);
       setEditBookName("");
       setShowEditModal(false);
-      showToast(`"${truncateTitle(newName)}" (으)로 이름이 변경되었습니다`);
+      showToast(`"${truncateTitle(newName)}" (으)로 이름이 변경됐어요!`);
     } else {
       Alert.alert("오류", "레시피북 이름 변경에 실패했습니다.");
     }

@@ -142,7 +142,6 @@ export default function RecipeDetailScreen() {
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [showGroupSelectModal, setShowGroupSelectModal] = useState(false);
   const [showIngredientSelectModal, setShowIngredientSelectModal] = useState(false);
-  const [showShoppingSuccessModal, setShowShoppingSuccessModal] = useState(false);
   const [showNoGroupModal, setShowNoGroupModal] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [selectedGroupName, setSelectedGroupName] = useState("");
@@ -319,21 +318,21 @@ export default function RecipeDetailScreen() {
         await api.delete(`/api/v1/recipebooks/${recipeBookId}/recipes/${recipe.id}`);
         setOwnedBookIds((prev) => prev.filter((id) => id !== bookId));
         await refreshRecipeState();
-        showToast(`"${truncateTitle(bookName)}"에서 삭제되었습니다.`, "danger");
+        showToast(`"${truncateTitle(bookName)}"에서 삭제됐어요!`, "danger");
       } catch (error: any) {
-        showToast("삭제에 실패했습니다.", "danger");
+        showToast("삭제에 실패했어요", "danger");
       }
     } else {
       try {
         await api.post(`/api/v1/recipebooks/${recipeBookId}/recipes`, { recipeId: recipe.id });
         setOwnedBookIds((prev) => (prev.includes(bookId) ? prev : [...prev, bookId]));
         await refreshRecipeState();
-        showToast(`"${truncateTitle(bookName)}"에 저장되었습니다.`, "success");
+        showToast(`"${truncateTitle(bookName)}"에 저장됐어요!`, "success");
       } catch (error: any) {
         if (error.message && error.message.includes("이미 레시피북에 추가된")) {
-          showToast("이미 해당 레시피북에 저장되어 있습니다.", "danger");
+          showToast("이미 해당 레시피북에 저장돼 있어요", "danger");
         } else {
-          showToast("레시피 저장에 실패했습니다.", "danger");
+          showToast("레시피 저장에 실패했어요", "danger");
         }
       }
     }
@@ -349,9 +348,9 @@ export default function RecipeDetailScreen() {
     if (!recipe) return;
     try {
       await addQueue(recipe.id);
-      showToast(`"${truncateTitle(recipe.title)}" 레시피가 대기열에 추가되었습니다.`, "success");
+      showToast(`"${truncateTitle(recipe.title)}" 레시피가 대기열에 추가됐어요!`, "success");
     } catch (err) {
-      showToast("대기열에 추가하지 못했습니다.", "danger");
+      showToast("대기열에 추가하지 못했어요", "danger");
     }
   };
 
@@ -408,10 +407,13 @@ export default function RecipeDetailScreen() {
       // POST /api/v1/groups/{groupId}/shopping-list/bulk
       await api.post(`/api/v1/groups/${selectedGroupId}/shopping-list/bulk`, { items });
 
-      setShowShoppingSuccessModal(true);
+      showToast(
+        `${selectedIngredients.length}개 재료가 "${selectedGroupName}" 장보기 목록에 추가됐어요!`,
+        "success"
+      );
     } catch (error) {
       console.error("장보기 목록 추가 실패:", error);
-      Alert.alert("오류", "장보기 목록에 추가하는데 실패했습니다.");
+      showToast("장보기 목록에 추가하지 못했어요", "danger");
     } finally {
       setIsAddingToShoppingList(false);
     }
@@ -471,9 +473,9 @@ export default function RecipeDetailScreen() {
         ...(feedbackContent.trim() && { description: feedbackContent.trim() }),
       });
       setShowFeedbackModal(false);
-      showToast("피드백이 접수되었습니다. 감사합니다!", "success");
+      showToast("피드백이 접수됐어요, 감사합니다!", "success");
     } catch {
-      showToast("피드백 접수에 실패했습니다.", "danger");
+      showToast("피드백 접수에 실패했어요", "danger");
     } finally {
       setFeedbackSubmitting(false);
     }
@@ -1628,92 +1630,6 @@ export default function RecipeDetailScreen() {
         </Pressable>
       </Modal>
 
-      {/* 장보기 추가 성공 모달 */}
-      <Modal visible={showShoppingSuccessModal} transparent animationType="fade">
-        <Pressable
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-          onPress={() => setShowShoppingSuccessModal(false)}
-        >
-          <Pressable
-            style={{
-              width: "85%",
-              backgroundColor: Colors.neutral[0],
-              borderRadius: BorderRadius["2xl"],
-              padding: Spacing.xl,
-              alignItems: "center",
-            }}
-            onPress={(e) => e.stopPropagation()}
-          >
-            {/* 성공 아이콘 */}
-            <View
-              style={{
-                width: 72,
-                height: 72,
-                borderRadius: 36,
-                backgroundColor: Colors.success.light,
-                justifyContent: "center",
-                alignItems: "center",
-                marginBottom: Spacing.lg,
-              }}
-            >
-              <ShoppingCart size={40} color={Colors.success.main} />
-            </View>
-
-            {/* 제목 */}
-            <Text
-              style={{
-                fontSize: Typography.fontSize.xl,
-                fontWeight: "700",
-                color: Colors.neutral[900],
-                marginBottom: Spacing.sm,
-              }}
-            >
-              장보기 목록에 추가됐어요!
-            </Text>
-
-            {/* 설명 */}
-            <Text
-              style={{
-                fontSize: Typography.fontSize.sm,
-                color: Colors.neutral[500],
-                textAlign: "center",
-                lineHeight: 20,
-                marginBottom: Spacing.xl,
-              }}
-            >
-              {selectedIngredients.length}개의 재료가{"\n"}"{selectedGroupName}" 장보기 목록에 추가되었습니다.
-            </Text>
-
-            {/* 버튼 */}
-            <TouchableOpacity
-              onPress={() => setShowShoppingSuccessModal(false)}
-              activeOpacity={0.8}
-              style={{
-                width: "100%",
-                backgroundColor: Colors.primary[500],
-                borderRadius: BorderRadius.lg,
-                paddingVertical: Spacing.md,
-                alignItems: "center",
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.base,
-                  fontWeight: "600",
-                  color: "#FFFFFF",
-                }}
-              >
-                확인
-              </Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
 
       {/* 그룹 없음 모달 */}
       <Modal visible={showNoGroupModal} transparent animationType="fade">
@@ -2139,6 +2055,7 @@ export default function RecipeDetailScreen() {
         variant={toastVariant}
         opacity={toastOpacity}
         translate={toastTranslate}
+        bottomOffset={88}
       />
 
       {/* 장보기 추가 로딩 */}

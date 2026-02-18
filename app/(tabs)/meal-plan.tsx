@@ -613,7 +613,7 @@ export default function MealPlanScreen() {
     }
     setDraggedRecipe(null);
     setDropTarget(null);
-    showToast(`"${truncateTitle(recipe.title)}" 식단이 추가되었습니다`);
+    showToast(`"${truncateTitle(recipe.title)}" 식단이 추가됐어요!`);
 
     // API 호출: 대기열에서 캘린더로 추가
     try {
@@ -1648,7 +1648,7 @@ export default function MealPlanScreen() {
                   [selectedDate]: (prev[selectedDate] || []).filter(m => String(m.id) !== menuTarget.mealId),
                 }));
                 closeMealMenu();
-                showToast(`"${truncateTitle(recipeName)}" 식단이 삭제되었습니다`);
+                showToast(`"${truncateTitle(recipeName)}" 식단이 삭제됐어요!`);
 
                 const mealIdNum = parseInt(menuTarget.mealId);
                 if (Number.isNaN(mealIdNum) || mealIdNum < 0) {
@@ -1708,7 +1708,7 @@ export default function MealPlanScreen() {
             };
           });
           setShowGroupDeleteConfirm(false);
-          showToast(`"${truncateTitle(recipeName)}" 식단이 삭제되었습니다`);
+          showToast(`"${truncateTitle(recipeName)}" 식단이 삭제됐어요!`);
 
           const mealIdNum = parseInt(menuTarget.mealId);
           setMenuTarget(null);

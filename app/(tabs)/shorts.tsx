@@ -632,9 +632,9 @@ export default function ShortsScreen() {
     console.log('[Shorts] 대기열 추가 버튼 클릭 - recipeId:', recipeId, 'title:', title);
     try {
       await addQueue(parseInt(recipeId));
-      showToast(`"${title}" 레시피가 대기열에 추가되었습니다.`, "success");
+      showToast(`"${title}" 레시피가 대기열에 추가됐어요!`, "success");
     } catch {
-      showToast("대기열에 추가하지 못했습니다.", "danger");
+      showToast("대기열에 추가하지 못했어요", "danger");
     }
   }, [addQueue, showToast]);
 
@@ -733,11 +733,11 @@ export default function ShortsScreen() {
 
     if (!USE_MOCK) {
       if (!Number.isFinite(recipeId)) {
-        showToast("레시피 정보를 확인할 수 없습니다.", "danger");
+        showToast("레시피 정보를 확인할 수 없어요", "danger");
         return;
       }
       if (!Number.isFinite(recipeBookId)) {
-        showToast("레시피북 정보를 확인할 수 없습니다.", "danger");
+        showToast("레시피북 정보를 확인할 수 없어요", "danger");
         return;
       }
     }
@@ -765,7 +765,7 @@ export default function ShortsScreen() {
         }));
       }
       await syncVideoBookmarkState(selectedVideoId);
-      showToast(`"${bookName}"에서 삭제되었습니다.`, "danger");
+      showToast(`"${bookName}"에서 삭제됐어요!`, "danger");
     } else {
       // 새로 저장
       const wasOwned = ownedBookIds.length > 0;
@@ -794,7 +794,7 @@ export default function ShortsScreen() {
         }));
       }
       await syncVideoBookmarkState(selectedVideoId);
-      showToast(`"${bookName}"에 저장되었습니다.`, "success");
+      showToast(`"${bookName}"에 저장됐어요!`, "success");
     }
 
     closeBookmarkSheet();
