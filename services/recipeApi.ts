@@ -66,6 +66,7 @@ export interface RecipeResponse {
   cuisineType: CuisineType;
   mealType: MealType;
   mainImgUrl?: string;
+  recipeSource?: RecipeSource;
   sourceUrl?: string;
   sourcePlatform?: string;
   sourceContentType?: string;
@@ -122,10 +123,16 @@ export const recipeApi = {
    * 레시피 상세 조회
    */
   getById: async (id: number): Promise<RecipeResponse> => {
-    const response = await api.get<BaseResponse<RecipeResponse>>(`/api/v1/recipes/${id}`);
-    console.log("[recipeApi.getById] raw response:", JSON.stringify(response, null, 2));
-    console.log("[recipeApi.getById] response.data:", JSON.stringify(response.data, null, 2));
-    return response.data!;
+    const response = await api.get<BaseResponse<any>>(`/api/v1/recipes/${id}`);
+    const raw = response.data!;
+    // API returns nested author/creator objects; flatten to match RecipeResponse
+    return {
+      ...raw,
+      authorName: raw.author?.name ?? raw.authorName ?? "",
+      authorProfileImgUrl: raw.author?.profileImgUrl ?? raw.authorProfileImgUrl,
+      creatorName: raw.creator?.name ?? raw.creatorName,
+      creatorProfileImgUrl: raw.creator?.profileImgUrl ?? raw.creatorProfileImgUrl,
+    };
   },
 
   /**

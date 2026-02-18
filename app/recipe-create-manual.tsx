@@ -417,11 +417,9 @@ export default function RecipeCreateManualScreen() {
           style={{
             flexDirection: "row",
             alignItems: "center",
-            paddingHorizontal: Spacing.lg,
-            paddingVertical: Spacing.md,
-            borderBottomWidth: 1,
-            borderBottomColor: Colors.neutral[100],
-            backgroundColor: Colors.neutral[0],
+            height: 52,
+            paddingHorizontal: 20,
+            gap: 12,
           }}
         >
           <TouchableOpacity
@@ -436,20 +434,12 @@ export default function RecipeCreateManualScreen() {
               }
               router.back();
             }}
-            style={{ padding: 4 }}
+            hitSlop={8}
+            style={{ padding: 2 }}
           >
-            <ArrowLeft size={24} color={Colors.neutral[900]} />
+            <ArrowLeft size={22} color={Colors.neutral[900]} />
           </TouchableOpacity>
-          <Text
-            style={{
-              flex: 1,
-              textAlign: "center",
-              fontSize: Typography.fontSize.lg,
-              fontWeight: Typography.fontWeight.bold,
-              color: Colors.neutral[900],
-              marginRight: 28,
-            }}
-          >
+          <Text style={{ fontSize: 20, fontWeight: "800", color: Colors.neutral[900] }}>
             레시피 작성
           </Text>
         </View>
