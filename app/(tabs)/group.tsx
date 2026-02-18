@@ -325,7 +325,10 @@ export default function GroupScreen() {
   const handleQuickAction = (action: string) => {
     switch (action) {
       case "식단표":
-        router.push("/(tabs)/meal-plan");
+        router.push({
+          pathname: "/group-calendar",
+          params: { groupId: selectedGroup?.id, groupName: selectedGroup?.name },
+        });
         break;
       case "장볼거리":
         router.push({
