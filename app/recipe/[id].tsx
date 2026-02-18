@@ -1039,7 +1039,7 @@ export default function RecipeDetailScreen() {
           </Text>
 
           {/* Quick stats row */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: Spacing.md }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: Spacing.base }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
               <Clock size={15} color={Colors.neutral[400]} />
               <Text style={{ fontSize: Typography.fontSize.sm, color: Colors.neutral[600], fontWeight: Typography.fontWeight.medium }}>
@@ -1079,49 +1079,6 @@ export default function RecipeDetailScreen() {
             </Pressable>
           </View>
 
-          {/* Author / Creator Info */}
-          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.sm }}>
-            {recipe.authorProfileImgUrl ? (
-              <Image
-                source={{ uri: getImageUrl(recipe.authorProfileImgUrl) }}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 16,
-                  backgroundColor: Colors.neutral[200],
-                }}
-                contentFit="cover"
-              />
-            ) : (
-              <View
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 16,
-                  backgroundColor: Colors.neutral[100],
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <ChefHat size={16} color={Colors.neutral[400]} />
-              </View>
-            )}
-            <Text
-              style={{
-                flex: 1,
-                fontSize: Typography.fontSize.sm,
-                color: Colors.neutral[600],
-                marginLeft: Spacing.sm,
-              }}
-              numberOfLines={1}
-            >
-              {recipe.authorName || "알 수 없음"}
-              {recipe.creatorName && recipe.creatorName !== recipe.authorName && (
-                <Text style={{ color: Colors.neutral[400] }}> · 원작자: {recipe.creatorName}</Text>
-              )}
-            </Text>
-          </View>
-
           {/* Description */}
           {recipe.description && (
             <Text
@@ -1129,7 +1086,7 @@ export default function RecipeDetailScreen() {
                 fontSize: Typography.fontSize.base,
                 color: Colors.neutral[600],
                 lineHeight: 24,
-                marginTop: Spacing.xs,
+                marginTop: Spacing.base,
               }}
             >
               {recipe.description}
@@ -1138,7 +1095,7 @@ export default function RecipeDetailScreen() {
 
           {/* Tags */}
           {recipe.tags && recipe.tags.length > 0 && (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: Spacing.md }}>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: Spacing.base }}>
               {recipe.tags.map((tag, index) => (
                 <View
                   key={index}
@@ -1162,14 +1119,118 @@ export default function RecipeDetailScreen() {
             </View>
           )}
 
+          {/* Author / Creator Info */}
+          <View style={{
+            backgroundColor: Colors.neutral[0],
+            borderRadius: BorderRadius.xl,
+            borderWidth: 1,
+            borderColor: Colors.neutral[200],
+            padding: Spacing.base,
+            marginTop: Spacing.lg,
+            flexDirection: "row",
+            alignItems: "center",
+          }}>
+            {/* 왼쪽: 작성자 */}
+            <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
+              {recipe.authorProfileImgUrl ? (
+                <Image
+                  source={{ uri: getImageUrl(recipe.authorProfileImgUrl) }}
+                  style={{
+                    width: 40, height: 40, borderRadius: 20,
+                    borderWidth: 2, borderColor: Colors.primary[100],
+                    backgroundColor: Colors.neutral[200],
+                  }}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={{
+                  width: 40, height: 40, borderRadius: 20,
+                  borderWidth: 2, borderColor: Colors.primary[100],
+                  backgroundColor: Colors.neutral[100],
+                  justifyContent: "center", alignItems: "center",
+                }}>
+                  <ChefHat size={18} color={Colors.neutral[400]} />
+                </View>
+              )}
+              <View style={{ flex: 1, marginLeft: Spacing.sm }}>
+                <Text style={{
+                  fontSize: Typography.fontSize.xs,
+                  color: Colors.neutral[400],
+                }}>
+                  작성자
+                </Text>
+                <Text style={{
+                  fontSize: Typography.fontSize.sm,
+                  fontWeight: Typography.fontWeight.semiBold,
+                  color: Colors.neutral[700],
+                  marginTop: 2,
+                }} numberOfLines={1}>
+                  {recipe.authorName || "알 수 없음"}
+                </Text>
+              </View>
+            </View>
+
+            {/* 구분선 (IMPORT일 때만) */}
+            {recipe.recipeSource === "IMPORT" && recipe.creatorName && (
+              <>
+                <View style={{
+                  width: 1,
+                  height: 36,
+                  backgroundColor: Colors.neutral[200],
+                  marginHorizontal: Spacing.sm,
+                }} />
+
+                {/* 오른쪽: 원작자 */}
+                <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
+                  {recipe.creatorProfileImgUrl ? (
+                    <Image
+                      source={{ uri: getImageUrl(recipe.creatorProfileImgUrl) }}
+                      style={{
+                        width: 40, height: 40, borderRadius: 20,
+                        borderWidth: 2, borderColor: Colors.neutral[200],
+                        backgroundColor: Colors.neutral[200],
+                      }}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <View style={{
+                      width: 40, height: 40, borderRadius: 20,
+                      borderWidth: 2, borderColor: Colors.neutral[200],
+                      backgroundColor: Colors.neutral[100],
+                      justifyContent: "center", alignItems: "center",
+                    }}>
+                      <ChefHat size={18} color={Colors.neutral[400]} />
+                    </View>
+                  )}
+                  <View style={{ flex: 1, marginLeft: Spacing.sm }}>
+                    <Text style={{
+                      fontSize: Typography.fontSize.xs,
+                      color: Colors.neutral[400],
+                    }}>
+                      원작자
+                    </Text>
+                    <Text style={{
+                      fontSize: Typography.fontSize.sm,
+                      fontWeight: Typography.fontWeight.semiBold,
+                      color: Colors.neutral[700],
+                      marginTop: 2,
+                    }} numberOfLines={1}>
+                      {recipe.creatorName}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
+          </View>
+
           {/* Thick Section Divider */}
           <View
             style={{
               height: 8,
               backgroundColor: Colors.neutral[100],
               marginHorizontal: -Spacing.xl,
-              marginTop: Spacing.lg,
-              marginBottom: Spacing.lg,
+              marginTop: Spacing.xl,
+              marginBottom: Spacing.xl,
             }}
           />
 
@@ -1294,14 +1355,14 @@ export default function RecipeDetailScreen() {
               height: 8,
               backgroundColor: Colors.neutral[100],
               marginHorizontal: -Spacing.xl,
-              marginTop: Spacing.lg,
-              marginBottom: Spacing.lg,
+              marginTop: Spacing.xl,
+              marginBottom: Spacing.xl,
             }}
           />
 
           {/* Steps Section */}
           <View>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: Spacing.lg }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: Spacing.xl }}>
               <Text
                 style={{
                   fontSize: Typography.fontSize.lg,
@@ -1320,8 +1381,8 @@ export default function RecipeDetailScreen() {
               <View
                 key={index}
                 style={{
-                  paddingBottom: index < recipe.steps.length - 1 ? Spacing.lg : 0,
-                  marginBottom: index < recipe.steps.length - 1 ? Spacing.lg : 0,
+                  paddingBottom: index < recipe.steps.length - 1 ? Spacing.xl : 0,
+                  marginBottom: index < recipe.steps.length - 1 ? Spacing.xl : 0,
                   borderBottomWidth: index < recipe.steps.length - 1 ? 1 : 0,
                   borderBottomColor: Colors.neutral[100],
                 }}
