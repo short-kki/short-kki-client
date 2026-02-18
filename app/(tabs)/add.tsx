@@ -178,7 +178,7 @@ export default function AddRecipeScreen() {
         sourceUrl,
       });
 
-      showToast("레시피 생성 중 입니다. 잠시만 기다려주세요");
+      showToast("레시피 생성 중이에요, 잠시만 기다려주세요");
       setUrl("");
       setParsedRecipe(null);
       setMode("select");
@@ -196,7 +196,7 @@ export default function AddRecipeScreen() {
         errorMessage.includes("409") ||
         errorMessage.includes("source_003")
       ) {
-        showToast("이미 등록된 레시피입니다");
+        showToast("이미 등록된 레시피에요");
         return;
       }
 

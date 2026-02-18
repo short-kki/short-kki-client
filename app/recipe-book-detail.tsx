@@ -373,9 +373,9 @@ export default function RecipeBookDetailScreen() {
       const success = await removeRecipe(selectedRecipe.id);
       if (success) {
         setShowDeleteConfirmModal(false);
-        showToast("북마크를 해제했어요.", "success");
+        showToast("북마크를 해제했어요!", "success");
       } else {
-        showToast("레시피 삭제에 실패했어요.", "danger");
+        showToast("레시피 삭제에 실패했어요", "danger");
       }
     } finally {
       setIsDeletingRecipe(false);
@@ -387,9 +387,9 @@ export default function RecipeBookDetailScreen() {
     closeBookSelectSheet(async () => {
       const success = await moveRecipe(selectedRecipe.id, targetBookId);
       if (success) {
-        showToast(`"${truncateTitle(targetBookName)}"(으)로 이동했어요.`, "success");
+        showToast(`"${truncateTitle(targetBookName)}"(으)로 이동했어요!`, "success");
       } else {
-        showToast("레시피 이동에 실패했어요.", "danger");
+        showToast("레시피 이동에 실패했어요", "danger");
       }
     });
   };

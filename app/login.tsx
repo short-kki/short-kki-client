@@ -6,19 +6,80 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withDelay,
+  withSequence,
+  Easing,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
+import { ChefHat, CookingPot, Flame, Heart, Sparkles, UtensilsCrossed } from "lucide-react-native";
 
 import { Colors, SemanticColors, Spacing, Typography } from "@/constants/design-system";
 import { API_BASE_URL, DEV_MODE, GOOGLE_CONFIG, NAVER_CONFIG } from "@/constants/oauth";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthData } from "@/utils/auth-storage";
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+
+// 둥둥 떠다니는 장식 아이콘 컴포넌트
+function FloatingIcon({
+  icon: Icon,
+  size,
+  color,
+  style,
+  delay = 0,
+  duration = 3000,
+  floatRange = 10,
+}: {
+  icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
+  size: number;
+  color: string;
+  style: object;
+  delay?: number;
+  duration?: number;
+  floatRange?: number;
+}) {
+  const translateY = useSharedValue(0);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    opacity.value = withDelay(delay, withTiming(1, { duration: 600 }));
+    translateY.value = withDelay(
+      delay,
+      withRepeat(
+        withSequence(
+          withTiming(-floatRange, { duration, easing: Easing.inOut(Easing.ease) }),
+          withTiming(floatRange, { duration, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        true
+      )
+    );
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View style={[{ position: "absolute" }, style, animatedStyle]}>
+      <Icon size={size} color={color} strokeWidth={1.5} />
+    </Animated.View>
+  );
+}
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -350,17 +411,48 @@ export default function LoginScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      {/* 배경 장식 - 부드러운 그라데이션 느낌 원들 */}
+      <View style={styles.bgCircle1} />
+      <View style={styles.bgCircle2} />
+      <View style={styles.bgCircle3} />
+
+      {/* 상단 로고 영역 */}
       <View style={styles.topSection}>
-        <Image
-          source={require("@/assets/images/short-kki-logo.png")}
-          style={styles.logo}
-          contentFit="contain"
-        />
+        {/* 로고 주변을 감싸는 떠다니는 아이콘들 */}
+        <View style={styles.floatingArea}>
+          <FloatingIcon icon={ChefHat} size={22} color={Colors.primary[200]} style={{ top: 0, left: screenWidth * 0.05 }} delay={0} duration={3200} floatRange={6} />
+          <FloatingIcon icon={UtensilsCrossed} size={18} color={Colors.primary[200]} style={{ top: 10, right: screenWidth * 0.08 }} delay={400} duration={3000} floatRange={8} />
+          <FloatingIcon icon={CookingPot} size={20} color={Colors.secondary[300]} style={{ bottom: 60, right: screenWidth * 0.02 }} delay={200} duration={3400} floatRange={7} />
+          <FloatingIcon icon={Flame} size={16} color={Colors.primary[300]} style={{ bottom: 80, left: screenWidth * 0.02 }} delay={600} duration={2800} floatRange={6} />
+          <FloatingIcon icon={Heart} size={14} color={Colors.primary[200]} style={{ top: 50, left: -4 }} delay={300} duration={3600} floatRange={5} />
+          <FloatingIcon icon={Sparkles} size={16} color={Colors.secondary[300]} style={{ top: 40, right: 0 }} delay={500} duration={3200} floatRange={7} />
+        </View>
+
+        <View style={styles.logoCard}>
+          <Image
+            source={require("@/assets/images/icon_resized.png")}
+            style={styles.logo}
+            contentFit="contain"
+          />
+        </View>
+
         <Text style={styles.appName}>숏끼</Text>
-        <Text style={styles.tagline}>짧고 맛있는 레시피를 발견하세요</Text>
+
+        <View style={styles.taglineContainer}>
+          <View style={styles.taglineLine} />
+          <Text style={styles.tagline}>고민은 짧게, 요리는 함께</Text>
+          <View style={styles.taglineLine} />
+        </View>
+
+        <Text style={styles.subText}>
+          짧은 영상으로 발견하는 나만의 레시피
+        </Text>
       </View>
 
+      {/* 하단 로그인 영역 */}
       <View style={styles.bottomSection}>
+        <Text style={styles.loginLabel}>SNS로 간편하게 시작하기</Text>
+
         <View style={styles.naverButtonContainer}>
           <Pressable
             onPress={handleNaverLogin}
@@ -420,49 +512,146 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.neutral[50],
+    backgroundColor: "#FFFBF7",
+    overflow: "hidden",
   },
+
+  // 배경 장식 원 3개 - 은은하게
+  bgCircle1: {
+    position: "absolute",
+    top: -screenWidth * 0.3,
+    right: -screenWidth * 0.15,
+    width: screenWidth * 0.8,
+    height: screenWidth * 0.8,
+    borderRadius: screenWidth * 0.4,
+    backgroundColor: Colors.primary[50],
+    opacity: 0.7,
+  },
+  bgCircle2: {
+    position: "absolute",
+    top: screenHeight * 0.25,
+    left: -screenWidth * 0.25,
+    width: screenWidth * 0.5,
+    height: screenWidth * 0.5,
+    borderRadius: screenWidth * 0.25,
+    backgroundColor: Colors.secondary[50],
+    opacity: 0.5,
+  },
+  bgCircle3: {
+    position: "absolute",
+    bottom: -screenWidth * 0.1,
+    right: -screenWidth * 0.1,
+    width: screenWidth * 0.45,
+    height: screenWidth * 0.45,
+    borderRadius: screenWidth * 0.225,
+    backgroundColor: Colors.primary[50],
+    opacity: 0.4,
+  },
+
+  // 상단 섹션
   topSection: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: Spacing.xl,
   },
+  floatingArea: {
+    position: "absolute",
+    top: screenHeight * 0.08,
+    left: screenWidth * 0.08,
+    right: screenWidth * 0.08,
+    bottom: screenHeight * 0.12,
+  },
+  logoCard: {
+    width: 144,
+    height: 144,
+    borderRadius: 38,
+    backgroundColor: Colors.neutral[0],
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.lg,
+    shadowColor: Colors.primary[400],
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 24,
+    elevation: 12,
+    borderWidth: 1.5,
+    borderColor: "rgba(250, 129, 18, 0.08)",
+  },
   logo: {
-    width: 120,
-    height: 120,
-    marginBottom: Spacing.xl,
+    width: 110,
+    height: 110,
   },
   appName: {
-    fontSize: Typography.fontSize["3xl"],
-    fontWeight: Typography.fontWeight.bold,
-    color: SemanticColors.textPrimary,
-    marginBottom: Spacing.xs,
+    fontSize: 36,
+    fontWeight: "800",
+    color: Colors.neutral[900],
+    letterSpacing: Typography.letterSpacing.tight,
+    marginBottom: Spacing.sm,
+  },
+  taglineContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: Spacing.md,
+  },
+  taglineLine: {
+    width: 20,
+    height: 1.5,
+    backgroundColor: Colors.primary[300],
+    borderRadius: 1,
   },
   tagline: {
     fontSize: Typography.fontSize.base,
-    color: SemanticColors.textSecondary,
-    textAlign: "center",
+    fontWeight: "600",
+    color: Colors.primary[500],
+    letterSpacing: Typography.letterSpacing.wide,
   },
+  subText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[400],
+    textAlign: "center",
+    lineHeight: Typography.fontSize.sm * 1.5,
+  },
+
+  // 하단 로그인 섹션
   bottomSection: {
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing["2xl"],
   },
+  loginLabel: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "500",
+    color: Colors.neutral[400],
+    textAlign: "center",
+    marginBottom: Spacing.md,
+    letterSpacing: Typography.letterSpacing.wide,
+  },
   naverButtonContainer: {
-    height: 56,
-    borderRadius: 12,
+    height: 54,
+    borderRadius: 16,
     backgroundColor: "#03C75A",
     marginBottom: 12,
     overflow: "hidden",
+    shadowColor: "#03C75A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
   },
   googleButtonContainer: {
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: Colors.neutral[0],
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#E5E5E5",
+    borderColor: Colors.neutral[200],
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   loginButton: {
     flex: 1,
@@ -474,7 +663,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   iconContainer: {
-    marginRight: 8,
+    marginRight: 10,
   },
   naverButtonText: {
     fontSize: 16,
@@ -484,7 +673,7 @@ const styles = StyleSheet.create({
   googleButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#1A1A1A",
+    color: Colors.neutral[800],
   },
   devLoginButton: {
     paddingVertical: Spacing.md,
