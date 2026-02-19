@@ -31,7 +31,6 @@ import RAnimated, {
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -982,14 +981,14 @@ export default function RecipeDetailScreen() {
 
           {/* Top gradient for header readability */}
           {!isFullscreen && (
-            <LinearGradient
-              colors={["rgba(0,0,0,0.4)", "transparent"]}
+            <View
               style={{
                 position: "absolute",
                 left: 0,
                 right: 0,
                 top: 0,
                 height: 120,
+                backgroundColor: "rgba(0,0,0,0.3)",
               }}
               pointerEvents="none"
             />

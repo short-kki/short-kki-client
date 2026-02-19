@@ -31,5 +31,14 @@ export { useRecipeCalendar, useRecipeQueue } from './useRecipeCalendar';
 // 검색 관련
 export { useRecipeSearch } from './useSearch';
 
+// 알림 관련
+export {
+  useNotifications,
+  useUnreadNotificationCount,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+} from './useNotifications';
+export type { Notification, NotificationType } from './useNotifications';
+
 // 기존 hooks
 export { useColorScheme } from './use-color-scheme';
