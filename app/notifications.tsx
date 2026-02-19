@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback } from "react";
 import {
   View,
   Text,
@@ -6,18 +6,22 @@ import {
   TouchableOpacity,
   Pressable,
   RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
   ArrowLeft,
-  Heart,
-  MessageCircle,
+  Users,
   UserPlus,
   ChefHat,
   Bell,
   Check,
+  Calendar,
+  MessageCircle,
+  FileText,
+  Import,
 } from "lucide-react-native";
 import {
   Colors,
@@ -26,89 +30,32 @@ import {
   BorderRadius,
   Shadows,
 } from "@/constants/design-system";
-
-// 알림 타입
-type NotificationType = "like" | "comment" | "follow" | "recipe" | "system";
-
-interface Notification {
-  id: string;
-  type: NotificationType;
-  user?: string;
-  avatar?: string;
-  content: string;
-  time: string;
-  read: boolean;
-}
-
-// 알림 목데이터
-const NOTIFICATIONS: Notification[] = [
-  {
-    id: "1",
-    type: "like",
-    user: "요리왕비룡",
-    avatar: "https://i.pravatar.cc/100?img=1",
-    content: "님이 회원님의 레시피를 좋아합니다.",
-    time: "방금 전",
-    read: false,
-  },
-  {
-    id: "2",
-    type: "comment",
-    user: "맛있는집밥",
-    avatar: "https://i.pravatar.cc/100?img=2",
-    content: '님이 댓글을 남겼습니다: "이거 진짜 맛있어 보여요!"',
-    time: "5분 전",
-    read: false,
-  },
-  {
-    id: "3",
-    type: "follow",
-    user: "자취생요리",
-    avatar: "https://i.pravatar.cc/100?img=3",
-    content: "님이 회원님을 팔로우하기 시작했습니다.",
-    time: "1시간 전",
-    read: false,
-  },
-  {
-    id: "4",
-    type: "recipe",
-    user: "백종원",
-    avatar: "https://i.pravatar.cc/100?img=4",
-    content: "님이 새 레시피를 올렸습니다.",
-    time: "2시간 전",
-    read: true,
-  },
-  {
-    id: "5",
-    type: "like",
-    user: "집밥마스터",
-    avatar: "https://i.pravatar.cc/100?img=5",
-    content: "님이 회원님의 레시피를 좋아합니다.",
-    time: "어제",
-    read: true,
-  },
-  {
-    id: "6",
-    type: "comment",
-    user: "요리초보",
-    avatar: "https://i.pravatar.cc/100?img=6",
-    content: '님이 댓글을 남겼습니다: "따라해봤는데 성공했어요!"',
-    time: "어제",
-    read: true,
-  },
-];
+import {
+  useNotifications,
+  useUnreadNotificationCount,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  type Notification,
+  type NotificationType,
+} from "@/hooks";
 
 const getNotificationIcon = (type: NotificationType) => {
   const iconProps = { size: 14, color: "#FFF" };
   switch (type) {
-    case "like":
-      return <Heart {...iconProps} fill="#FFF" />;
-    case "comment":
-      return <MessageCircle {...iconProps} />;
-    case "follow":
+    case "GROUP_INVITE":
+      return <Users {...iconProps} />;
+    case "GROUP_MEMBER_JOINED":
       return <UserPlus {...iconProps} />;
-    case "recipe":
+    case "RECIPE_SHARED":
       return <ChefHat {...iconProps} />;
+    case "RECIPE_IMPORT_COMPLETED":
+      return <Import {...iconProps} />;
+    case "CALENDAR_UPDATE":
+      return <Calendar {...iconProps} />;
+    case "COMMENT_ADDED":
+      return <MessageCircle {...iconProps} />;
+    case "FEED_ADDED":
+      return <FileText {...iconProps} />;
     default:
       return <Bell {...iconProps} />;
   }
@@ -116,14 +63,20 @@ const getNotificationIcon = (type: NotificationType) => {
 
 const getIconBackground = (type: NotificationType) => {
   switch (type) {
-    case "like":
-      return "#FF6B6B";
-    case "comment":
-      return Colors.primary[500];
-    case "follow":
+    case "GROUP_INVITE":
       return "#845EF7";
-    case "recipe":
+    case "GROUP_MEMBER_JOINED":
       return "#51CF66";
+    case "RECIPE_SHARED":
+      return Colors.primary[500];
+    case "RECIPE_IMPORT_COMPLETED":
+      return "#339AF0";
+    case "CALENDAR_UPDATE":
+      return "#FF6B6B";
+    case "COMMENT_ADDED":
+      return "#20C997";
+    case "FEED_ADDED":
+      return "#FAB005";
     default:
       return Colors.neutral[400];
   }
@@ -132,10 +85,17 @@ const getIconBackground = (type: NotificationType) => {
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const {
+    notifications,
+    loading,
+    hasNext,
+    loadingMore,
+    fetchNextPage,
+    refetch,
+    setNotifications,
+  } = useNotifications();
+  const { count: unreadCount, refetch: refetchUnreadCount, setCount: setUnreadCount } = useUnreadNotificationCount();
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
   const todayNotifications = notifications.filter(
     (n) => n.time.includes("전") || n.time === "방금 전"
   );
@@ -143,24 +103,57 @@ export default function NotificationsScreen() {
     (n) => !n.time.includes("전") && n.time !== "방금 전"
   );
 
-  const handleMarkAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
+  const handleMarkAllRead = useCallback(async () => {
+    try {
+      await markAllNotificationsAsRead();
+      // 로컬 상태 업데이트
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Failed to mark all as read:", error);
+    }
+  }, [setNotifications, setUnreadCount]);
 
-  const handleNotificationPress = (notification: Notification) => {
+  const handleNotificationPress = useCallback(async (notification: Notification) => {
     // 읽음 처리
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
-    );
-    // TODO: 알림 타입에 따라 해당 화면으로 이동
-  };
+    if (!notification.isRead) {
+      try {
+        await markNotificationAsRead(notification.id);
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notification.id ? { ...n, isRead: true } : n))
+        );
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      } catch (error) {
+        console.error("Failed to mark as read:", error);
+      }
+    }
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    // TODO: API 호출
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setIsRefreshing(false);
-  };
+    // 알림 타입에 따라 해당 화면으로 이동
+    switch (notification.type) {
+      case "GROUP_INVITE":
+      case "GROUP_MEMBER_JOINED":
+      case "CALENDAR_UPDATE":
+        router.push(`/group-detail?id=${notification.targetId}`);
+        break;
+      case "RECIPE_SHARED":
+      case "RECIPE_IMPORT_COMPLETED":
+        router.push(`/recipe/${notification.targetId}`);
+        break;
+      case "COMMENT_ADDED":
+      case "FEED_ADDED":
+        // 피드 상세로 이동 (그룹 피드)
+        const groupId = notification.payload?.groupId;
+        if (groupId) {
+          router.push(`/group-detail?id=${groupId}`);
+        }
+        break;
+    }
+  }, [router, setNotifications, setUnreadCount]);
+
+  const handleRefresh = useCallback(async () => {
+    await refetch();
+    refetchUnreadCount();
+  }, [refetch, refetchUnreadCount]);
 
   const renderNotificationItem = (notification: Notification) => (
     <TouchableOpacity
@@ -172,55 +165,24 @@ export default function NotificationsScreen() {
         alignItems: "center",
         paddingHorizontal: Spacing.xl,
         paddingVertical: Spacing.md,
-        backgroundColor: notification.read ? "transparent" : Colors.primary[50],
+        backgroundColor: notification.isRead ? "transparent" : Colors.primary[50],
         marginHorizontal: Spacing.md,
         marginBottom: Spacing.xs,
         borderRadius: BorderRadius.xl,
       }}
     >
-      {/* 아바타 + 타입 아이콘 */}
-      <View style={{ position: "relative" }}>
-        {notification.avatar ? (
-          <Image
-            source={{ uri: notification.avatar }}
-            style={{
-              width: 52,
-              height: 52,
-              borderRadius: 26,
-              backgroundColor: Colors.neutral[100],
-            }}
-          />
-        ) : (
-          <View
-            style={{
-              width: 52,
-              height: 52,
-              borderRadius: 26,
-              backgroundColor: Colors.neutral[100],
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <Bell size={24} color={Colors.neutral[400]} />
-          </View>
-        )}
-        <View
-          style={{
-            position: "absolute",
-            bottom: -2,
-            right: -2,
-            width: 22,
-            height: 22,
-            borderRadius: 11,
-            backgroundColor: getIconBackground(notification.type),
-            justifyContent: "center",
-            alignItems: "center",
-            borderWidth: 2,
-            borderColor: notification.read ? Colors.neutral[50] : Colors.primary[50],
-          }}
-        >
-          {getNotificationIcon(notification.type)}
-        </View>
+      {/* 아이콘 */}
+      <View
+        style={{
+          width: 52,
+          height: 52,
+          borderRadius: 26,
+          backgroundColor: getIconBackground(notification.type),
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        {getNotificationIcon(notification.type)}
       </View>
 
       {/* 내용 */}
@@ -233,9 +195,6 @@ export default function NotificationsScreen() {
           }}
           numberOfLines={2}
         >
-          {notification.user && (
-            <Text style={{ fontWeight: "700" }}>{notification.user}</Text>
-          )}
           {notification.content}
         </Text>
         <Text
@@ -250,7 +209,7 @@ export default function NotificationsScreen() {
       </View>
 
       {/* 읽지 않음 표시 */}
-      {!notification.read && (
+      {!notification.isRead && (
         <View
           style={{
             width: 10,
@@ -378,79 +337,102 @@ export default function NotificationsScreen() {
         )}
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor={Colors.primary[500]}
-            colors={[Colors.primary[500]]}
-          />
-        }
-      >
-        {/* 오늘 알림 */}
-        {todayNotifications.length > 0 && (
-          <>
-            {renderSectionHeader("오늘")}
-            {todayNotifications.map(renderNotificationItem)}
-          </>
-        )}
+      {/* 로딩 상태 */}
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={Colors.primary[500]} />
+        </View>
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={false}
+              onRefresh={handleRefresh}
+              tintColor={Colors.primary[500]}
+              colors={[Colors.primary[500]]}
+            />
+          }
+          onScroll={({ nativeEvent }) => {
+            const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+            const isEndReached =
+              layoutMeasurement.height + contentOffset.y >= contentSize.height - 100;
+            if (isEndReached && hasNext && !loadingMore) {
+              fetchNextPage();
+            }
+          }}
+          scrollEventThrottle={400}
+        >
+          {/* 오늘 알림 */}
+          {todayNotifications.length > 0 && (
+            <>
+              {renderSectionHeader("오늘")}
+              {todayNotifications.map(renderNotificationItem)}
+            </>
+          )}
 
-        {/* 이전 알림 */}
-        {earlierNotifications.length > 0 && (
-          <>
-            {renderSectionHeader("이전")}
-            {earlierNotifications.map(renderNotificationItem)}
-          </>
-        )}
+          {/* 이전 알림 */}
+          {earlierNotifications.length > 0 && (
+            <>
+              {renderSectionHeader("이전")}
+              {earlierNotifications.map(renderNotificationItem)}
+            </>
+          )}
 
-        {/* 빈 상태 */}
-        {notifications.length === 0 && (
-          <View
-            style={{
-              alignItems: "center",
-              paddingVertical: 80,
-              paddingHorizontal: Spacing.xl,
-            }}
-          >
+          {/* 더 불러오는 중 */}
+          {loadingMore && (
+            <View style={{ paddingVertical: Spacing.lg, alignItems: "center" }}>
+              <ActivityIndicator size="small" color={Colors.primary[500]} />
+            </View>
+          )}
+
+          {/* 빈 상태 */}
+          {notifications.length === 0 && (
             <View
               style={{
-                width: 80,
-                height: 80,
-                borderRadius: 40,
-                backgroundColor: Colors.neutral[100],
-                justifyContent: "center",
                 alignItems: "center",
-                marginBottom: Spacing.lg,
+                paddingVertical: 80,
+                paddingHorizontal: Spacing.xl,
               }}
             >
-              <Bell size={36} color={Colors.neutral[300]} />
+              <View
+                style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: 40,
+                  backgroundColor: Colors.neutral[100],
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginBottom: Spacing.lg,
+                }}
+              >
+                <Bell size={36} color={Colors.neutral[300]} />
+              </View>
+              <Text
+                style={{
+                  fontSize: Typography.fontSize.lg,
+                  fontWeight: "700",
+                  color: Colors.neutral[700],
+                  marginBottom: Spacing.xs,
+                }}
+              >
+                알림이 없어요
+              </Text>
+              <Text
+                style={{
+                  fontSize: Typography.fontSize.sm,
+                  color: Colors.neutral[400],
+                  textAlign: "center",
+                  lineHeight: 20,
+                }}
+              >
+                새로운 소식이 있으면{"\n"}여기에서 알려드릴게요
+              </Text>
             </View>
-            <Text
-              style={{
-                fontSize: Typography.fontSize.lg,
-                fontWeight: "700",
-                color: Colors.neutral[700],
-                marginBottom: Spacing.xs,
-              }}
-            >
-              알림이 없어요
-            </Text>
-            <Text
-              style={{
-                fontSize: Typography.fontSize.sm,
-                color: Colors.neutral[400],
-                textAlign: "center",
-                lineHeight: 20,
-              }}
-            >
-              새로운 소식이 있으면{"\n"}여기에서 알려드릴게요
-            </Text>
-          </View>
-        )}
-      </ScrollView>
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }

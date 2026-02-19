@@ -33,16 +33,18 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Alert,
   Animated,
-  Dimensions,
   Easing,
   FlatList,
+  LayoutChangeEvent,
   Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StatusBar,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
   ViewToken
 } from "react-native";
@@ -62,7 +64,7 @@ const RECIPE_BOOKS = {
   ],
 };
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+// 화면 크기는 ShortsScreen 컴포넌트에서 useWindowDimensions로 가져옴
 const getYoutubeThumbnail = (videoId: string) =>
   `https://i.ytimg.com/vi/${videoId}/hq720.jpg`;
 
@@ -70,6 +72,7 @@ interface VideoItemProps {
   item: ShortsItem;
   isActive: boolean;
   itemHeight: number;
+  screenWidth: number;
   onMuteToggle: () => void;
   isMuted: boolean;
   onViewRecipe: () => void;
@@ -80,10 +83,10 @@ interface VideoItemProps {
 }
 
 // 개별 비디오 아이템 컴포넌트 (YouTube 플레이어 - react-native-youtube-bridge)
-function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onBookmarkPress, isBookmarked, bookmarkCount }: VideoItemProps) {
+function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onBookmarkPress, isBookmarked, bookmarkCount }: VideoItemProps) {
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const playerWidth = Math.max(SCREEN_WIDTH, itemHeight * (16 / 9));
+  const playerWidth = Math.max(screenWidth, itemHeight * (16 / 9));
 
   // react-native-youtube-bridge 플레이어 초기화
   const player = useYouTubePlayer(item.videoId, {
@@ -161,7 +164,7 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
   return (
     <View
       style={{
-        width: SCREEN_WIDTH,
+        width: screenWidth,
         height: itemHeight,
         backgroundColor: "#000",
         overflow: "hidden",
@@ -175,7 +178,7 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
             position: "absolute",
             top: 0,
             left: 0,
-            width: SCREEN_WIDTH,
+            width: screenWidth,
             height: itemHeight,
             zIndex: 1,
           }}
@@ -198,7 +201,7 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
       >
         <View
           style={{
-            width: SCREEN_WIDTH,
+            width: screenWidth,
             height: itemHeight,
             justifyContent: "center",
             alignItems: "center",
@@ -244,7 +247,7 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
               position: "absolute",
               top: 0,
               left: 0,
-              width: SCREEN_WIDTH,
+              width: screenWidth,
               height: itemHeight,
             }}
             contentFit="cover"
@@ -472,10 +475,15 @@ function VideoItem({ item, isActive, itemHeight, onMuteToggle, isMuted, onViewRe
 export default function ShortsScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const router = useRouter();
   const params = useLocalSearchParams<{ startIndex?: string | string[]; curationId?: string; curationRecipes?: string }>();
   const flatListRef = useRef<FlatList>(null);
-  const itemHeight = SCREEN_HEIGHT - tabBarHeight;
+  // 실제 컨테이너 높이 측정 (Android에서 정확한 높이 사용)
+  const [containerHeight, setContainerHeight] = useState(0);
+  // Android에서는 insets.bottom도 고려 (소프트 네비게이션 바)
+  const calculatedHeight = screenHeight - tabBarHeight + (Platform.OS === 'android' ? insets.bottom : 0);
+  const itemHeight = containerHeight > 0 ? containerHeight : calculatedHeight;
   const { shorts } = useShorts();
   const { sections } = useRecommendedCurations();
   const { recipeBooks: personalBooks } = usePersonalRecipeBooks();
@@ -806,6 +814,7 @@ export default function ShortsScreen() {
         item={item}
         isActive={index === activeIndex}
         itemHeight={itemHeight}
+        screenWidth={screenWidth}
         onMuteToggle={toggleMute}
         isMuted={isMuted}
         onViewRecipe={() => handleViewRecipe(item.id)}
@@ -815,10 +824,17 @@ export default function ShortsScreen() {
         bookmarkCount={bookmarkCounts[item.id] ?? item.bookmarks ?? 0}
       />
     ),
-    [activeIndex, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, ownedBookIdsByVideo, bookmarkCounts]
+    [activeIndex, itemHeight, screenWidth, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, ownedBookIdsByVideo, bookmarkCounts]
   );
 
   const keyExtractor = useCallback((item: ShortsItem) => item.id, []);
+
+  const handleContainerLayout = useCallback((e: LayoutChangeEvent) => {
+    const { height } = e.nativeEvent.layout;
+    if (height > 0 && Math.abs(height - containerHeight) > 1) {
+      setContainerHeight(height);
+    }
+  }, [containerHeight]);
 
   const getItemLayout = useCallback(
     (_: any, index: number) => ({
@@ -880,7 +896,9 @@ export default function ShortsScreen() {
         data={SHORTS_DATA}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        pagingEnabled
+        style={{ flex: 1 }}
+        onLayout={handleContainerLayout}
+        pagingEnabled={false}
         disableIntervalMomentum
         decelerationRate="fast"
         showsVerticalScrollIndicator={false}

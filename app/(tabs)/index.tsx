@@ -24,10 +24,9 @@ import {
   User,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows, SemanticColors } from "@/constants/design-system";
-import { useRecommendedCurations } from "@/hooks";
+import { useRecommendedCurations, useUnreadNotificationCount } from "@/hooks";
 import type { CurationSection } from "@/data/mock";
 import Svg, { Path } from "react-native-svg";
-import { LinearGradient } from "expo-linear-gradient";
 
 // YouTube 썸네일 URL 생성 함수
 const getYoutubeThumbnail = (videoId: string) =>
@@ -131,11 +130,18 @@ const TopRankCard = React.memo(function TopRankCard({
           style={{ width: "100%", height: "100%" }}
           contentFit="cover"
           contentPosition="center"
+          recyclingKey={item.id}
+          cachePolicy="memory-disk"
         />
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.25)', 'rgba(0,0,0,0.55)']}
-          locations={[0.55, 0.8, 1]}
-          style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
+        <View
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 80,
+            backgroundColor: "rgba(0,0,0,0.35)",
+          }}
           pointerEvents="none"
         />
         <View
@@ -225,10 +231,18 @@ const ShortsCard = React.memo(function ShortsCard({ item, onPress, cardWidth }: 
             style={{ width: "100%", height: "100%" }}
             contentFit="cover"
             contentPosition="center"
+            recyclingKey={item.id}
+            cachePolicy="memory-disk"
           />
-          <LinearGradient
-            colors={['rgba(0,0,0,0.35)', 'transparent']}
-            style={{ position: "absolute", left: 0, right: 0, top: 0, height: "30%" }}
+          <View
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: 0,
+              height: "30%",
+              backgroundColor: "rgba(0,0,0,0.25)",
+            }}
             pointerEvents="none"
           />
           <YouTubeBadge creatorName={item.creatorName} />
@@ -244,10 +258,15 @@ const ShortsCard = React.memo(function ShortsCard({ item, onPress, cardWidth }: 
               borderBottomRightRadius: BorderRadius.md,
             }}
           >
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.45)', 'rgba(0,0,0,0.8)']}
-              locations={[0.4, 0.7, 1]}
-              style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
+            <View
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0,
+                backgroundColor: "rgba(0,0,0,0.5)",
+              }}
               pointerEvents="none"
             />
             <View style={{ paddingHorizontal: 10, paddingTop: 10, paddingBottom: 10 }}>
@@ -461,6 +480,9 @@ export default function HomeScreen() {
     fetchNextPage,
     refetch,
   } = useRecommendedCurations();
+
+  // 읽지 않은 알림 수 조회
+  const { count: unreadNotificationCount } = useUnreadNotificationCount();
 
   const handleRecipePress = useCallback((recipeId: string, section: CurationSection) => {
     router.push({
@@ -696,20 +718,21 @@ export default function HomeScreen() {
         overScrollMode="always"
         refreshControl={refreshControl}
         onScroll={onScrollEvent}
-        scrollEventThrottle={16}
+        scrollEventThrottle={32}
         contentContainerStyle={contentContainerStyle}
         sections={curationSections}
         keyExtractor={keyExtractor}
         renderItem={renderCurationItem}
         ListHeaderComponent={listHeaderComponent}
         onEndReached={handleEndReached}
-        onEndReachedThreshold={0.6}
+        onEndReachedThreshold={0.5}
         ListFooterComponent={listFooterComponent}
-        removeClippedSubviews
-        initialNumToRender={3}
-        maxToRenderPerBatch={3}
-        windowSize={5}
-        updateCellsBatchingPeriod={100}
+        removeClippedSubviews={Platform.OS === 'android'}
+        initialNumToRender={2}
+        maxToRenderPerBatch={2}
+        windowSize={3}
+        updateCellsBatchingPeriod={150}
+        stickySectionHeadersEnabled={false}
       />
 
       {/* Fixed Header - rendered after ScrollView to receive touch events */}
@@ -784,18 +807,20 @@ export default function HomeScreen() {
             }}
           >
             <Bell size={22} color={Colors.neutral[600]} />
-            {/* Notification badge */}
-            <View
-              style={{
-                position: "absolute",
-                top: 6,
-                right: 6,
-                width: 8,
-                height: 8,
-                borderRadius: 4,
-                backgroundColor: Colors.primary[500],
-              }}
-            />
+            {/* Notification badge - 읽지 않은 알림이 있을 때만 표시 */}
+            {unreadNotificationCount > 0 && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 6,
+                  right: 6,
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: Colors.primary[500],
+                }}
+              />
+            )}
           </Pressable>
 
           {/* 프로필 아이콘 */}
