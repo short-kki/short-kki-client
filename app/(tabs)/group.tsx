@@ -63,13 +63,33 @@ const GROUP_TYPES = [
 
 type GroupTypeValue = typeof GROUP_TYPES[number]['value'];
 
+// 상대 시간 포맷 (lastFeedAt용)
+function formatRelativeTime(dateString: string | null): string {
+  if (!dateString) return '피드 없음';
+
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMinutes < 1) return '방금';
+  if (diffMinutes < 60) return `${diffMinutes}분 전`;
+  if (diffHours < 24) return `${diffHours}시간 전`;
+  if (diffDays === 0) return '오늘';
+  if (diffDays === 1) return '어제';
+  if (diffDays < 7) return `${diffDays}일 전`;
+  return date.toLocaleDateString('ko-KR');
+}
+
 export default function GroupScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ groupId?: string; _t?: string }>();
 
   // Hooks로 데이터 관리
-  const { groups, createGroup, deleteGroup, refetch: refetchGroups } = useGroups();
+  const { groups, createGroup, deleteGroup, leaveGroup, refetch: refetchGroups } = useGroups();
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const { feeds, toggleLike, deleteFeed, refetch: refetchFeeds } = useGroupFeeds(selectedGroup?.id);
   const { members } = useGroupMembers(selectedGroup?.id);
@@ -311,6 +331,14 @@ export default function GroupScreen() {
           handleDeleteGroup(menuTargetGroup);
           break;
         case "leave":
+          // 방장은 그룹을 나갈 수 없음
+          if (menuTargetGroup.myRole === 'ADMIN') {
+            Alert.alert(
+              "그룹 나가기 불가",
+              "방장은 그룹을 나갈 수 없습니다.\n그룹을 삭제하거나, 다른 멤버에게 방장을 위임해주세요."
+            );
+            return;
+          }
           setLeaveTargetGroup(menuTargetGroup);
           setShowLeaveModal(true);
           break;
@@ -490,46 +518,6 @@ export default function GroupScreen() {
             </Text>
           </View>
 
-          {/* 그룹 설명 */}
-          {selectedGroup.description && (
-            <View
-              style={{
-                marginHorizontal: Spacing.xl,
-                marginVertical: Spacing.sm,
-                backgroundColor: Colors.neutral[100],
-                borderRadius: BorderRadius.xl,
-                padding: Spacing.md,
-                flexDirection: "row",
-                alignItems: "flex-start",
-                gap: Spacing.sm,
-              }}
-            >
-              <View
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 14,
-                  backgroundColor: Colors.neutral[0],
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <MessageCircle size={16} color={Colors.neutral[500]} />
-              </View>
-              <Text
-                style={{
-                  flex: 1,
-                  fontSize: 14,
-                  color: Colors.neutral[700],
-                  lineHeight: 20,
-                }}
-                numberOfLines={2}
-              >
-                {selectedGroup.description}
-              </Text>
-            </View>
-          )}
-
           {/* Quick Actions */}
           <View
             style={{
@@ -579,93 +567,6 @@ export default function GroupScreen() {
             contentContainerStyle={{ flexGrow: 1 }}
             showsVerticalScrollIndicator={false}
           >
-            {/* 멤버 스토리 영역 */}
-            <View style={{ paddingVertical: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.neutral[100] }}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.lg }}
-              >
-                {members.length > 0 ? (
-                  members.map((member, index) => (
-                    <View key={member.id} style={{ alignItems: "center", width: 64 }}>
-                      {/* 그라데이션 테두리 원 */}
-                      <View
-                        style={{
-                          width: 64,
-                          height: 64,
-                          borderRadius: 32,
-                          padding: 3,
-                          backgroundColor: "transparent",
-                          borderWidth: 2,
-                          borderColor: index % 2 === 0 ? "#FF6B6B" : Colors.primary[400],
-                        }}
-                      >
-                        <View
-                          style={{
-                            flex: 1,
-                            borderRadius: 30,
-                            backgroundColor: Colors.neutral[200],
-                            justifyContent: "center",
-                            alignItems: "center",
-                          }}
-                        >
-                          <Text style={{ fontSize: 20, fontWeight: "700", color: Colors.neutral[500] }}>
-                            {member.name.charAt(0)}
-                          </Text>
-                        </View>
-                      </View>
-                      {/* 멤버 이름 */}
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          color: Colors.neutral[600],
-                          marginTop: 6,
-                        }}
-                        numberOfLines={1}
-                      >
-                        {member.name.length > 4 ? member.name.slice(0, 4) + ".." : member.name}
-                      </Text>
-                    </View>
-                  ))
-                ) : (
-                  // 멤버가 없을 때 플레이스홀더
-                  [1, 2, 3, 4, 5].map((item, index) => (
-                    <View key={item} style={{ alignItems: "center", width: 64 }}>
-                      <View
-                        style={{
-                          width: 64,
-                          height: 64,
-                          borderRadius: 32,
-                          padding: 3,
-                          backgroundColor: "transparent",
-                          borderWidth: 2,
-                          borderColor: index % 2 === 0 ? "#FF6B6B" : Colors.primary[400],
-                        }}
-                      >
-                        <View
-                          style={{
-                            flex: 1,
-                            borderRadius: 30,
-                            backgroundColor: Colors.neutral[200],
-                          }}
-                        />
-                      </View>
-                      <View
-                        style={{
-                          width: 48,
-                          height: 10,
-                          backgroundColor: Colors.neutral[200],
-                          borderRadius: 4,
-                          marginTop: 8,
-                        }}
-                      />
-                    </View>
-                  ))
-                )}
-              </ScrollView>
-            </View>
-
             {/* 피드 목록 */}
             {feeds.length === 0 ? (
               /* 축하 피드 (그룹 생성 시) */
@@ -772,75 +673,119 @@ export default function GroupScreen() {
               <View
                 key={item.id}
                 style={{
-                  backgroundColor: Colors.neutral[0],
-                  borderBottomWidth: 1,
-                  borderBottomColor: Colors.neutral[100],
+                  backgroundColor: '#FFFFFF',
+                  marginHorizontal: 16,
+                  marginBottom: 16,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: '#EEEEEE',
+                  overflow: 'hidden',
                 }}
               >
                 {item.type === "post" ? (
-                  // 사용자 생성 피드
-                  <View style={{ padding: Spacing.lg }}>
+                  <View>
                     {/* Post Header */}
                     <View
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        marginBottom: Spacing.md,
+                        padding: 16,
+                        paddingBottom: 12,
                       }}
                     >
-                      <View
+                      {item.userProfileImgUrl ? (
+                        <Image
+                          source={{ uri: item.userProfileImgUrl }}
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 22,
+                            borderWidth: 2,
+                            borderColor: Colors.primary[100],
+                          }}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 22,
+                            backgroundColor: Colors.primary[50],
+                            justifyContent: "center",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 16,
+                              fontWeight: "700",
+                              color: Colors.primary[500],
+                            }}
+                          >
+                            {item.userAvatar}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text
+                          style={{
+                            fontSize: 15,
+                            fontWeight: "700",
+                            color: Colors.neutral[900],
+                          }}
+                        >
+                          {item.user}
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: Colors.neutral[400],
+                            marginTop: 2,
+                          }}
+                        >
+                          {item.time}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => handleFeedMenuPress(item.id)}
                         style={{
                           width: 36,
                           height: 36,
                           borderRadius: 18,
-                          backgroundColor: Colors.neutral[300],
-                          justifyContent: "center",
-                          alignItems: "center",
+                          backgroundColor: '#F5F5F5',
+                          justifyContent: 'center',
+                          alignItems: 'center',
                         }}
                       >
-                        <Text
-                          style={{
-                            fontSize: 14,
-                            fontWeight: "bold",
-                            color: "#FFFFFF",
-                          }}
-                        >
-                          {item.userAvatar}
-                        </Text>
-                      </View>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          fontWeight: "600",
-                          color: Colors.neutral[900],
-                          marginLeft: Spacing.sm,
-                        }}
-                      >
-                        {item.user}
-                      </Text>
-                      <View style={{ flex: 1 }} />
-                      <TouchableOpacity
-                        onPress={() => handleFeedMenuPress(item.id)}
-                        style={{ padding: Spacing.xs }}
-                      >
-                        <MoreHorizontal size={20} color={Colors.neutral[400]} />
+                        <MoreHorizontal size={18} color={Colors.neutral[400]} />
                       </TouchableOpacity>
                     </View>
 
+                    {/* Content Text - 이미지 위에 표시 */}
+                    {item.content && (
+                      <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+                        <Text
+                          style={{
+                            fontSize: 15,
+                            color: Colors.neutral[800],
+                            lineHeight: 22,
+                          }}
+                        >
+                          {item.content}
+                        </Text>
+                      </View>
+                    )}
+
                     {/* Post Images */}
                     {item.images && item.images.length > 0 && (
-                      <View
-                        style={{
-                          marginHorizontal: -Spacing.lg,
-                          marginBottom: Spacing.md,
-                        }}
-                      >
+                      <View style={{ marginBottom: 0 }}>
                         {item.images.length === 1 ? (
                           <Image
                             source={{ uri: item.images[0] }}
                             style={{
                               width: "100%",
-                              aspectRatio: 1,
+                              aspectRatio: 4/3,
                             }}
                             contentFit="cover"
                           />
@@ -848,15 +793,16 @@ export default function GroupScreen() {
                           <ScrollView
                             horizontal
                             showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}
+                            pagingEnabled
+                            contentContainerStyle={{ gap: 2 }}
                           >
                             {item.images.map((imageUri, imgIndex) => (
                               <Image
                                 key={imgIndex}
                                 source={{ uri: imageUri }}
                                 style={{
-                                  width: 200,
-                                  height: 200,
+                                  width: SCREEN_WIDTH - 34,
+                                  aspectRatio: 4/3,
                                 }}
                                 contentFit="cover"
                               />
@@ -869,39 +815,42 @@ export default function GroupScreen() {
                     {/* Recipe Card (NEW_RECIPE_ADDED) */}
                     {item.feedType === "NEW_RECIPE_ADDED" && item.recipe && (
                       <TouchableOpacity
-                        activeOpacity={0.7}
+                        activeOpacity={0.8}
                         onPress={() => router.push(`/recipe/${item.recipe!.id}` as any)}
                         style={{
+                          margin: 16,
+                          marginTop: 0,
                           borderRadius: 16,
                           overflow: "hidden",
-                          marginBottom: Spacing.md,
+                          backgroundColor: '#F8F8F8',
+                          borderWidth: 1,
+                          borderColor: '#EEEEEE',
                         }}
                       >
                         {/* 썸네일 */}
                         {item.recipe.mainImgUrl ? (
                           <Image
                             source={{ uri: item.recipe.mainImgUrl }}
-                            style={{ width: "100%", height: 160 }}
+                            style={{ width: "100%", height: 140 }}
                             contentFit="cover"
                           />
                         ) : (
                           <View
                             style={{
                               width: "100%",
-                              height: 160,
+                              height: 140,
                               backgroundColor: Colors.neutral[100],
                               justifyContent: "center",
                               alignItems: "center",
                             }}
                           >
-                            <Book size={36} color={Colors.neutral[300]} />
+                            <Book size={32} color={Colors.neutral[300]} />
                           </View>
                         )}
                         {/* 레시피 정보 */}
                         <View
                           style={{
                             padding: 14,
-                            backgroundColor: Colors.neutral[50],
                             flexDirection: "row",
                             alignItems: "center",
                           }}
@@ -933,38 +882,58 @@ export default function GroupScreen() {
                               </View>
                             </View>
                           </View>
-                          <ChevronRight size={18} color={Colors.neutral[300]} />
+                          <View
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 16,
+                              backgroundColor: Colors.primary[500],
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <ChevronRight size={18} color="#FFFFFF" />
+                          </View>
                         </View>
                       </TouchableOpacity>
                     )}
 
-                    {/* Content Text */}
-                    {item.content && (
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: Colors.neutral[800],
-                          lineHeight: 20,
-                          marginBottom: Spacing.md,
-                        }}
-                        numberOfLines={2}
-                      >
-                        {item.content}
-                      </Text>
-                    )}
-
                     {/* Action Buttons */}
-                    {/* 좋아요 버튼 */}
-                    <View style={{ flexDirection: "row", gap: Spacing.md }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingHorizontal: 16,
+                        paddingVertical: 14,
+                        borderTopWidth: 1,
+                        borderTopColor: '#F5F5F5',
+                      }}
+                    >
                       <TouchableOpacity
                         onPress={() => toggleLike(item.id)}
                         activeOpacity={0.7}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
                       >
                         <Heart
-                          size={24}
-                          color={item.isLiked ? Colors.primary[500] : Colors.neutral[800]}
+                          size={22}
+                          color={item.isLiked ? Colors.primary[500] : Colors.neutral[400]}
                           fill={item.isLiked ? Colors.primary[500] : "transparent"}
                         />
+                        {item.likes > 0 && (
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              fontWeight: '600',
+                              color: item.isLiked ? Colors.primary[500] : Colors.neutral[500],
+                            }}
+                          >
+                            {item.likes}
+                          </Text>
+                        )}
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -974,19 +943,22 @@ export default function GroupScreen() {
             )}
 
             {/* 하단 메시지 */}
-            <View style={{ alignItems: "center", paddingVertical: Spacing.xl * 2 }}>
+            <View style={{ alignItems: "center", paddingVertical: 40 }}>
               <View
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  borderWidth: 1,
-                  borderColor: Colors.neutral[200],
-                  marginBottom: Spacing.sm,
+                  width: 48,
+                  height: 48,
+                  borderRadius: 24,
+                  backgroundColor: Colors.neutral[100],
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  marginBottom: 12,
                 }}
-              />
-              <Text style={{ fontSize: 14, color: Colors.neutral[400] }}>
-                오늘의 모든 피드를 확인했습니다
+              >
+                <Check size={24} color={Colors.neutral[400]} />
+              </View>
+              <Text style={{ fontSize: 14, fontWeight: '500', color: Colors.neutral[500] }}>
+                모든 피드를 확인했어요
               </Text>
             </View>
 
@@ -1240,6 +1212,7 @@ export default function GroupScreen() {
     );
   }
 
+
   // 그룹 목록 화면
   return (
     <View style={{ flex: 1, backgroundColor: Colors.neutral[50] }}>
@@ -1265,32 +1238,30 @@ export default function GroupScreen() {
           >
             그룹
           </Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: Spacing.md }}>
-            <TouchableOpacity
-              onPress={() => router.push("/group-edit")}
-              activeOpacity={0.8}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: Colors.primary[500],
-                paddingHorizontal: Spacing.md,
-                paddingVertical: Spacing.sm,
-                borderRadius: BorderRadius.full,
-                gap: 4,
-              }}
-            >
-              <Plus size={18} color="#FFF" />
-              <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 14 }}>
-                추가
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            onPress={() => router.push("/group-edit")}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: Colors.primary[500],
+              paddingHorizontal: Spacing.md,
+              paddingVertical: Spacing.sm,
+              borderRadius: BorderRadius.full,
+              gap: 4,
+            }}
+          >
+            <Plus size={18} color="#FFF" />
+            <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 14 }}>
+              추가
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Group List */}
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ padding: Spacing.xl }}
+          contentContainerStyle={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.md }}
           showsVerticalScrollIndicator={false}
         >
           {groups.length > 0 ? (
@@ -1298,80 +1269,179 @@ export default function GroupScreen() {
               <Pressable
                 key={group.id}
                 onPress={() => handleGroupPress(group)}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  backgroundColor: Colors.neutral[0],
-                  borderRadius: BorderRadius.xl,
-                  padding: Spacing.md,
-                  marginBottom: Spacing.md,
-                  borderWidth: 1,
-                  borderColor: Colors.neutral[100],
-                }}
+                style={({ pressed }) => ({
+                  backgroundColor: pressed ? '#F5F5F5' : '#FFFFFF',
+                  borderRadius: 16,
+                  borderWidth: 2,
+                  borderColor: pressed ? Colors.primary[400] : '#D4D4D4',
+                  padding: 16,
+                  marginBottom: 20,
+                })}
               >
-                {/* Group Avatar */}
-                {group.thumbnail ? (
-                  <Image
-                    source={{ uri: group.thumbnail }}
-                    style={{
-                      width: 52,
-                      height: 52,
-                      borderRadius: 26,
-                    }}
-                    contentFit="cover"
-                  />
-                ) : (
-                  <View
-                    style={{
-                      width: 52,
-                      height: 52,
-                      borderRadius: 26,
-                      backgroundColor: Colors.primary[100],
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Users size={24} color={Colors.primary[500]} />
-                  </View>
-                )}
+                {/* 상단: 아바타 + 그룹명 + 뱃지 */}
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+                  {/* Group Avatar */}
+                  {group.thumbnail ? (
+                    <View
+                      style={{
+                        width: 72,
+                        height: 72,
+                        borderRadius: 22,
+                        overflow: 'hidden',
+                        borderWidth: 2,
+                        borderColor: '#F1F5F9',
+                      }}
+                    >
+                      <Image
+                        source={{ uri: group.thumbnail }}
+                        style={{ width: '100%', height: '100%' }}
+                        contentFit="cover"
+                      />
+                    </View>
+                  ) : (
+                    <View
+                      style={{
+                        width: 72,
+                        height: 72,
+                        borderRadius: 22,
+                        backgroundColor: Colors.primary[50],
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Users size={34} color={Colors.primary[500]} strokeWidth={1.8} />
+                    </View>
+                  )}
 
-                {/* Group Info */}
-                <View style={{ flex: 1, marginLeft: Spacing.md }}>
-                  <Text
-                    style={{
-                      fontSize: Typography.fontSize.base,
-                      fontWeight: Typography.fontWeight.semiBold,
-                      color: Colors.neutral[900],
-                    }}
-                  >
-                    {group.name}
-                  </Text>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      marginTop: 4,
-                    }}
-                  >
-                    <Text style={{ fontSize: 13, color: Colors.neutral[500] }}>
-                      멤버 {group.memberCount}명
-                    </Text>
-                    <Text style={{ fontSize: 13, color: Colors.neutral[300], marginHorizontal: 6 }}>
-                      •
-                    </Text>
-                    <Text style={{ fontSize: 13, color: Colors.neutral[500] }}>
-                      {group.lastActivity}
-                    </Text>
+                  {/* Group Name + Badge */}
+                  <View style={{ flex: 1, marginLeft: 16 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                      <Text
+                        style={{
+                          fontSize: 20,
+                          fontWeight: "800",
+                          color: Colors.neutral[900],
+                          letterSpacing: -0.5,
+                          flex: 1,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {group.name}
+                      </Text>
+                      {group.myRole === 'ADMIN' && (
+                        <View
+                          style={{
+                            backgroundColor: Colors.primary[500],
+                            paddingHorizontal: 10,
+                            paddingVertical: 4,
+                            borderRadius: 8,
+                          }}
+                        >
+                          <Text style={{ fontSize: 11, fontWeight: "700", color: "#FFF" }}>
+                            방장
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    {group.description && (
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          color: Colors.neutral[500],
+                          lineHeight: 20,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {group.description}
+                      </Text>
+                    )}
                   </View>
                 </View>
 
-                {/* Menu Button */}
-                <Pressable
-                  onPress={() => handleShowGroupMenu(group)}
-                  style={{ padding: Spacing.sm }}
+                {/* 하단: 메타 정보 + 화살표 */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    backgroundColor: '#F8FAFC',
+                    borderRadius: 14,
+                    paddingVertical: 12,
+                    paddingHorizontal: 16,
+                  }}
                 >
-                  <MoreHorizontal size={20} color={Colors.neutral[400]} />
-                </Pressable>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 20 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <View
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 14,
+                          backgroundColor: '#FFFFFF',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          shadowColor: "#000",
+                          shadowOffset: { width: 0, height: 1 },
+                          shadowOpacity: 0.05,
+                          shadowRadius: 2,
+                          elevation: 1,
+                        }}
+                      >
+                        <Users size={14} color={Colors.primary[500]} strokeWidth={2.5} />
+                      </View>
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.neutral[700] }}>
+                        {group.memberCount}명
+                      </Text>
+                    </View>
+                    {group.lastFeedAt && (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <View
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: 14,
+                            backgroundColor: '#FFFFFF',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 1 },
+                            shadowOpacity: 0.05,
+                            shadowRadius: 2,
+                            elevation: 1,
+                          }}
+                        >
+                          <Clock size={14} color={Colors.neutral[500]} strokeWidth={2.5} />
+                        </View>
+                        <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.neutral[600] }}>
+                          {formatRelativeTime(group.lastFeedAt)}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleShowGroupMenu(group);
+                    }}
+                    style={({ pressed }) => ({
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: pressed ? '#EEEEEE' : '#FFFFFF',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 2,
+                      elevation: 1,
+                    })}
+                    hitSlop={8}
+                  >
+                    <MoreHorizontal size={18} color={Colors.neutral[500]} />
+                  </Pressable>
+                </View>
               </Pressable>
             ))
           ) : (
@@ -1381,40 +1451,113 @@ export default function GroupScreen() {
                 justifyContent: "center",
                 alignItems: "center",
                 paddingVertical: 100,
+                paddingHorizontal: 32,
               }}
             >
-              <Users size={48} color={Colors.neutral[300]} />
+              {/* 일러스트 스타일 아이콘 */}
+              <View style={{ marginBottom: 24 }}>
+                <View
+                  style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: 60,
+                    backgroundColor: '#FFF7ED',
+                    justifyContent: "center",
+                    alignItems: "center",
+                    position: 'relative',
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 80,
+                      height: 80,
+                      borderRadius: 40,
+                      backgroundColor: '#FFEDD5',
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Users size={40} color={Colors.primary[500]} strokeWidth={1.5} />
+                  </View>
+                  {/* 데코레이션 */}
+                  <View
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 12,
+                      width: 24,
+                      height: 24,
+                      borderRadius: 12,
+                      backgroundColor: '#FEF3C7',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ fontSize: 12 }}>✨</Text>
+                  </View>
+                  <View
+                    style={{
+                      position: 'absolute',
+                      bottom: 16,
+                      left: 8,
+                      width: 20,
+                      height: 20,
+                      borderRadius: 10,
+                      backgroundColor: '#E0F2FE',
+                    }}
+                  />
+                </View>
+              </View>
+
               <Text
                 style={{
-                  fontSize: 16,
-                  color: Colors.neutral[500],
-                  marginTop: Spacing.md,
+                  fontSize: 22,
+                  fontWeight: "800",
+                  color: Colors.neutral[900],
+                  marginBottom: 8,
+                  letterSpacing: -0.5,
                 }}
               >
-                아직 참여한 그룹이 없습니다
+                아직 그룹이 없어요
+              </Text>
+              <Text
+                style={{
+                  fontSize: 15,
+                  color: Colors.neutral[500],
+                  textAlign: "center",
+                  lineHeight: 22,
+                  marginBottom: 28,
+                }}
+              >
+                그룹을 만들어 가족, 친구들과{"\n"}식단을 함께 관리해보세요
               </Text>
               <Pressable
                 onPress={() => router.push("/group-edit")}
-                style={{
+                style={({ pressed }) => ({
                   flexDirection: "row",
                   alignItems: "center",
-                  backgroundColor: Colors.primary[500],
-                  paddingHorizontal: Spacing.lg,
-                  paddingVertical: Spacing.md,
-                  borderRadius: BorderRadius.lg,
-                  marginTop: Spacing.lg,
-                }}
+                  backgroundColor: pressed ? '#E65100' : Colors.primary[500],
+                  paddingHorizontal: 28,
+                  paddingVertical: 16,
+                  borderRadius: 16,
+                  gap: 8,
+                  shadowColor: Colors.primary[500],
+                  shadowOffset: { width: 0, height: 6 },
+                  shadowOpacity: 0.35,
+                  shadowRadius: 12,
+                  elevation: 6,
+                  transform: [{ scale: pressed ? 0.98 : 1 }],
+                })}
               >
-                <Plus size={20} color="#FFFFFF" />
+                <Plus size={20} color="#FFFFFF" strokeWidth={2.5} />
                 <Text
                   style={{
-                    fontSize: 15,
-                    fontWeight: "600",
+                    fontSize: 16,
+                    fontWeight: "700",
                     color: "#FFFFFF",
-                    marginLeft: Spacing.sm,
                   }}
                 >
-                  그룹 만들기
+                  첫 그룹 만들기
                 </Text>
               </Pressable>
             </View>
@@ -1617,56 +1760,68 @@ export default function GroupScreen() {
               marginBottom: Spacing.xl,
             }} />
 
-            {/* 그룹 수정 */}
-            <TouchableOpacity
-              activeOpacity={0.6}
-              onPress={() => handleGroupMenuAction("edit")}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: Spacing.md,
-                paddingVertical: 14,
-              }}
-            >
-              <Edit3 size={20} color={Colors.neutral[600]} />
-              <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.neutral[900] }}>
-                그룹 수정
-              </Text>
-            </TouchableOpacity>
+            {/* 그룹 수정 (방장만) */}
+            {menuTargetGroup?.myRole === 'ADMIN' && (
+              <TouchableOpacity
+                activeOpacity={0.6}
+                onPress={() => handleGroupMenuAction("edit")}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: Spacing.md,
+                  paddingVertical: 14,
+                }}
+              >
+                <Edit3 size={20} color={Colors.neutral[600]} />
+                <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.neutral[900] }}>
+                  그룹 수정
+                </Text>
+              </TouchableOpacity>
+            )}
 
-            {/* 그룹 나가기 */}
+            {/* 그룹 나가기 (방장이면 비활성화) */}
             <TouchableOpacity
-              activeOpacity={0.6}
+              activeOpacity={menuTargetGroup?.myRole === 'ADMIN' ? 1 : 0.6}
               onPress={() => handleGroupMenuAction("leave")}
               style={{
                 flexDirection: "row",
                 alignItems: "center",
                 gap: Spacing.md,
                 paddingVertical: 14,
+                opacity: menuTargetGroup?.myRole === 'ADMIN' ? 0.4 : 1,
               }}
             >
               <LogOut size={20} color={Colors.neutral[600]} />
-              <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.neutral[900] }}>
-                그룹 나가기
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.neutral[900] }}>
+                  그룹 나가기
+                </Text>
+                {menuTargetGroup?.myRole === 'ADMIN' && (
+                  <Text style={{ fontSize: 12, color: Colors.neutral[400], marginTop: 2 }}>
+                    방장은 그룹을 나갈 수 없습니다
+                  </Text>
+                )}
+              </View>
             </TouchableOpacity>
 
-            {/* 그룹 삭제 */}
-            <TouchableOpacity
-              activeOpacity={0.6}
-              onPress={() => handleGroupMenuAction("delete")}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: Spacing.md,
-                paddingVertical: 14,
-              }}
-            >
-              <Trash2 size={20} color={Colors.error.main} />
-              <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.error.main }}>
-                그룹 삭제
-              </Text>
-            </TouchableOpacity>
+            {/* 그룹 삭제 (방장만) */}
+            {menuTargetGroup?.myRole === 'ADMIN' && (
+              <TouchableOpacity
+                activeOpacity={0.6}
+                onPress={() => handleGroupMenuAction("delete")}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: Spacing.md,
+                  paddingVertical: 14,
+                }}
+              >
+                <Trash2 size={20} color={Colors.error.main} />
+                <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.error.main }}>
+                  그룹 삭제
+                </Text>
+              </TouchableOpacity>
+            )}
           </Animated.View>
         </View>
       </Modal>
@@ -2287,7 +2442,7 @@ export default function GroupScreen() {
                   if (!leaveTargetGroup) return;
                   setIsLeaving(true);
                   try {
-                    await deleteGroup(leaveTargetGroup.id);
+                    await leaveGroup(leaveTargetGroup.id);
                     setShowLeaveModal(false);
                     setShowLeaveSuccessModal(true);
                   } catch (error) {

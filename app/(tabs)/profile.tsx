@@ -1,16 +1,15 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
   ScrollView,
-  Pressable,
   TouchableOpacity,
   Alert,
   Share,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import {
   Settings,
   Heart,
@@ -23,6 +22,7 @@ import {
 } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
+import { getMyProfile, MemberProfile } from "@/services/memberApi";
 
 const stats = [
   { label: "레시피", value: 12 },
@@ -60,8 +60,32 @@ const myRecipes = [
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, signOut } = useAuth();
-  const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid");
+  const { user, signOut, updateUser } = useAuth();
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [profile, setProfile] = useState<MemberProfile | null>(null);
+
+  // 프로필 데이터 로드
+  const loadProfile = useCallback(async () => {
+    try {
+      const data = await getMyProfile();
+      setProfile(data);
+      // AuthContext의 user 정보도 업데이트
+      updateUser({
+        name: data.name,
+        email: data.email,
+        profileImage: data.profileImgUrl || undefined,
+      });
+    } catch (error) {
+      console.error("프로필 로드 실패:", error);
+    }
+  }, [updateUser]);
+
+  // 화면에 포커스될 때마다 프로필 새로고침 (편집 후 돌아왔을 때 등)
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile])
+  );
 
   const handleLogout = () => {
     Alert.alert("로그아웃", "정말 로그아웃 하시겠습니까?", [
@@ -116,9 +140,10 @@ export default function ProfileScreen() {
     router.push("/(tabs)/recipe-book");
   };
 
-  // 사용자 정보 표시 (로그인된 경우 실제 정보, 아니면 기본값)
-  const displayName = user?.name || "요리조리";
-  const profileImage = user?.profileImage || "https://i.pravatar.cc/200?img=10";
+  // 사용자 정보 표시 (API 프로필 우선, 없으면 AuthContext, 그래도 없으면 기본값)
+  const displayName = profile?.name || user?.name || "사용자";
+  const displayEmail = profile?.email || user?.email || "";
+  const profileImage = profile?.profileImgUrl || user?.profileImage || "https://i.pravatar.cc/200?img=10";
 
   return (
     <View
@@ -221,7 +246,7 @@ export default function ProfileScreen() {
               marginBottom: Spacing.md,
             }}
           >
-            {user?.email || "자취 5년차 집밥 마스터"}
+            {displayEmail}
           </Text>
 
           {/* Stats */}
