@@ -9,6 +9,8 @@ export interface Group {
   memberCount: number;
   thumbnail: string | null;
   lastActivity: string;
+  myRole: 'ADMIN' | 'MEMBER';
+  lastFeedAt: string | null;
 }
 
 export interface FeedRecipeSummary {
@@ -27,6 +29,7 @@ export interface FeedPost {
   feedType?: "USER_CREATED" | "DAILY_MENU_NOTIFICATION" | "NEW_RECIPE_ADDED";
   user: string;
   userAvatar: string;
+  userProfileImgUrl?: string | null;
   content: string;
   images: string[];
   imageFileId?: number | null;
@@ -47,6 +50,8 @@ export const MOCK_GROUPS: Group[] = [
     memberCount: 4,
     thumbnail: null,
     lastActivity: "오늘",
+    myRole: "ADMIN",
+    lastFeedAt: new Date().toISOString(),
   },
   {
     id: "2",
@@ -54,6 +59,8 @@ export const MOCK_GROUPS: Group[] = [
     memberCount: 12,
     thumbnail: null,
     lastActivity: "어제",
+    myRole: "MEMBER",
+    lastFeedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   },
   {
     id: "3",
@@ -61,6 +68,8 @@ export const MOCK_GROUPS: Group[] = [
     memberCount: 8,
     thumbnail: null,
     lastActivity: "3일 전",
+    myRole: "MEMBER",
+    lastFeedAt: null,
   },
 ];
 
@@ -161,13 +170,14 @@ export const MOCK_FEEDS: FeedItem[] = [
 export interface GroupMember {
   id: string;
   name: string;
+  profileImgUrl: string | null;
   role: "owner" | "admin" | "member";
   joinedAt: string;
 }
 
 export const MOCK_GROUP_MEMBERS: GroupMember[] = [
-  { id: "1", name: "김철수", role: "owner", joinedAt: "2024-01-01" },
-  { id: "2", name: "이영희", role: "admin", joinedAt: "2024-01-05" },
-  { id: "3", name: "박민수", role: "member", joinedAt: "2024-01-10" },
-  { id: "4", name: "최지은", role: "member", joinedAt: "2024-01-15" },
+  { id: "1", name: "김철수", profileImgUrl: "https://i.pravatar.cc/100?img=1", role: "owner", joinedAt: "2024-01-01" },
+  { id: "2", name: "이영희", profileImgUrl: "https://i.pravatar.cc/100?img=5", role: "admin", joinedAt: "2024-01-05" },
+  { id: "3", name: "박민수", profileImgUrl: null, role: "member", joinedAt: "2024-01-10" },
+  { id: "4", name: "최지은", profileImgUrl: "https://i.pravatar.cc/100?img=9", role: "member", joinedAt: "2024-01-15" },
 ];

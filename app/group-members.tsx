@@ -216,7 +216,7 @@ export default function GroupMembersScreen() {
   const members: Member[] = apiMembers.map((m) => ({
     id: m.id,
     name: m.name,
-    avatar: null, // API에서 avatar 미제공 시 null
+    avatar: m.profileImgUrl,
     role: m.role as MemberRole,
     joinedAt: m.joinedAt,
   }));

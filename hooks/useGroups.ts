@@ -32,6 +32,7 @@ interface ApiGroup {
   groupType: 'COUPLE' | 'FAMILY' | 'FRIENDS' | 'ETC';
   memberCount?: number;
   myRole?: 'ADMIN' | 'MEMBER';
+  lastFeedAt?: string | null;
   createdAt: string;
 }
 
@@ -51,6 +52,7 @@ interface ApiFeed {
   feedType: 'USER_CREATED' | 'DAILY_MENU_NOTIFICATION' | 'NEW_RECIPE_ADDED';
   authorId: number;
   authorName: string;
+  authorProfileImgUrl: string | null;
   likes: number;
   likedByMe: boolean;
   imageFileId: number | null;
@@ -63,6 +65,7 @@ interface ApiGroupMember {
   memberId: number;
   name: string;
   email: string;
+  profileImgUrl: string | null;
   role: 'ADMIN' | 'MEMBER';
   joinedAt: string;
 }
@@ -81,6 +84,8 @@ function mapApiGroupToGroup(apiGroup: ApiGroup): Group {
     memberCount: apiGroup.memberCount || 0,
     thumbnail: apiGroup.thumbnailImgUrl,
     lastActivity: formatRelativeTime(apiGroup.createdAt),
+    myRole: apiGroup.myRole || 'MEMBER',
+    lastFeedAt: apiGroup.lastFeedAt || null,
   };
 }
 
@@ -91,6 +96,7 @@ function mapApiFeedToFeedItem(apiFeed: ApiFeed): FeedItem {
     feedType: apiFeed.feedType,
     user: apiFeed.authorName,
     userAvatar: apiFeed.authorName.substring(0, 1),
+    userProfileImgUrl: apiFeed.authorProfileImgUrl,
     content: apiFeed.content,
     images: apiFeed.imageUrl ? [apiFeed.imageUrl] : [],
     imageFileId: apiFeed.imageFileId,
@@ -114,6 +120,7 @@ function mapApiMemberToGroupMember(apiMember: ApiGroupMember): GroupMember {
   return {
     id: apiMember.memberId.toString(),
     name: apiMember.name,
+    profileImgUrl: apiMember.profileImgUrl,
     role: apiMember.role === 'ADMIN' ? 'admin' : 'member',
     joinedAt: apiMember.joinedAt,
   };
@@ -205,7 +212,7 @@ export function useGroups() {
     return newGroup;
   }, [addGroup]);
 
-  // 그룹 삭제 API
+  // 그룹 삭제 API (방장만 가능)
   const deleteGroup = useCallback(async (groupId: string): Promise<void> => {
     if (USE_MOCK) {
       // Mock 모드: 로컬 상태만 업데이트
@@ -218,6 +225,19 @@ export function useGroups() {
     removeGroup(groupId);
   }, [removeGroup]);
 
+  // 그룹 나가기 API (방장은 불가)
+  const leaveGroup = useCallback(async (groupId: string): Promise<void> => {
+    if (USE_MOCK) {
+      // Mock 모드: 로컬 상태만 업데이트
+      removeGroup(groupId);
+      return;
+    }
+
+    // 실제 API 호출: DELETE /api/v1/groups/{groupId}/leave
+    await api.delete<ApiResponse<null>>(`/api/v1/groups/${groupId}/leave`);
+    removeGroup(groupId);
+  }, [removeGroup]);
+
   return {
     groups,
     loading,
@@ -227,6 +247,7 @@ export function useGroups() {
     removeGroup,
     createGroup,
     deleteGroup,
+    leaveGroup,
   };
 }
 
