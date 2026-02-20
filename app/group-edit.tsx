@@ -20,8 +20,6 @@ import {
   ArrowLeft,
   Camera,
   Users,
-  Lock,
-  Globe,
   Bell,
   Trash2,
   ChevronRight,
@@ -59,7 +57,6 @@ export default function GroupEditScreen() {
   const [groupType, setGroupType] = useState<'COUPLE' | 'FAMILY' | 'FRIENDS' | 'ETC'>('FAMILY');
   const [thumbnailImgUrl, setThumbnailImgUrl] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<ImagePickerAsset | null>(null);
-  const [isPrivate, setIsPrivate] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -118,10 +115,6 @@ export default function GroupEditScreen() {
     setHasChanges(true);
   };
 
-  const handlePrivateChange = (value: boolean) => {
-    setIsPrivate(value);
-    setHasChanges(true);
-  };
 
   const handleNotificationsChange = (value: boolean) => {
     setNotificationsEnabled(value);
@@ -591,7 +584,7 @@ export default function GroupEditScreen() {
           </View>
         </View>
 
-        {/* 공개 설정 */}
+        {/* 알림 설정 */}
         <View style={{ marginTop: Spacing.xl }}>
           <Text
             style={{
@@ -602,7 +595,7 @@ export default function GroupEditScreen() {
               marginBottom: Spacing.sm,
             }}
           >
-            공개 설정
+            알림 설정
           </Text>
 
           <View
@@ -613,63 +606,6 @@ export default function GroupEditScreen() {
               borderColor: Colors.neutral[100],
             }}
           >
-            {/* 비공개 그룹 */}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                paddingHorizontal: Spacing.xl,
-                paddingVertical: Spacing.md,
-                borderBottomWidth: 1,
-                borderBottomColor: Colors.neutral[100],
-              }}
-            >
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  backgroundColor: isPrivate ? Colors.primary[100] : Colors.neutral[100],
-                  justifyContent: "center",
-                  alignItems: "center",
-                  marginRight: Spacing.md,
-                }}
-              >
-                {isPrivate ? (
-                  <Lock size={20} color={Colors.primary[600]} />
-                ) : (
-                  <Globe size={20} color={Colors.neutral[500]} />
-                )}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: "500",
-                    color: Colors.neutral[900],
-                  }}
-                >
-                  비공개 그룹
-                </Text>
-                <Text
-                  style={{
-                    fontSize: Typography.fontSize.sm,
-                    color: Colors.neutral[500],
-                    marginTop: 2,
-                  }}
-                >
-                  초대된 사람만 참여할 수 있습니다
-                </Text>
-              </View>
-              <Switch
-                value={isPrivate}
-                onValueChange={handlePrivateChange}
-                trackColor={{ false: Colors.neutral[200], true: Colors.primary[400] }}
-                thumbColor={isPrivate ? Colors.primary[500] : Colors.neutral[0]}
-              />
-            </View>
-
-            {/* 알림 설정 */}
             <View
               style={{
                 flexDirection: "row",
@@ -721,138 +657,142 @@ export default function GroupEditScreen() {
           </View>
         </View>
 
-        {/* 멤버 관리 바로가기 */}
-        <View style={{ marginTop: Spacing.xl }}>
-          <Text
-            style={{
-              fontSize: Typography.fontSize.sm,
-              fontWeight: "600",
-              color: Colors.neutral[500],
-              paddingHorizontal: Spacing.xl,
-              marginBottom: Spacing.sm,
-            }}
-          >
-            멤버
-          </Text>
-
-          <TouchableOpacity
-            onPress={() => router.push({
-              pathname: "/group-members",
-              params: { groupId, groupName: name },
-            })}
-            activeOpacity={0.7}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: Colors.neutral[0],
-              paddingHorizontal: Spacing.xl,
-              paddingVertical: Spacing.md,
-              borderTopWidth: 1,
-              borderBottomWidth: 1,
-              borderColor: Colors.neutral[100],
-            }}
-          >
-            <View
+        {/* 멤버 관리 바로가기 - 그룹 수정 시에만 표시 */}
+        {!isCreateMode && (
+          <View style={{ marginTop: Spacing.xl }}>
+            <Text
               style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                backgroundColor: Colors.neutral[100],
-                justifyContent: "center",
-                alignItems: "center",
-                marginRight: Spacing.md,
+                fontSize: Typography.fontSize.sm,
+                fontWeight: "600",
+                color: Colors.neutral[500],
+                paddingHorizontal: Spacing.xl,
+                marginBottom: Spacing.sm,
               }}
             >
-              <Users size={20} color={Colors.neutral[700]} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.base,
-                  fontWeight: "500",
-                  color: Colors.neutral[900],
-                }}
-              >
-                멤버 관리
-              </Text>
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.sm,
-                  color: Colors.neutral[500],
-                  marginTop: 2,
-                }}
-              >
-                {group?.memberCount || 0}명의 멤버
-              </Text>
-            </View>
-            <ChevronRight size={20} color={Colors.neutral[400]} />
-          </TouchableOpacity>
-        </View>
+              멤버
+            </Text>
 
-        {/* 위험 구역 */}
-        <View style={{ marginTop: Spacing.xl }}>
-          <Text
-            style={{
-              fontSize: Typography.fontSize.sm,
-              fontWeight: "600",
-              color: Colors.error.main,
-              paddingHorizontal: Spacing.xl,
-              marginBottom: Spacing.sm,
-            }}
-          >
-            위험 구역
-          </Text>
-
-          <TouchableOpacity
-            onPress={handleDeleteGroup}
-            activeOpacity={0.7}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: Colors.neutral[0],
-              paddingHorizontal: Spacing.xl,
-              paddingVertical: Spacing.md,
-              borderTopWidth: 1,
-              borderBottomWidth: 1,
-              borderColor: Colors.neutral[100],
-            }}
-          >
-            <View
+            <TouchableOpacity
+              onPress={() => router.push({
+                pathname: "/group-members",
+                params: { groupId, groupName: name },
+              })}
+              activeOpacity={0.7}
               style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                backgroundColor: Colors.error.light,
-                justifyContent: "center",
+                flexDirection: "row",
                 alignItems: "center",
-                marginRight: Spacing.md,
+                backgroundColor: Colors.neutral[0],
+                paddingHorizontal: Spacing.xl,
+                paddingVertical: Spacing.md,
+                borderTopWidth: 1,
+                borderBottomWidth: 1,
+                borderColor: Colors.neutral[100],
               }}
             >
-              <Trash2 size={20} color={Colors.error.main} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text
+              <View
                 style={{
-                  fontSize: Typography.fontSize.base,
-                  fontWeight: "500",
-                  color: Colors.error.main,
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: Colors.neutral[100],
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginRight: Spacing.md,
                 }}
               >
-                그룹 삭제
-              </Text>
-              <Text
+                <Users size={20} color={Colors.neutral[700]} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "500",
+                    color: Colors.neutral[900],
+                  }}
+                >
+                  멤버 관리
+                </Text>
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.sm,
+                    color: Colors.neutral[500],
+                    marginTop: 2,
+                  }}
+                >
+                  {group?.memberCount || 0}명의 멤버
+                </Text>
+              </View>
+              <ChevronRight size={20} color={Colors.neutral[400]} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* 위험 구역 - 그룹 수정 시에만 표시 */}
+        {!isCreateMode && (
+          <View style={{ marginTop: Spacing.xl }}>
+            <Text
+              style={{
+                fontSize: Typography.fontSize.sm,
+                fontWeight: "600",
+                color: Colors.error.main,
+                paddingHorizontal: Spacing.xl,
+                marginBottom: Spacing.sm,
+              }}
+            >
+              위험 구역
+            </Text>
+
+            <TouchableOpacity
+              onPress={handleDeleteGroup}
+              activeOpacity={0.7}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: Colors.neutral[0],
+                paddingHorizontal: Spacing.xl,
+                paddingVertical: Spacing.md,
+                borderTopWidth: 1,
+                borderBottomWidth: 1,
+                borderColor: Colors.neutral[100],
+              }}
+            >
+              <View
                 style={{
-                  fontSize: Typography.fontSize.sm,
-                  color: Colors.neutral[500],
-                  marginTop: 2,
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: Colors.error.light,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginRight: Spacing.md,
                 }}
               >
-                모든 데이터가 영구 삭제됩니다
-              </Text>
-            </View>
-            <ChevronRight size={20} color={Colors.neutral[400]} />
-          </TouchableOpacity>
-        </View>
+                <Trash2 size={20} color={Colors.error.main} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.base,
+                    fontWeight: "500",
+                    color: Colors.error.main,
+                  }}
+                >
+                  그룹 삭제
+                </Text>
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.sm,
+                    color: Colors.neutral[500],
+                    marginTop: 2,
+                  }}
+                >
+                  모든 데이터가 영구 삭제됩니다
+                </Text>
+              </View>
+              <ChevronRight size={20} color={Colors.neutral[400]} />
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
 
       {/* 사진 선택 바텀시트 모달 */}

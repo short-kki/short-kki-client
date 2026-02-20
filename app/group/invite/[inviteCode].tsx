@@ -77,7 +77,11 @@ export default function GroupInviteScreen() {
 
     try {
       setStatus("joining");
-      await joinGroupByInviteCode(inviteCode!);
+      const joinedGroup = await joinGroupByInviteCode(inviteCode!);
+      // 참여한 그룹 정보로 업데이트 (ID 확보)
+      if (joinedGroup) {
+        setGroupPreview((prev) => prev ? { ...prev, id: joinedGroup.id } : null);
+      }
       setStatus("success");
     } catch (err) {
       const error = err as Error;
@@ -97,7 +101,15 @@ export default function GroupInviteScreen() {
   };
 
   const handleGoToGroup = () => {
-    router.replace("/(tabs)/group");
+    // 그룹 상세 페이지로 이동
+    if (groupPreview?.id) {
+      router.replace({
+        pathname: "/(tabs)/group",
+        params: { groupId: groupPreview.id, _t: Date.now().toString() },
+      });
+    } else {
+      router.replace("/(tabs)/group");
+    }
   };
 
   const handleGoHome = () => {
