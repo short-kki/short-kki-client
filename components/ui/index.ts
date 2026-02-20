@@ -31,3 +31,7 @@ export type { TagProps, TagGroupProps, CategoryTagProps, TagVariant, TagColor, T
 export { Toast, useToast } from './Toast';
 export { FeedbackToast, useFeedbackToast } from './FeedbackToast';
 export { default as SuccessResultModal } from './SuccessResultModal';
+
+// GroupSelectBottomSheet
+export { default as GroupSelectBottomSheet } from './GroupSelectBottomSheet';
+export type { GroupSelectBottomSheetProps } from './GroupSelectBottomSheet';
