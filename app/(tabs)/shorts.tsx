@@ -689,6 +689,15 @@ export default function ShortsScreen() {
     }
   }, []);
 
+  // 현재 활성 비디오의 북마크 상태를 서버에서 가져오기
+  useEffect(() => {
+    const currentItem = SHORTS_DATA[activeIndex];
+    if (!currentItem) return;
+    // 이미 동기화된 비디오는 스킵
+    if (ownedBookIdsByVideo[currentItem.id] !== undefined) return;
+    syncVideoBookmarkState(currentItem.id);
+  }, [activeIndex, SHORTS_DATA, syncVideoBookmarkState, ownedBookIdsByVideo]);
+
   // 북마크 시트 열기 (페이드 오버레이 + 슬라이드업)
   const openBookmarkSheet = useCallback(async (videoId: string) => {
     setSelectedVideoId(videoId);
