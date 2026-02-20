@@ -6,18 +6,34 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://dev.shortkki.kr"
+      },
       "ios": {
         "simulator": true
       }
     },
     "development-device": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://dev.shortkki.kr"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.shortkki.kr"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
     },
-    "production": {}
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.shortkki.kr"
+      }
+    }
   },
   "submit": {
     "production": {}

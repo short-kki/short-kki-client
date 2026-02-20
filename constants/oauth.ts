@@ -60,6 +60,7 @@ import Constants from "expo-constants";
 // 'local' : 로컬 백엔드 (localhost), 빠른 로그인 가능
 // 'dev'   : 개발 서버 (dev.shortkki.kr), 빠른 로그인 가능
 // 'prod'  : 운영 서버 (api.shortkki.kr), 빠른 로그인 불가
+// TODO: 이후 eas.json의 EXPO_PUBLIC_API_URL 기반으로 전환하여 코드 분기 제거
 // ============================================================================
 export type AppEnv = "local" | "dev" | "prod";
 export const APP_ENV: AppEnv = "dev";
