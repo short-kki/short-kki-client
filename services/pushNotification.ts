@@ -41,9 +41,15 @@ class PushNotificationService {
     const Notifications = await import('expo-notifications');
     const Device = await import('expo-device');
 
-    if (!Device.isDevice) {
-      console.log('[Push] 시뮬레이터에서는 푸시 알림이 지원되지 않습니다.');
+    // iOS 시뮬레이터는 푸시 불가능
+    if (Platform.OS === 'ios' && !Device.isDevice) {
+      console.log('[Push] iOS 시뮬레이터에서는 푸시 알림이 지원되지 않습니다.');
       return;
+    }
+
+    // Android 에뮬레이터는 Google Play Services가 있으면 푸시 가능
+    if (Platform.OS === 'android' && !Device.isDevice) {
+      console.log('[Push] Android 에뮬레이터에서 푸시 알림 초기화 시도...');
     }
 
     Notifications.setNotificationHandler({
@@ -98,26 +104,27 @@ class PushNotificationService {
       const Notifications = await import('expo-notifications');
       const Device = await import('expo-device');
 
-      if (!Device.isDevice) {
-        console.log('[Push] 시뮬레이터에서는 푸시 알림이 지원되지 않습니다. Mock 토큰으로 API 테스트합니다.');
-        // 시뮬레이터에서 API 테스트용 mock 토큰 사용
-        const mockToken = `mock-fcm-token-${Platform.OS}-${Date.now()}`;
+      // iOS 시뮬레이터는 푸시 불가능 - mock 토큰 사용
+      if (Platform.OS === 'ios' && !Device.isDevice) {
+        console.log('[Push] iOS 시뮬레이터에서는 푸시 알림이 지원되지 않습니다.');
+        const mockToken = `mock-fcm-token-ios-${Date.now()}`;
         this.fcmToken = mockToken;
 
         if (!USE_MOCK) {
           await api.post('/api/v1/notifications/fcm-token', {
             fcmToken: mockToken,
-            platform: Platform.OS === 'ios' ? 'IOS' : 'ANDROID',
+            platform: 'IOS',
           });
-          console.log('[Push] Mock FCM 토큰 서버 등록 완료:', mockToken);
+          console.log('[Push] Mock FCM 토큰 서버 등록 (iOS 시뮬레이터)');
         }
         return mockToken;
       }
 
-      // 네이티브 FCM/APNs 토큰 발급
+      // Android 에뮬레이터 및 실제 기기 - 실제 FCM 토큰 발급 시도
+      console.log('[Push] FCM 토큰 발급 시도...');
       const tokenData = await Notifications.getDevicePushTokenAsync();
       this.fcmToken = tokenData.data;
-      console.log('[Push] FCM Token:', this.fcmToken);
+      console.log('[Push] FCM Token 발급 성공:', this.fcmToken?.substring(0, 30) + '...');
 
       if (!USE_MOCK) {
         await api.post('/api/v1/notifications/fcm-token', {
