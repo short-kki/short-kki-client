@@ -420,7 +420,11 @@ export default function SearchResultsScreen() {
     Keyboard.dismiss();
     setIsInputFocused(false);
     setInputValue(trimmed);
-    setActiveSearchWord(trimmed);
+    if (trimmed === activeSearchWord) {
+      searchData.refetch();
+    } else {
+      setActiveSearchWord(trimmed);
+    }
   };
 
   // ─── 렌더 ───
