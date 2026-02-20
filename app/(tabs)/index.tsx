@@ -423,16 +423,17 @@ const CurationSectionRow = React.memo(function CurationSectionRow({
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { toast } = useLocalSearchParams<{ toast?: string }>();
+  const { toast, toastKey } = useLocalSearchParams<{ toast?: string; toastKey?: string }>();
   const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } = useFeedbackToast(2500);
   const lastHandledToastRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!toast) return;
-    if (lastHandledToastRef.current === toast) return;
-    lastHandledToastRef.current = toast;
+    const key = toastKey ?? toast;
+    if (lastHandledToastRef.current === key) return;
+    lastHandledToastRef.current = key;
     showToast(toast);
-  }, [toast, showToast]);
+  }, [toast, toastKey, showToast]);
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const { width: screenWidth } = useWindowDimensions();

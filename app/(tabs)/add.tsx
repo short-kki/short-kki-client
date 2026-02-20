@@ -161,8 +161,10 @@ export default function AddRecipeScreen() {
         const result = await parseRecipeFromUrl(sharedUrl);
         if (result) {
           if (result.recipeId) {
-            showToast("이미 등록된 레시피로 이동합니다");
-            router.push(`/recipe/${result.recipeId}`);
+            setUrl("");
+            setParsedRecipe(null);
+            router.back();
+            router.push({ pathname: `/recipe/${result.recipeId}`, params: { toast: "이미 등록된 레시피로 이동합니다" } });
             return;
           }
           setParsedRecipe(result);
@@ -176,7 +178,7 @@ export default function AddRecipeScreen() {
         setIsLoading(false);
       }
     })();
-  }, [params.sharedUrl, router, showToast]);
+  }, [params.sharedUrl, router]);
 
   const handleSearch = async () => {
     Keyboard.dismiss();
@@ -190,8 +192,10 @@ export default function AddRecipeScreen() {
       const result = await parseRecipeFromUrl(url);
       if (result) {
         if (result.recipeId) {
-          showToast("이미 등록된 레시피로 이동합니다");
-          router.push(`/recipe/${result.recipeId}`);
+          setUrl("");
+          setParsedRecipe(null);
+          router.back();
+          router.push({ pathname: `/recipe/${result.recipeId}`, params: { toast: "이미 등록된 레시피로 이동합니다" } });
           return;
         }
         setParsedRecipe(result);
@@ -221,8 +225,10 @@ export default function AddRecipeScreen() {
       });
 
       if (response?.data?.recipeId && response?.data?.importHistoryId == null) {
-        showToast("이미 등록된 레시피로 이동합니다");
-        router.push(`/recipe/${response.data.recipeId}`);
+        setUrl("");
+        setParsedRecipe(null);
+        router.back();
+        router.push({ pathname: `/recipe/${response.data.recipeId}`, params: { toast: "이미 등록된 레시피로 이동합니다" } });
         return;
       }
 
@@ -230,7 +236,10 @@ export default function AddRecipeScreen() {
       setParsedRecipe(null);
       router.replace({
         pathname: "/(tabs)",
-        params: { toast: "레시피를 가져오는 중입니다. 잠시만 기다려주세요." },
+        params: {
+          toast: "레시피를 가져오는 중입니다. 잠시만 기다려주세요.",
+          toastKey: String(Date.now()),
+        },
       });
     } catch (err: any) {
       const errorMessage = err?.message?.toLowerCase() || "";

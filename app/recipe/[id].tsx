@@ -96,7 +96,7 @@ export default function RecipeDetailScreen() {
 
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string; toast?: string }>();
   const idStr = params.id;
   const id = idStr ? parseInt(idStr, 10) : 0;
 
@@ -177,6 +177,10 @@ export default function RecipeDetailScreen() {
 
   const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } =
     useFeedbackToast(1600);
+
+  useEffect(() => {
+    if (params.toast) showToast(params.toast);
+  }, [params.toast, showToast]);
 
   // 히어로 스트레치 + 풀스크린
   const [isFullscreen, setIsFullscreen] = useState(false);
