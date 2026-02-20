@@ -398,6 +398,7 @@ export default function SearchResultsScreen() {
         searchData.fetchNextPage();
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [searchData.hasNext, searchData.loadingMore, searchData.fetchNextPage]
   );
 
@@ -419,7 +420,11 @@ export default function SearchResultsScreen() {
     Keyboard.dismiss();
     setIsInputFocused(false);
     setInputValue(trimmed);
-    setActiveSearchWord(trimmed);
+    if (trimmed === activeSearchWord) {
+      searchData.refetch();
+    } else {
+      setActiveSearchWord(trimmed);
+    }
   };
 
   // ─── 렌더 ───

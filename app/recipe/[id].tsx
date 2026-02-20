@@ -7,8 +7,6 @@ import {
   TouchableOpacity,
   StatusBar,
   Dimensions,
-  Alert,
-  Share,
   ActivityIndicator,
   Modal,
   Animated,
@@ -66,6 +64,7 @@ import { API_BASE_URL } from "@/constants/oauth";
 import { api } from "@/services/api";
 import { useRecipeQueue, useGroups, usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
 import { FeedbackToast, useFeedbackToast, truncateTitle } from "@/components/ui/FeedbackToast";
+import { GroupSelectBottomSheet } from "@/components/ui";
 import { YoutubeView, useYouTubePlayer, useYouTubeEvent, PlayerState } from "react-native-youtube-bridge";
 import { extractYoutubeId } from "@/utils/youtube";
 
@@ -92,32 +91,12 @@ const DIFFICULTY_LABELS: Record<string, string> = {
 };
 
 
-// 기본 레시피 값 (로딩 전 또는 에러 시)
-const DEFAULT_RECIPE: RecipeResponse = {
-  id: 0,
-  title: "",
-  description: "",
-  mainImgUrl: "",
-  cookingTime: 0,
-  servingSize: 0,
-  difficulty: "BEGINNER",
-  cuisineType: "KOREAN",
-  mealType: "MAIN",
-  authorName: "",
-  bookmarkCount: 0,
-  ingredients: [],
-  steps: [],
-  tags: [],
-  createdAt: "",
-  updatedAt: "",
-};
-
 export default function RecipeDetailScreen() {
   'use no memo'; // React Compiler 비활성화
 
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string; toast?: string }>();
   const idStr = params.id;
   const id = idStr ? parseInt(idStr, 10) : 0;
 
@@ -198,6 +177,10 @@ export default function RecipeDetailScreen() {
 
   const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } =
     useFeedbackToast(1600);
+
+  useEffect(() => {
+    if (params.toast) showToast(params.toast);
+  }, [params.toast, showToast]);
 
   // 히어로 스트레치 + 풀스크린
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -323,12 +306,12 @@ export default function RecipeDetailScreen() {
       });
       return () => handler.remove();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFullscreen, exitFullscreenJS]);
 
   // 비디오 관련 상태
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
-  const [isVideoReady, setIsVideoReady] = useState(false);
 
   // YouTube Video ID 추출
   const videoId = recipe?.sourceUrl ? extractYoutubeId(recipe.sourceUrl) : null;
@@ -346,7 +329,6 @@ export default function RecipeDetailScreen() {
   // YouTube 이벤트 리스너
   useYouTubeEvent(player, "ready", () => {
     console.log("YouTube player ready");
-    setIsVideoReady(true);
   });
 
   useYouTubeEvent(player, "stateChange", (state) => {
@@ -481,7 +463,7 @@ export default function RecipeDetailScreen() {
         setOwnedBookIds((prev) => prev.filter((id) => id !== bookId));
         await refreshRecipeState();
         showToast(`"${truncateTitle(bookName)}"에서 삭제됐어요!`, "danger");
-      } catch (error: any) {
+      } catch {
         showToast("삭제에 실패했어요", "danger");
       }
     } else {
@@ -490,8 +472,8 @@ export default function RecipeDetailScreen() {
         setOwnedBookIds((prev) => (prev.includes(bookId) ? prev : [...prev, bookId]));
         await refreshRecipeState();
         showToast(`"${truncateTitle(bookName)}"에 저장됐어요!`, "success");
-      } catch (error: any) {
-        if (error.message && error.message.includes("이미 레시피북에 추가된")) {
+      } catch (e: any) {
+        if (e.message && e.message.includes("이미 레시피북에 추가된")) {
           showToast("이미 해당 레시피북에 저장돼 있어요", "danger");
         } else {
           showToast("레시피 저장에 실패했어요", "danger");
@@ -511,7 +493,7 @@ export default function RecipeDetailScreen() {
     try {
       await addQueue(recipe.id);
       showToast(`"${truncateTitle(recipe.title)}" 레시피가 대기열에 추가됐어요!`, "success");
-    } catch (err) {
+    } catch {
       showToast("대기열에 추가하지 못했어요", "danger");
     }
   };
@@ -1019,7 +1001,6 @@ export default function RecipeDetailScreen() {
               <Minimize2 size={20} color="#FFFFFF" />
             </TouchableOpacity>
           )}
-
         </RAnimated.View>
 
         {/* Content Section */}
@@ -1765,146 +1746,13 @@ export default function RecipeDetailScreen() {
       </Modal>
 
       {/* 그룹 선택 모달 (장보기) */}
-      <Modal visible={showGroupSelectModal} transparent animationType="slide">
-        <Pressable
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            justifyContent: "flex-end",
-          }}
-          onPress={() => setShowGroupSelectModal(false)}
-        >
-          <Pressable
-            style={{
-              backgroundColor: Colors.neutral[0],
-              borderTopLeftRadius: BorderRadius["2xl"],
-              borderTopRightRadius: BorderRadius["2xl"],
-              maxHeight: "60%",
-              paddingTop: Spacing.md,
-              paddingBottom: insets.bottom + Spacing.lg,
-            }}
-            onPress={(e) => e.stopPropagation()}
-          >
-            {/* 핸들바 */}
-            <View
-              style={{
-                width: 36,
-                height: 4,
-                backgroundColor: Colors.neutral[300],
-                borderRadius: 2,
-                alignSelf: "center",
-                marginBottom: Spacing.md,
-              }}
-            />
-
-            {/* 제목 */}
-            <View style={{ paddingHorizontal: Spacing.xl, marginBottom: Spacing.md }}>
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.lg,
-                  fontWeight: "700",
-                  color: Colors.neutral[900],
-                }}
-              >
-                장보기 목록에 추가
-              </Text>
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.sm,
-                  color: Colors.neutral[500],
-                  marginTop: 4,
-                }}
-              >
-                어느 그룹의 장보기 목록에 추가할까요?
-              </Text>
-            </View>
-
-            {/* 그룹 목록 */}
-            {groupsLoading ? (
-              <View style={{ padding: Spacing.xl, alignItems: "center" }}>
-                <ActivityIndicator size="small" color={Colors.primary[500]} />
-              </View>
-            ) : (
-              <ScrollView style={{ maxHeight: 300 }}>
-                {groups.map((group) => (
-                  <TouchableOpacity
-                    key={group.id}
-                    onPress={() => handleGroupSelect(group.id, group.name)}
-                    activeOpacity={0.7}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      paddingVertical: Spacing.md,
-                      paddingHorizontal: Spacing.xl,
-                      borderBottomWidth: 1,
-                      borderBottomColor: Colors.neutral[100],
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 24,
-                        backgroundColor: Colors.primary[100],
-                        justifyContent: "center",
-                        alignItems: "center",
-                        marginRight: Spacing.md,
-                      }}
-                    >
-                      <Users size={24} color={Colors.primary[600]} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={{
-                          fontSize: Typography.fontSize.base,
-                          fontWeight: "600",
-                          color: Colors.neutral[900],
-                        }}
-                      >
-                        {group.name}
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: Typography.fontSize.sm,
-                          color: Colors.neutral[500],
-                          marginTop: 2,
-                        }}
-                      >
-                        {group.memberCount}명
-                      </Text>
-                    </View>
-                    <ShoppingCart size={20} color={Colors.neutral[400]} />
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-
-            {/* 취소 버튼 */}
-            <View style={{ paddingHorizontal: Spacing.xl, paddingTop: Spacing.md }}>
-              <TouchableOpacity
-                onPress={() => setShowGroupSelectModal(false)}
-                activeOpacity={0.8}
-                style={{
-                  backgroundColor: Colors.neutral[100],
-                  borderRadius: BorderRadius.lg,
-                  paddingVertical: Spacing.md,
-                  alignItems: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: Typography.fontSize.base,
-                    fontWeight: "600",
-                    color: Colors.neutral[700],
-                  }}
-                >
-                  취소
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <GroupSelectBottomSheet
+        visible={showGroupSelectModal}
+        groups={groups}
+        loading={groupsLoading}
+        onSelect={handleGroupSelect}
+        onClose={() => setShowGroupSelectModal(false)}
+      />
 
       {/* 재료 선택 모달 */}
       <Modal visible={showIngredientSelectModal} transparent animationType="slide">

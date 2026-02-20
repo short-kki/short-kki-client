@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import {
   Search,
   Bell,
@@ -25,6 +25,7 @@ import {
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows, SemanticColors } from "@/constants/design-system";
 import { useRecommendedCurations, useUnreadNotificationCount } from "@/hooks";
+import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
 import type { CurationSection } from "@/data/mock";
 import Svg, { Path } from "react-native-svg";
 
@@ -422,6 +423,18 @@ const CurationSectionRow = React.memo(function CurationSectionRow({
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { toast, toastKey } = useLocalSearchParams<{ toast?: string; toastKey?: string }>();
+  const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } = useFeedbackToast(2500);
+  const lastHandledToastRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const key = toastKey ?? toast;
+    if (lastHandledToastRef.current === key) return;
+    lastHandledToastRef.current = key;
+    showToast(toast);
+  }, [toast, toastKey, showToast]);
+
   const scrollY = useRef(new Animated.Value(0)).current;
   const { width: screenWidth } = useWindowDimensions();
   const [selectedFilter, setSelectedFilter] = useState("전체");
@@ -495,13 +508,6 @@ export default function HomeScreen() {
     });
   }, [router]);
 
-  const handleShortsPress = useCallback((shortsId: string) => {
-    router.push({
-      pathname: "/(tabs)/shorts",
-      params: { startIndex: shortsId },
-    });
-  }, [router]);
-
   const handleTopCurationPress = useCallback((shortsId: string) => {
     if (!topCuration) {
       router.push({
@@ -520,40 +526,20 @@ export default function HomeScreen() {
     });
   }, [router, topCuration]);
 
-  const handleSeeAllShorts = useCallback(() => {
-    router.push("/(tabs)/shorts");
-  }, [router]);
-
-  const handleSearch = useCallback(() => {
-    router.push("/search");
-  }, [router]);
-
-  const handleNotifications = useCallback(() => {
-    router.push("/notifications");
-  }, [router]);
-
   const handleSeeAllSection = useCallback((sectionId: string, sectionTitle: string) => {
     router.push(`/search-results?curationId=${sectionId}&curationTitle=${encodeURIComponent(sectionTitle)}` as any);
   }, [router]);
 
-  const handleSeeAllTrending = useCallback(() => {
-    router.push({
-      pathname: "/(tabs)/shorts",
-      params: { section: "trending" },
-    });
-  }, [router]);
-
   const FILTERS = ["전체", "한식", "양식", "일식", "디저트", "안주"];
 
-  const FILTER_MAP: Record<string, { type: "cuisine" | "meal"; value: string }> = {
-    "한식": { type: "cuisine", value: "KOREAN" },
-    "양식": { type: "cuisine", value: "WESTERN" },
-    "일식": { type: "cuisine", value: "JAPANESE" },
-    "디저트": { type: "meal", value: "DESSERT" },
-    "안주": { type: "meal", value: "SIDE_FOR_DRINK" },
-  };
-
   const filteredSections = useMemo(() => {
+    const FILTER_MAP: Record<string, { type: "cuisine" | "meal"; value: string }> = {
+      "한식": { type: "cuisine", value: "KOREAN" },
+      "양식": { type: "cuisine", value: "WESTERN" },
+      "일식": { type: "cuisine", value: "JAPANESE" },
+      "디저트": { type: "meal", value: "DESSERT" },
+      "안주": { type: "meal", value: "SIDE_FOR_DRINK" },
+    };
     if (selectedFilter === "전체") return sections;
     const filterConfig = FILTER_MAP[selectedFilter];
     if (!filterConfig) return sections;
@@ -914,6 +900,14 @@ export default function HomeScreen() {
           </Animated.View>
         </Animated.View>
       )}
+
+      <FeedbackToast
+        message={toastMessage}
+        variant={toastVariant}
+        opacity={toastOpacity}
+        translate={toastTranslate}
+        aboveTabBar
+      />
     </View>
   );
 }

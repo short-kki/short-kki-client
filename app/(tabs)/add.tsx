@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -23,9 +23,7 @@ import {
   User,
   ArrowLeft,
   Globe,
-  PenLine,
   Sparkles,
-  ChevronRight,
   Play,
   TriangleAlert,
 } from "lucide-react-native";
@@ -140,14 +138,47 @@ const parseRecipeFromUrl = async (url: string): Promise<ParsedRecipe | null> => 
 export default function AddRecipeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ mode?: string; returnTab?: string }>();
+  const params = useLocalSearchParams<{ returnTab?: string; sharedUrl?: string }>();
 
-  const [mode, setMode] = useState<"select" | "url">(params.mode === "url" ? "url" : "select");
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [parsedRecipe, setParsedRecipe] = useState<ParsedRecipe | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } = useFeedbackToast();
+
+  // 외부 앱에서 공유된 URL 자동 처리
+  useEffect(() => {
+    if (!params.sharedUrl) return;
+
+    const sharedUrl = params.sharedUrl;
+    setUrl(sharedUrl);
+
+    // URL 세팅 후 자동으로 미리보기 로드
+    (async () => {
+      setIsLoading(true);
+      setParsedRecipe(null);
+      try {
+        const result = await parseRecipeFromUrl(sharedUrl);
+        if (result) {
+          if (result.recipeId) {
+            setUrl("");
+            setParsedRecipe(null);
+            router.back();
+            router.push({ pathname: `/recipe/${result.recipeId}`, params: { toast: "이미 등록된 레시피로 이동합니다" } });
+            return;
+          }
+          setParsedRecipe(result);
+        } else {
+          Alert.alert("오류", "레시피 정보를 가져올 수 없습니다.\nURL을 확인해주세요.");
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "레시피 정보를 가져오는 중 오류가 발생했습니다.";
+        Alert.alert("오류", message);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, [params.sharedUrl, router]);
 
   const handleSearch = async () => {
     Keyboard.dismiss();
@@ -161,8 +192,10 @@ export default function AddRecipeScreen() {
       const result = await parseRecipeFromUrl(url);
       if (result) {
         if (result.recipeId) {
-          showToast("이미 등록된 레시피로 이동합니다");
-          router.push(`/recipe/${result.recipeId}`);
+          setUrl("");
+          setParsedRecipe(null);
+          router.back();
+          router.push({ pathname: `/recipe/${result.recipeId}`, params: { toast: "이미 등록된 레시피로 이동합니다" } });
           return;
         }
         setParsedRecipe(result);
@@ -192,16 +225,22 @@ export default function AddRecipeScreen() {
       });
 
       if (response?.data?.recipeId && response?.data?.importHistoryId == null) {
-        showToast("이미 등록된 레시피로 이동합니다");
-        router.push(`/recipe/${response.data.recipeId}`);
+        setUrl("");
+        setParsedRecipe(null);
+        router.back();
+        router.push({ pathname: `/recipe/${response.data.recipeId}`, params: { toast: "이미 등록된 레시피로 이동합니다" } });
         return;
       }
 
-      showToast("레시피 생성 중 입니다. 잠시만 기다려주세요");
       setUrl("");
       setParsedRecipe(null);
-      setMode("select");
-      router.replace("/(tabs)");
+      router.replace({
+        pathname: "/(tabs)",
+        params: {
+          toast: "레시피를 가져오는 중입니다. 잠시만 기다려주세요.",
+          toastKey: String(Date.now()),
+        },
+      });
     } catch (err: any) {
       const errorMessage = err?.message?.toLowerCase() || "";
 
@@ -262,97 +301,17 @@ export default function AddRecipeScreen() {
               gap: 12,
             }}
           >
-            {mode === "url" && (
-              <TouchableOpacity onPress={handleBack} hitSlop={8} style={{ padding: 2 }}>
-                <ArrowLeft size={22} color={Colors.neutral[900]} />
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity onPress={handleBack} hitSlop={8} style={{ padding: 2 }}>
+              <ArrowLeft size={22} color={Colors.neutral[900]} />
+            </TouchableOpacity>
             <Text style={{ fontSize: 20, fontWeight: "800", color: Colors.neutral[900] }}>
-              {mode === "url" ? "레시피 가져오기" : "레시피 추가"}
+              레시피 가져오기
             </Text>
           </View>
         </View>
 
-        {/* ═══ 모드 선택 ═══ */}
-        {mode === "select" && (
-          <View style={{ flex: 1 }}>
-            <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
-              <Text style={{ fontSize: 15, color: Colors.neutral[500], marginBottom: 20 }}>
-                어떤 방식으로 레시피를 추가할까요?
-              </Text>
-
-              <TouchableOpacity
-                onPress={() => setMode("url")}
-                activeOpacity={0.85}
-                style={{
-                  backgroundColor: Colors.primary[500],
-                  borderRadius: 24,
-                  padding: 24,
-                  marginBottom: 12,
-                }}
-              >
-                <View
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 16,
-                    backgroundColor: "rgba(255,255,255,0.2)",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    marginBottom: 20,
-                  }}
-                >
-                  <Globe size={24} color="#FFFFFF" />
-                </View>
-                <Text style={{ fontSize: 20, fontWeight: "800", color: "#FFFFFF", marginBottom: 6 }}>
-                  URL로 가져오기
-                </Text>
-                <Text style={{ fontSize: 14, color: "rgba(255,255,255,0.8)", lineHeight: 20 }}>
-                  유튜브, 블로그 등의 링크를 붙여넣으면{"\n"}AI가 자동으로 레시피를 추출해요
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => router.push("/recipe-create-manual")}
-                activeOpacity={0.7}
-                style={{
-                  backgroundColor: Colors.neutral[100],
-                  borderRadius: 20,
-                  paddingVertical: 18,
-                  paddingHorizontal: 20,
-                  flexDirection: "row",
-                  alignItems: "center",
-                }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 14,
-                    backgroundColor: "#FFFFFF",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <PenLine size={20} color={Colors.neutral[600]} />
-                </View>
-                <View style={{ flex: 1, marginLeft: 14 }}>
-                  <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.neutral[900] }}>
-                    직접 작성하기
-                  </Text>
-                  <Text style={{ fontSize: 13, color: Colors.neutral[500], marginTop: 2 }}>
-                    나만의 레시피를 직접 입력해요
-                  </Text>
-                </View>
-                <ChevronRight size={18} color={Colors.neutral[400]} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* ═══ URL 모드 ═══ */}
-        {mode === "url" && (
-          <View style={{ flex: 1, minHeight: 0 }}>
+        {/* ═══ URL 입력 & 미리보기 ═══ */}
+        <View style={{ flex: 1, minHeight: 0 }}>
             {/* 통합 카드 */}
             <ScrollView
               style={{ flex: 1 }}
@@ -592,7 +551,6 @@ export default function AddRecipeScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        )}
       </View>
 
       <FeedbackToast

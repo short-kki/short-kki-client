@@ -7,7 +7,6 @@ import {
   ScrollView,
   StatusBar,
   Alert,
-  Pressable,
   KeyboardAvoidingView,
   Platform,
   Modal,
@@ -23,14 +22,12 @@ import {
   ImagePlus,
   Camera,
   Trash2,
-  Send,
   CheckCircle,
   Sparkles,
-  Loader2,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/design-system";
 import { api, USE_MOCK } from "@/services/api";
-import { uploadImage, type ImagePickerAsset, type UploadedFile } from "@/services/fileUpload";
+import { uploadImage, type ImagePickerAsset } from "@/services/fileUpload";
 
 // 선택된 이미지 타입
 interface SelectedImage {
@@ -66,6 +63,7 @@ export default function GroupFeedCreateScreen() {
     if (isEditMode && params.feedId && params.groupId) {
       fetchFeedData();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditMode, params.feedId, params.groupId]);
 
   const fetchFeedData = async () => {
@@ -120,7 +118,7 @@ export default function GroupFeedCreateScreen() {
       scaleAnim.setValue(0);
       fadeAnim.setValue(0);
     }
-  }, [showSuccessModal]);
+  }, [showSuccessModal, fadeAnim, scaleAnim]);
 
   // 갤러리에서 이미지 선택 (1개만 지원)
   const handlePickImage = async () => {

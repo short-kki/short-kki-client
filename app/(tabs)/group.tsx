@@ -16,6 +16,7 @@ import {
   Share,
   Platform,
   ActivityIndicator,
+  KeyboardAvoidingView,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -38,21 +39,33 @@ import {
   PenSquare,
   Heart,
   Share2,
-  MessageCircle,
   PartyPopper,
   Check,
   AlertTriangle,
   Clock,
   Bookmark,
+  MessageCircle,
+  Copyright,
+  Ban,
+  Megaphone,
+  HelpCircle,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { API_BASE_URL } from "@/constants/oauth";
 import { useGroups, useGroupFeeds, useGroupMembers, getGroupInviteCode } from "@/hooks";
+import { api } from "@/services/api";
+import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
 import type { Group } from "@/data/mock";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const FEED_IMAGE_SIZE = SCREEN_WIDTH - 32 - 2; // padding + border
+const REPORT_TYPES = [
+  { id: "INACCURATE", label: "잘못된 정보", icon: AlertTriangle, description: "게시글에 사실과 다르거나 오해를 일으킬 수 있는 내용이 있어요" },
+  { id: "COPYRIGHT_INFRINGEMENT", label: "저작권 침해", icon: Copyright, description: "다른 사람의 사진이나 글을 허락 없이 사용한 게시글이에요" },
+  { id: "INAPPROPRIATE_CONTENT", label: "부적절한 콘텐츠", icon: Ban, description: "불쾌하거나 유해한 내용이 포함된 게시글이에요" },
+  { id: "SPAM_AD", label: "스팸 / 광고", icon: Megaphone, description: "홍보 목적이거나 반복적으로 작성된 게시글이에요" },
+  { id: "OTHER", label: "기타", icon: HelpCircle, description: "위 항목에 해당하지 않는 신고 사유예요" },
+] as const;
 
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // 그룹 타입 정의
 const GROUP_TYPES = [
   { value: 'COUPLE', label: '커플' },
@@ -92,7 +105,7 @@ export default function GroupScreen() {
   const { groups, createGroup, deleteGroup, leaveGroup, refetch: refetchGroups } = useGroups();
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const { feeds, toggleLike, deleteFeed, refetch: refetchFeeds } = useGroupFeeds(selectedGroup?.id);
-  const { members } = useGroupMembers(selectedGroup?.id);
+  useGroupMembers(selectedGroup?.id);
   const appliedRouteTargetRef = useRef<string | null>(null);
 
   // 그룹 탭을 다시 누르면 그룹 목록으로 돌아가기
@@ -250,6 +263,43 @@ export default function GroupScreen() {
     });
   }, [feedMenuOverlayOpacity, feedMenuSheetTranslateY]);
 
+  // 피드백(신고) 관련 상태
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackType, setFeedbackType] = useState<string | null>(null);
+  const [feedbackContent, setFeedbackContent] = useState("");
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } =
+    useFeedbackToast(1400);
+
+  const handleFeedReport = useCallback(() => {
+    closeFeedMenu(() => {
+      setTimeout(() => {
+        setFeedbackType(null);
+        setFeedbackContent("");
+        setShowFeedbackModal(true);
+      }, 100);
+    });
+  }, [closeFeedMenu]);
+
+  const handleSubmitFeedback = useCallback(async () => {
+    if (!feedbackType || !selectedFeedId) return;
+    setFeedbackSubmitting(true);
+    try {
+      await api.post("/api/v1/feedback", {
+        targetType: "FEED",
+        targetId: selectedFeedId,
+        feedbackType,
+        ...(feedbackContent.trim() && { description: feedbackContent.trim() }),
+      });
+      setShowFeedbackModal(false);
+      showToast("신고가 접수됐어요, 감사합니다!", "success");
+    } catch {
+      showToast("신고 접수에 실패했어요", "danger");
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  }, [feedbackType, feedbackContent, selectedFeedId, showToast]);
+
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) {
       Alert.alert("알림", "그룹 이름을 입력해주세요.");
@@ -380,14 +430,6 @@ export default function GroupScreen() {
         });
         break;
     }
-  };
-
-  const handleRecipeCardPress = (recipeId: string) => {
-    router.push(`/recipe/${recipeId}`);
-  };
-
-  const handleInviteMember = () => {
-    setShowInviteModal(true);
   };
 
   const handleInviteShare = async () => {
@@ -1065,6 +1107,25 @@ export default function GroupScreen() {
                   삭제
                 </Text>
               </TouchableOpacity>
+
+              {/* 구분선 */}
+              <View style={{ height: 1, backgroundColor: Colors.neutral[100], marginVertical: 4 }} />
+
+              <TouchableOpacity
+                activeOpacity={0.6}
+                onPress={handleFeedReport}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: Spacing.md,
+                  paddingVertical: 14,
+                }}
+              >
+                <MessageCircle size={20} color={Colors.neutral[600]} />
+                <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.neutral[900] }}>
+                  신고하기
+                </Text>
+              </TouchableOpacity>
             </Animated.View>
           </View>
         </Modal>
@@ -1208,6 +1269,237 @@ export default function GroupScreen() {
             </Pressable>
           </Pressable>
         </Modal>
+
+        {/* 신고하기 모달 */}
+        <Modal
+          visible={showFeedbackModal}
+          transparent
+          statusBarTranslucent
+          animationType="fade"
+          onRequestClose={() => {
+            if (!feedbackSubmitting) setShowFeedbackModal(false);
+          }}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1 }}
+          >
+            <Pressable
+              style={{
+                flex: 1,
+                backgroundColor: "rgba(0,0,0,0.5)",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+              onPress={() => {
+                if (!feedbackSubmitting) setShowFeedbackModal(false);
+              }}
+            >
+              <Pressable
+                style={{
+                  width: "90%",
+                  maxHeight: "80%",
+                  backgroundColor: "#FFFFFF",
+                  borderRadius: 24,
+                  overflow: "hidden",
+                }}
+                onPress={(e) => e.stopPropagation()}
+              >
+                {/* 헤더 */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingHorizontal: 20,
+                    paddingTop: 20,
+                    paddingBottom: 16,
+                  }}
+                >
+                  <View>
+                    <Text style={{ fontSize: 20, fontWeight: "800", color: Colors.neutral[900] }}>
+                      신고하기
+                    </Text>
+                    <Text style={{ fontSize: 13, color: Colors.neutral[400], marginTop: 4 }}>
+                      이 게시글을 신고하는 이유를 알려주세요
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setShowFeedbackModal(false)}
+                    disabled={feedbackSubmitting}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: Colors.neutral[100],
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <X size={20} color={Colors.neutral[500]} />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  style={{ maxHeight: 460 }}
+                  contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {/* 피드백 유형 선택 */}
+                  <View style={{ gap: 8 }}>
+                    {REPORT_TYPES.map((type) => {
+                      const isSelected = feedbackType === type.id;
+                      const Icon = type.icon;
+                      return (
+                        <TouchableOpacity
+                          key={type.id}
+                          onPress={() => setFeedbackType(isSelected ? null : type.id)}
+                          activeOpacity={0.7}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            padding: 14,
+                            borderRadius: 14,
+                            backgroundColor: isSelected ? Colors.primary[50] : Colors.neutral[50],
+                            borderWidth: 1.5,
+                            borderColor: isSelected ? Colors.primary[400] : Colors.neutral[200],
+                            gap: 12,
+                          }}
+                        >
+                          <View
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 10,
+                              backgroundColor: isSelected ? Colors.primary[100] : Colors.neutral[100],
+                              justifyContent: "center",
+                              alignItems: "center",
+                            }}
+                          >
+                            <Icon size={20} color={isSelected ? Colors.primary[500] : Colors.neutral[500]} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={{
+                                fontSize: 15,
+                                fontWeight: "600",
+                                color: isSelected ? Colors.primary[700] : Colors.neutral[900],
+                              }}
+                            >
+                              {type.label}
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                color: isSelected ? Colors.primary[400] : Colors.neutral[400],
+                                marginTop: 2,
+                              }}
+                            >
+                              {type.description}
+                            </Text>
+                          </View>
+                          <View
+                            style={{
+                              width: 22,
+                              height: 22,
+                              borderRadius: 11,
+                              backgroundColor: isSelected ? Colors.primary[500] : "transparent",
+                              justifyContent: "center",
+                              alignItems: "center",
+                            }}
+                          >
+                            {isSelected && <Check size={13} color="#FFF" strokeWidth={3} />}
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* 상세 내용 입력 */}
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "600",
+                      color: Colors.neutral[700],
+                      marginTop: 20,
+                      marginBottom: 8,
+                    }}
+                  >
+                    상세 내용 (선택)
+                  </Text>
+                  <TextInput
+                    value={feedbackContent}
+                    onChangeText={setFeedbackContent}
+                    placeholder="구체적인 내용을 알려주시면 검토에 도움이 됩니다"
+                    placeholderTextColor={Colors.neutral[300]}
+                    multiline
+                    textAlignVertical="top"
+                    maxLength={500}
+                    style={{
+                      backgroundColor: Colors.neutral[50],
+                      borderWidth: 1,
+                      borderColor: Colors.neutral[200],
+                      borderRadius: 14,
+                      padding: 14,
+                      fontSize: 14,
+                      color: Colors.neutral[800],
+                      minHeight: 100,
+                      lineHeight: 20,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: Colors.neutral[300],
+                      textAlign: "right",
+                      marginTop: 6,
+                    }}
+                  >
+                    {feedbackContent.length}/500
+                  </Text>
+
+                  {/* 제출 버튼 */}
+                  <TouchableOpacity
+                    onPress={handleSubmitFeedback}
+                    disabled={!feedbackType || feedbackSubmitting}
+                    activeOpacity={0.8}
+                    style={{
+                      marginTop: 16,
+                      backgroundColor: !feedbackType ? Colors.neutral[200] : Colors.primary[500],
+                      paddingVertical: 15,
+                      borderRadius: BorderRadius.lg,
+                      alignItems: "center",
+                      flexDirection: "row",
+                      justifyContent: "center",
+                      gap: 8,
+                    }}
+                  >
+                    {feedbackSubmitting && (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    )}
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        fontWeight: "700",
+                        color: !feedbackType ? Colors.neutral[400] : "#FFFFFF",
+                      }}
+                    >
+                      {feedbackSubmitting ? "접수 중..." : "신고 접수하기"}
+                    </Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </Pressable>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        <FeedbackToast
+          message={toastMessage}
+          variant={toastVariant}
+          opacity={toastOpacity}
+          translate={toastTranslate}
+          aboveTabBar
+        />
       </View>
     );
   }
@@ -1901,6 +2193,25 @@ export default function GroupScreen() {
                 삭제
               </Text>
             </TouchableOpacity>
+
+            {/* 구분선 */}
+            <View style={{ height: 1, backgroundColor: Colors.neutral[100], marginVertical: 4 }} />
+
+            <TouchableOpacity
+              activeOpacity={0.6}
+              onPress={handleFeedReport}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: Spacing.md,
+                paddingVertical: 14,
+              }}
+            >
+              <MessageCircle size={20} color={Colors.neutral[600]} />
+              <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.neutral[900] }}>
+                신고하기
+              </Text>
+            </TouchableOpacity>
           </Animated.View>
         </View>
       </Modal>
@@ -2583,6 +2894,237 @@ export default function GroupScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* 신고하기 모달 */}
+      <Modal
+        visible={showFeedbackModal}
+        transparent
+        statusBarTranslucent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!feedbackSubmitting) setShowFeedbackModal(false);
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <Pressable
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+            onPress={() => {
+              if (!feedbackSubmitting) setShowFeedbackModal(false);
+            }}
+          >
+            <Pressable
+              style={{
+                width: "90%",
+                maxHeight: "80%",
+                backgroundColor: "#FFFFFF",
+                borderRadius: 24,
+                overflow: "hidden",
+              }}
+              onPress={(e) => e.stopPropagation()}
+            >
+              {/* 헤더 */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingHorizontal: 20,
+                  paddingTop: 20,
+                  paddingBottom: 16,
+                }}
+              >
+                <View>
+                  <Text style={{ fontSize: 20, fontWeight: "800", color: Colors.neutral[900] }}>
+                    신고하기
+                  </Text>
+                  <Text style={{ fontSize: 13, color: Colors.neutral[400], marginTop: 4 }}>
+                    이 게시글을 신고하는 이유를 알려주세요
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setShowFeedbackModal(false)}
+                  disabled={feedbackSubmitting}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: Colors.neutral[100],
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <X size={20} color={Colors.neutral[500]} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                style={{ maxHeight: 460 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
+                keyboardShouldPersistTaps="handled"
+              >
+                {/* 피드백 유형 선택 */}
+                <View style={{ gap: 8 }}>
+                  {REPORT_TYPES.map((type) => {
+                    const isSelected = feedbackType === type.id;
+                    const Icon = type.icon;
+                    return (
+                      <TouchableOpacity
+                        key={type.id}
+                        onPress={() => setFeedbackType(isSelected ? null : type.id)}
+                        activeOpacity={0.7}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          padding: 14,
+                          borderRadius: 14,
+                          backgroundColor: isSelected ? Colors.primary[50] : Colors.neutral[50],
+                          borderWidth: 1.5,
+                          borderColor: isSelected ? Colors.primary[400] : Colors.neutral[200],
+                          gap: 12,
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 10,
+                            backgroundColor: isSelected ? Colors.primary[100] : Colors.neutral[100],
+                            justifyContent: "center",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Icon size={20} color={isSelected ? Colors.primary[500] : Colors.neutral[500]} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={{
+                              fontSize: 15,
+                              fontWeight: "600",
+                              color: isSelected ? Colors.primary[700] : Colors.neutral[900],
+                            }}
+                          >
+                            {type.label}
+                          </Text>
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: isSelected ? Colors.primary[400] : Colors.neutral[400],
+                              marginTop: 2,
+                            }}
+                          >
+                            {type.description}
+                          </Text>
+                        </View>
+                        <View
+                          style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: 11,
+                            backgroundColor: isSelected ? Colors.primary[500] : "transparent",
+                            justifyContent: "center",
+                            alignItems: "center",
+                          }}
+                        >
+                          {isSelected && <Check size={13} color="#FFF" strokeWidth={3} />}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* 상세 내용 입력 */}
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: Colors.neutral[700],
+                    marginTop: 20,
+                    marginBottom: 8,
+                  }}
+                >
+                  상세 내용 (선택)
+                </Text>
+                <TextInput
+                  value={feedbackContent}
+                  onChangeText={setFeedbackContent}
+                  placeholder="구체적인 내용을 알려주시면 검토에 도움이 됩니다"
+                  placeholderTextColor={Colors.neutral[300]}
+                  multiline
+                  textAlignVertical="top"
+                  maxLength={500}
+                  style={{
+                    backgroundColor: Colors.neutral[50],
+                    borderWidth: 1,
+                    borderColor: Colors.neutral[200],
+                    borderRadius: 14,
+                    padding: 14,
+                    fontSize: 14,
+                    color: Colors.neutral[800],
+                    minHeight: 100,
+                    lineHeight: 20,
+                  }}
+                />
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: Colors.neutral[300],
+                    textAlign: "right",
+                    marginTop: 6,
+                  }}
+                >
+                  {feedbackContent.length}/500
+                </Text>
+
+                {/* 제출 버튼 */}
+                <TouchableOpacity
+                  onPress={handleSubmitFeedback}
+                  disabled={!feedbackType || feedbackSubmitting}
+                  activeOpacity={0.8}
+                  style={{
+                    marginTop: 16,
+                    backgroundColor: !feedbackType ? Colors.neutral[200] : Colors.primary[500],
+                    paddingVertical: 15,
+                    borderRadius: BorderRadius.lg,
+                    alignItems: "center",
+                    flexDirection: "row",
+                    justifyContent: "center",
+                    gap: 8,
+                  }}
+                >
+                  {feedbackSubmitting && (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  )}
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "700",
+                      color: !feedbackType ? Colors.neutral[400] : "#FFFFFF",
+                    }}
+                  >
+                    {feedbackSubmitting ? "접수 중..." : "신고 접수하기"}
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <FeedbackToast
+        message={toastMessage}
+        variant={toastVariant}
+        opacity={toastOpacity}
+        translate={toastTranslate}
+        aboveTabBar
+      />
     </View>
   );
 }

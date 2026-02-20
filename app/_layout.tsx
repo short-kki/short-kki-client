@@ -1,11 +1,16 @@
 import "@/global.css";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, LogBox } from "react-native";
 import { useEffect } from "react";
 import "react-native-reanimated";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { Colors } from "@/constants/design-system";
+import { pushNotificationService } from "@/services/pushNotification";
+import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 
 // 특정 에러 메시지 LogBox에서 무시
 LogBox.ignoreLogs([
@@ -14,13 +19,30 @@ LogBox.ignoreLogs([
   "중복",
 ]);
 
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { Colors } from "@/constants/design-system";
-import { pushNotificationService } from "@/services/pushNotification";
+/** 텍스트에서 URL을 추출하는 헬퍼 */
+function extractUrl(text: string): string | null {
+  const match = text.match(/https?:\/\/[^\s]+/);
+  return match ? match[0] : null;
+}
 
 function RootLayoutNav() {
   const { isLoading } = useAuth();
+  const router = useRouter();
+  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
+
+  // 외부 앱에서 공유된 URL 처리
+  useEffect(() => {
+    if (!hasShareIntent) return;
+
+    const url = shareIntent.webUrl || (shareIntent.text ? extractUrl(shareIntent.text) : null);
+    if (url) {
+      router.replace({
+        pathname: "/(tabs)/add",
+        params: { sharedUrl: url },
+      } as any);
+    }
+    resetShareIntent();
+  }, [hasShareIntent, shareIntent.webUrl, shareIntent.text, router, resetShareIntent]);
 
   // 푸시 알림 초기화
   useEffect(() => {
@@ -89,11 +111,13 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.neutral[50] }}>
-      <AuthProvider>
-        <ThemeProvider value={colorScheme === "dark" ? AppDarkTheme : AppLightTheme}>
-          <RootLayoutNav />
-        </ThemeProvider>
-      </AuthProvider>
+      <ShareIntentProvider>
+        <AuthProvider>
+          <ThemeProvider value={colorScheme === "dark" ? AppDarkTheme : AppLightTheme}>
+            <RootLayoutNav />
+          </ThemeProvider>
+        </AuthProvider>
+      </ShareIntentProvider>
     </GestureHandlerRootView>
   );
 }

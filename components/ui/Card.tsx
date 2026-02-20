@@ -151,13 +151,13 @@ export function Card({
     if (pressable) {
       scale.value = withSpring(0.98, { damping: 15, stiffness: 400 });
     }
-  }, [pressable]);
+  }, [pressable, scale]);
 
   const handlePressOut = useCallback(() => {
     if (pressable) {
       scale.value = withSpring(1, { damping: 15, stiffness: 400 });
     }
-  }, [pressable]);
+  }, [pressable, scale]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -215,11 +215,11 @@ export function RecipeCard({
 
   const handlePressIn = useCallback(() => {
     scale.value = withSpring(0.97, { damping: 15, stiffness: 400 });
-  }, []);
+  }, [scale]);
 
   const handlePressOut = useCallback(() => {
     scale.value = withSpring(1, { damping: 15, stiffness: 400 });
-  }, []);
+  }, [scale]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -301,11 +301,11 @@ export function GroupCard({
 
   const handlePressIn = useCallback(() => {
     scale.value = withSpring(0.98, { damping: 15, stiffness: 400 });
-  }, []);
+  }, [scale]);
 
   const handlePressOut = useCallback(() => {
     scale.value = withSpring(1, { damping: 15, stiffness: 400 });
-  }, []);
+  }, [scale]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],

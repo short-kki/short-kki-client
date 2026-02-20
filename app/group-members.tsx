@@ -24,7 +24,6 @@ import {
   UserMinus,
   ShieldCheck,
   ShieldOff,
-  Copy,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { useGroupMembers, getGroupInviteCode } from "@/hooks";

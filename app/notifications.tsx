@@ -8,7 +8,6 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from "react-native";
-import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {

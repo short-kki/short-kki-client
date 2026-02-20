@@ -1,4 +1,4 @@
-import { Colors } from "@/constants/design-system";
+import { Colors, BorderRadius } from "@/constants/design-system";
 import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
 import {
   useCurationShorts,
@@ -12,15 +12,22 @@ import type { CurationRecipe, ShortsItem } from "@/data/mock";
 import { USE_MOCK, api } from "@/services/api";
 import { extractYoutubeId } from "@/utils/youtube";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useFocusEffect } from "@react-navigation/native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
+  AlertTriangle,
+  Ban,
   Book,
   Bookmark,
-  ListPlus,
-  Check,
+  Copyright,
   ExternalLink,
   FolderPlus,
+  HelpCircle,
+  Check,
+  ListPlus,
+  Megaphone,
+  MessageCircle,
   MoreVertical,
   Play,
   ScrollText,
@@ -31,10 +38,12 @@ import {
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   Animated,
+  AppState,
   Easing,
   FlatList,
+  KeyboardAvoidingView,
   LayoutChangeEvent,
   Linking,
   Modal,
@@ -43,6 +52,7 @@ import {
   ScrollView,
   StatusBar,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -50,6 +60,14 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PlayerState, YoutubeView, useYouTubeEvent, useYouTubePlayer } from "react-native-youtube-bridge";
+
+const FEEDBACK_TYPES = [
+  { id: "INACCURATE", label: "잘못된 정보", icon: AlertTriangle, description: "레시피 내용이 부정확하거나 오류가 있어요" },
+  { id: "COPYRIGHT_INFRINGEMENT", label: "저작권 침해", icon: Copyright, description: "원작자의 허락 없이 게시된 콘텐츠예요" },
+  { id: "INAPPROPRIATE_CONTENT", label: "부적절한 콘텐츠", icon: Ban, description: "불쾌하거나 유해한 내용이 포함되어 있어요" },
+  { id: "SPAM_AD", label: "스팸 / 광고", icon: Megaphone, description: "홍보 목적의 콘텐츠이거나 반복 게시물이에요" },
+  { id: "OTHER", label: "기타", icon: HelpCircle, description: "위 항목에 해당하지 않는 의견이에요" },
+] as const;
 
 // 레시피북 더미 데이터
 const RECIPE_BOOKS = {
@@ -80,12 +98,23 @@ interface VideoItemProps {
   onBookmarkPress: () => void;
   isBookmarked: boolean;
   bookmarkCount: number;
+  isScreenFocused: boolean;
+  focusEpoch: number;
+  appResumeKey: number;
 }
 
 // 개별 비디오 아이템 컴포넌트 (YouTube 플레이어 - react-native-youtube-bridge)
-function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onBookmarkPress, isBookmarked, bookmarkCount }: VideoItemProps) {
+function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onBookmarkPress, isBookmarked, bookmarkCount, isScreenFocused, focusEpoch, appResumeKey }: VideoItemProps) {
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  // 앱 복귀 시 WebView 재생성을 위해 상태 초기화
+  useEffect(() => {
+    if (appResumeKey > 0) {
+      setIsReady(false);
+      setIsPlaying(false);
+    }
+  }, [appResumeKey]);
   const playerWidth = Math.max(screenWidth, itemHeight * (16 / 9));
 
   // react-native-youtube-bridge 플레이어 초기화
@@ -119,15 +148,21 @@ function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMu
   // 활성화 상태에 따라 재생/일시정지
   useEffect(() => {
     if (isReady) {
-      if (isActive) {
-        player.play();
-        setIsPlaying(true);
+      if (isActive && isScreenFocused) {
+        player.seekTo(0);
+        // seekTo가 WebView 브리지를 통해 비동기 처리되므로,
+        // 충분한 지연 후 play를 호출해야 안정적으로 재생됨
+        const timer = setTimeout(() => {
+          player.play();
+          setIsPlaying(true);
+        }, 300);
+        return () => clearTimeout(timer);
       } else {
         player.pause();
         setIsPlaying(false);
       }
     }
-  }, [isActive, isReady, player]);
+  }, [isActive, isScreenFocused, focusEpoch, isReady, player]);
 
   // 음소거 상태 변경
   useEffect(() => {
@@ -149,6 +184,18 @@ function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMu
     }
     return count.toString();
   };
+
+  // YouTube 앱으로 직접 열기 (Android에서 브라우저 경유 시 화면 2개 쌓이는 문제 방지)
+  const openSourceVideo = useCallback(async () => {
+    const webUrl = `https://www.youtube.com/shorts/${item.videoId}`;
+    if (Platform.OS === 'android') {
+      try {
+        await Linking.openURL(`vnd.youtube://${item.videoId}`);
+        return;
+      } catch {}
+    }
+    await Linking.openURL(webUrl);
+  }, [item.videoId]);
 
   // 재생/일시정지 토글
   const togglePlayPause = useCallback(() => {
@@ -209,6 +256,7 @@ function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMu
           }}
         >
           <YoutubeView
+            key={appResumeKey}
             player={player}
             width={playerWidth}
             height={itemHeight}
@@ -450,7 +498,7 @@ function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMu
         </TouchableOpacity>
 
         {/* YouTube 원본 */}
-        <TouchableOpacity onPress={() => Linking.openURL(`https://www.youtube.com/shorts/${item.videoId}`)} activeOpacity={0.8} style={{ alignItems: "center" }}>
+        <TouchableOpacity onPress={openSourceVideo} activeOpacity={0.8} style={{ alignItems: "center" }}>
           <View
             style={{
               width: 48,
@@ -536,6 +584,31 @@ export default function ShortsScreen() {
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
+  const [isScreenFocused, setIsScreenFocused] = useState(true);
+  const [focusEpoch, setFocusEpoch] = useState(0);
+  const [appResumeKey, setAppResumeKey] = useState(0);
+
+  // 탭 포커스/블러 관리
+  useFocusEffect(
+    useCallback(() => {
+      setIsScreenFocused(true);
+      setFocusEpoch((prev) => prev + 1);
+      return () => {
+        setIsScreenFocused(false);
+      };
+    }, [])
+  );
+
+  // 앱 백그라운드→포그라운드 복귀 시 epoch 증가
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        setFocusEpoch((prev) => prev + 1);
+        setAppResumeKey((prev) => prev + 1);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
 
   // 북마크 관련 상태
   const [showBookmarkSheet, setShowBookmarkSheet] = useState(false);
@@ -547,6 +620,15 @@ export default function ShortsScreen() {
   const [bookmarkCounts, setBookmarkCounts] = useState<Record<string, number>>({});
   const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } =
     useFeedbackToast(1400);
+
+  // 컨텐츠 피드백 바텀시트 + 모달 상태
+  const [showMoreSheet, setShowMoreSheet] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackType, setFeedbackType] = useState<string | null>(null);
+  const [feedbackContent, setFeedbackContent] = useState("");
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const moreOverlayOpacity = useRef(new Animated.Value(0)).current;
+  const moreSheetTranslateY = useRef(new Animated.Value(300)).current;
 
   useEffect(() => {
     setBookmarkCounts((prev) => {
@@ -646,16 +728,68 @@ export default function ShortsScreen() {
     }
   }, [addQueue, showToast]);
 
-  const handleMoreOptions = useCallback(() => {
-    Alert.alert(
-      "더보기",
-      "어떤 작업을 하시겠어요?",
-      [
-        { text: "신고하기", onPress: () => Alert.alert("신고", "신고가 접수되었습니다.") },
-        { text: "취소", style: "cancel" },
-      ]
-    );
-  }, []);
+  const openMoreSheet = useCallback(() => {
+    setShowMoreSheet(true);
+    Animated.parallel([
+      Animated.timing(moreOverlayOpacity, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+      Animated.timing(moreSheetTranslateY, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [moreOverlayOpacity, moreSheetTranslateY]);
+
+  const closeMoreSheet = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(moreOverlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(moreSheetTranslateY, {
+        toValue: 300,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowMoreSheet(false);
+    });
+  }, [moreOverlayOpacity, moreSheetTranslateY]);
+
+  const handleFeedback = useCallback(() => {
+    closeMoreSheet();
+    setTimeout(() => {
+      setFeedbackType(null);
+      setFeedbackContent("");
+      setShowFeedbackModal(true);
+    }, 250);
+  }, [closeMoreSheet]);
+
+  const handleSubmitFeedback = useCallback(async () => {
+    const currentItem = SHORTS_DATA[activeIndex];
+    if (!feedbackType || !currentItem) return;
+    setFeedbackSubmitting(true);
+    try {
+      await api.post("/api/v1/feedback", {
+        targetType: "RECIPE",
+        targetId: currentItem.id,
+        feedbackType,
+        ...(feedbackContent.trim() && { description: feedbackContent.trim() }),
+      });
+      setShowFeedbackModal(false);
+      showToast("피드백이 접수됐어요, 감사합니다!", "success");
+    } catch {
+      showToast("피드백 접수에 실패했어요", "danger");
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  }, [SHORTS_DATA, activeIndex, feedbackType, feedbackContent, showToast]);
 
   const syncVideoBookmarkState = useCallback(async (videoId: string) => {
     if (USE_MOCK) return;
@@ -688,6 +822,15 @@ export default function ShortsScreen() {
       console.error("[Bookmark] 숏츠 북마크 상태 동기화 실패:", err);
     }
   }, []);
+
+  // 현재 활성 비디오의 북마크 상태를 서버에서 가져오기
+  useEffect(() => {
+    const currentItem = SHORTS_DATA[activeIndex];
+    if (!currentItem) return;
+    // 이미 동기화된 비디오는 스킵
+    if (ownedBookIdsByVideo[currentItem.id] !== undefined) return;
+    syncVideoBookmarkState(currentItem.id);
+  }, [activeIndex, SHORTS_DATA, syncVideoBookmarkState, ownedBookIdsByVideo]);
 
   // 북마크 시트 열기 (페이드 오버레이 + 슬라이드업)
   const openBookmarkSheet = useCallback(async (videoId: string) => {
@@ -822,9 +965,12 @@ export default function ShortsScreen() {
         onBookmarkPress={() => openBookmarkSheet(item.id)}
         isBookmarked={(ownedBookIdsByVideo[item.id] || []).length > 0}
         bookmarkCount={bookmarkCounts[item.id] ?? item.bookmarks ?? 0}
+        isScreenFocused={isScreenFocused}
+        focusEpoch={focusEpoch}
+        appResumeKey={appResumeKey}
       />
     ),
-    [activeIndex, itemHeight, screenWidth, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, ownedBookIdsByVideo, bookmarkCounts]
+    [activeIndex, itemHeight, screenWidth, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, ownedBookIdsByVideo, bookmarkCounts, isScreenFocused, focusEpoch, appResumeKey]
   );
 
   const keyExtractor = useCallback((item: ShortsItem) => item.id, []);
@@ -878,7 +1024,7 @@ export default function ShortsScreen() {
             )}
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={handleMoreOptions}
+            onPress={openMoreSheet}
             activeOpacity={0.8}
             style={{
               backgroundColor: "rgba(0,0,0,0.5)",
@@ -929,6 +1075,312 @@ export default function ShortsScreen() {
           ) : null
         }
       />
+
+      {/* 컨텐츠 피드백 바텀시트 */}
+      <Modal
+        visible={showMoreSheet}
+        transparent
+        statusBarTranslucent
+        animationType="none"
+        onRequestClose={closeMoreSheet}
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          <Animated.View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              opacity: moreOverlayOpacity,
+            }}
+          >
+            <Pressable style={{ flex: 1 }} onPress={closeMoreSheet} />
+          </Animated.View>
+
+          <Animated.View
+            style={{
+              transform: [{ translateY: moreSheetTranslateY }],
+              backgroundColor: Colors.neutral[0],
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              paddingTop: 8,
+              paddingBottom: insets.bottom + 20,
+            }}
+          >
+            {/* 핸들 바 */}
+            <View style={{ alignItems: "center", paddingVertical: 8 }}>
+              <View
+                style={{
+                  width: 40,
+                  height: 4,
+                  backgroundColor: Colors.neutral[300],
+                  borderRadius: 2,
+                }}
+              />
+            </View>
+
+            {/* 메뉴 항목 */}
+            <View style={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 8 }}>
+              <TouchableOpacity
+                onPress={handleFeedback}
+                activeOpacity={0.7}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingVertical: 16,
+                  gap: 14,
+                }}
+              >
+                <View
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    backgroundColor: Colors.neutral[100],
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <MessageCircle size={22} color={Colors.neutral[600]} />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 16, fontWeight: "600", color: Colors.neutral[900] }}>
+                    컨텐츠 피드백
+                  </Text>
+                  <Text style={{ fontSize: 13, color: Colors.neutral[400], marginTop: 2 }}>
+                    이 레시피에 대한 의견을 보내주세요
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* 컨텐츠 피드백 접수 모달 */}
+      <Modal
+        visible={showFeedbackModal}
+        transparent
+        statusBarTranslucent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!feedbackSubmitting) setShowFeedbackModal(false);
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <Pressable
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+            onPress={() => {
+              if (!feedbackSubmitting) setShowFeedbackModal(false);
+            }}
+          >
+            <Pressable
+              style={{
+                width: "90%",
+                maxHeight: "80%",
+                backgroundColor: "#FFFFFF",
+                borderRadius: 24,
+                overflow: "hidden",
+              }}
+              onPress={(e) => e.stopPropagation()}
+            >
+              {/* 헤더 */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingHorizontal: 20,
+                  paddingTop: 20,
+                  paddingBottom: 16,
+                }}
+              >
+                <View>
+                  <Text style={{ fontSize: 20, fontWeight: "800", color: Colors.neutral[900] }}>
+                    컨텐츠 피드백
+                  </Text>
+                  <Text style={{ fontSize: 13, color: Colors.neutral[400], marginTop: 4 }}>
+                    어떤 문제가 있나요?
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setShowFeedbackModal(false)}
+                  disabled={feedbackSubmitting}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: Colors.neutral[100],
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <X size={20} color={Colors.neutral[500]} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                style={{ maxHeight: 460 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
+                keyboardShouldPersistTaps="handled"
+              >
+                {/* 피드백 유형 선택 */}
+                <View style={{ gap: 8 }}>
+                  {FEEDBACK_TYPES.map((type) => {
+                    const isSelected = feedbackType === type.id;
+                    const Icon = type.icon;
+                    return (
+                      <TouchableOpacity
+                        key={type.id}
+                        onPress={() => setFeedbackType(isSelected ? null : type.id)}
+                        activeOpacity={0.7}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          padding: 14,
+                          borderRadius: 14,
+                          backgroundColor: isSelected ? Colors.primary[50] : Colors.neutral[50],
+                          borderWidth: 1.5,
+                          borderColor: isSelected ? Colors.primary[400] : Colors.neutral[200],
+                          gap: 12,
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 10,
+                            backgroundColor: isSelected ? Colors.primary[100] : Colors.neutral[100],
+                            justifyContent: "center",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Icon size={20} color={isSelected ? Colors.primary[500] : Colors.neutral[500]} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={{
+                              fontSize: 15,
+                              fontWeight: "600",
+                              color: isSelected ? Colors.primary[700] : Colors.neutral[900],
+                            }}
+                          >
+                            {type.label}
+                          </Text>
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: isSelected ? Colors.primary[400] : Colors.neutral[400],
+                              marginTop: 2,
+                            }}
+                          >
+                            {type.description}
+                          </Text>
+                        </View>
+                        <View
+                          style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: 11,
+                            backgroundColor: isSelected ? Colors.primary[500] : "transparent",
+                            justifyContent: "center",
+                            alignItems: "center",
+                          }}
+                        >
+                          {isSelected && <Check size={13} color="#FFF" strokeWidth={3} />}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* 상세 내용 입력 */}
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: Colors.neutral[700],
+                    marginTop: 20,
+                    marginBottom: 8,
+                  }}
+                >
+                  상세 내용 (선택)
+                </Text>
+                <TextInput
+                  value={feedbackContent}
+                  onChangeText={setFeedbackContent}
+                  placeholder="구체적인 내용을 알려주시면 검토에 도움이 됩니다"
+                  placeholderTextColor={Colors.neutral[300]}
+                  multiline
+                  textAlignVertical="top"
+                  maxLength={500}
+                  style={{
+                    backgroundColor: Colors.neutral[50],
+                    borderWidth: 1,
+                    borderColor: Colors.neutral[200],
+                    borderRadius: 14,
+                    padding: 14,
+                    fontSize: 14,
+                    color: Colors.neutral[800],
+                    minHeight: 100,
+                    lineHeight: 20,
+                  }}
+                />
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: Colors.neutral[300],
+                    textAlign: "right",
+                    marginTop: 6,
+                  }}
+                >
+                  {feedbackContent.length}/500
+                </Text>
+
+                {/* 제출 버튼 */}
+                <TouchableOpacity
+                  onPress={handleSubmitFeedback}
+                  disabled={!feedbackType || feedbackSubmitting}
+                  activeOpacity={0.8}
+                  style={{
+                    marginTop: 16,
+                    backgroundColor: !feedbackType ? Colors.neutral[200] : Colors.primary[500],
+                    paddingVertical: 15,
+                    borderRadius: BorderRadius.lg,
+                    alignItems: "center",
+                    flexDirection: "row",
+                    justifyContent: "center",
+                    gap: 8,
+                  }}
+                >
+                  {feedbackSubmitting && (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  )}
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "700",
+                      color: !feedbackType ? Colors.neutral[400] : "#FFFFFF",
+                    }}
+                  >
+                    {feedbackSubmitting ? "접수 중..." : "피드백 보내기"}
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* 북마크 폴더 선택 Bottom Sheet */}
       <Modal

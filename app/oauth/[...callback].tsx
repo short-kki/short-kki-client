@@ -1,11 +1,10 @@
 import { useEffect } from "react";
-import { View, ActivityIndicator, StyleSheet, Platform } from "react-native";
-import { useLocalSearchParams, useRouter, useGlobalSearchParams } from "expo-router";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 
 export default function OAuthCallback() {
   const router = useRouter();
-  const params = useGlobalSearchParams();
 
   useEffect(() => {
     // URL에서 OAuth 파라미터 추출
@@ -42,7 +41,7 @@ export default function OAuthCallback() {
     };
 
     handleOAuthCallback();
-  }, []);
+  }, [router]);
 
   return (
     <View style={styles.container}>

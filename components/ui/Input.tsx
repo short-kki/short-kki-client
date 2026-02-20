@@ -121,13 +121,6 @@ export const Input = forwardRef<TextInput, InputProps>(
     const sizeStyle = SIZE_STYLES[size];
 
     const hasError = !!error;
-    const currentState: InputState = disabled
-      ? 'disabled'
-      : hasError
-      ? 'error'
-      : isFocused
-      ? 'focused'
-      : 'default';
 
     const handleFocus = useCallback(
       () => {

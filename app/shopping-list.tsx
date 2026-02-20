@@ -16,7 +16,7 @@ import {
   Trash2,
   ShoppingCart,
 } from "lucide-react-native";
-import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
+import { Colors, BorderRadius } from "@/constants/design-system";
 import { useShoppingList } from "@/hooks";
 
 export default function ShoppingListScreen() {

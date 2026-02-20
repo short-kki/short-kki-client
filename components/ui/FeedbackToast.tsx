@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Easing, Text, View } from "react-native";
 import { Check, X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BorderRadius, Colors, Spacing, Typography } from "@/constants/design-system";
+import { Colors, Spacing } from "@/constants/design-system";
 
 export type FeedbackToastVariant = "success" | "danger";
 

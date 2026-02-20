@@ -373,7 +373,7 @@ export default function RecipeBookScreen() {
     } finally {
       setIsDeletingBook(false);
     }
-  }, [deleteTargetBook, isDeletingBook, removeRecipeBook]);
+  }, [deleteTargetBook, isDeletingBook, removeRecipeBook, showToast]);
 
   const handleCreateBook = async () => {
     if (!newBookName.trim()) {

@@ -2,12 +2,6 @@ import React, { useRef, useCallback, useState, useEffect } from "react";
 import { Animated, Platform, ToastAndroid, Text, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-interface ToastState {
-  message: string | null;
-  opacity: Animated.Value;
-  translate: Animated.Value;
-}
-
 interface UseToastReturn {
   toastMessage: string | null;
   toastOpacity: Animated.Value;

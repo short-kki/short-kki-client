@@ -55,29 +55,38 @@ export const GOOGLE_CONFIG = {
 
 import Constants from "expo-constants";
 
+// ============================================================================
+// APP ENVIRONMENT - 이 값을 변경하여 환경을 전환합니다
+// 'local' : 로컬 백엔드 (localhost), 빠른 로그인 가능
+// 'dev'   : 개발 서버 (dev.shortkki.kr), 빠른 로그인 가능
+// 'prod'  : 운영 서버 (api.shortkki.kr), 빠른 로그인 불가
+// ============================================================================
+export type AppEnv = "local" | "dev" | "prod";
+export const APP_ENV: AppEnv = "dev";
+
 export const API_BASE_URL = (() => {
-  if (!__DEV__) {
-    // TODO: 실제 프로덕션 URL로 변경
-    return "https://api.shortkki.com";
+  switch (APP_ENV) {
+    case "prod":
+      return "https://api.shortkki.kr";
+    case "dev":
+      return "http://dev.shortkki.kr";
+    case "local":
+    default: {
+      // Expo Go에서 실행 시 호스트 머신의 IP 감지
+      const debuggerHost = Constants.expoConfig?.hostUri;
+      const localhost = debuggerHost?.split(":")[0];
+      if (localhost) {
+        return `http://${localhost}:8080`;
+      }
+      return "http://localhost:8080";
+    }
   }
-
-  // Expo Go에서 실행 시 호스트 머신의 IP 감지
-  const debuggerHost = Constants.expoConfig?.hostUri;
-  const localhost = debuggerHost?.split(":")[0];
-
-  if (localhost) {
-    return `http://${localhost}:8080`;
-  }
-
-  // 시뮬레이터 등에서 fallback
-  return "http://localhost:8080";
 })();
 
 // ============================================================================
-// DEV MODE - 백엔드 없이 테스트용
+// DEV MODE - 빠른 로그인 (local, dev에서만 활성화)
 // ============================================================================
 
 export const DEV_MODE = {
-  // true로 설정하면 백엔드 없이 모의 로그인 가능
-  ENABLE_MOCK_LOGIN: __DEV__,
+  ENABLE_MOCK_LOGIN: APP_ENV !== "prod",
 };
