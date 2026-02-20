@@ -32,11 +32,11 @@ export function useShorts() {
         return;
       }
 
-      const response = await api.get<ApiResponse<HomeSearchResponse>>(
-        `/api/v2/recipes/search?page=0&size=20`
+      const response = await api.get<ApiResponse<TopCurationResponse>>(
+        `/api/v1/recipes/curations/top?page=0&size=20`
       );
-      const searchResults = response.data?.searchResult ?? [];
-      const mapped = searchResults.map(mapSearchRecipeToTopItem);
+      const recipes = response.data?.recipes ?? [];
+      const mapped = recipes.map(mapRecipeToTopItem);
       setShorts(mapped);
     } catch (err) {
       setError(err as Error);
@@ -239,9 +239,10 @@ const appendUniqueShortsByKey = (prev: ShortsItem[], next: ShortsItem[]) => {
   return merged;
 };
 
-// Search API 응답 타입 (홈 화면용)
-interface HomeSearchResponse {
-  searchResult: SearchRecipeItem[];
+// TOP 큐레이션 API 응답 타입
+interface TopCurationResponse {
+  curationId: number | null;
+  recipes: CurationV2Recipe[];
   pageInfo: CurationV2PageInfo;
 }
 
@@ -310,19 +311,19 @@ export function useRecommendedCurations() {
     }
 
     try {
-      const url = `/api/v2/recipes/search?page=0&size=${DEFAULT_PAGE_SIZE}`;
+      const url = `/api/v1/recipes/curations/top?page=0&size=${DEFAULT_PAGE_SIZE}`;
       console.log(`[Curation] TOP 요청: ${url}`);
-      const response = await api.get<ApiResponse<HomeSearchResponse>>(url);
+      const response = await api.get<ApiResponse<TopCurationResponse>>(url);
       const data = response.data;
-      const searchResults = data?.searchResult ?? [];
-      console.log(`[Curation] TOP 응답: ${searchResults.length}건`, searchResults.map(r => r.title));
-      setTopRecipes(searchResults.map(mapSearchRecipeToTopItem));
+      const recipes = data?.recipes ?? [];
+      console.log(`[Curation] TOP 응답:`, JSON.stringify(recipes.map(r => ({ title: r.title, sourceUrl: r.sourceUrl })), null, 2));
+      setTopRecipes(recipes.map(mapRecipeToTopItem));
       setTopCuration(
-        searchResults.length > 0
+        recipes.length > 0
           ? {
               id: SEARCH_TOP_ID,
               title: 'TOP 레시피',
-              recipes: searchResults.map(mapSearchRecipeToCurationRecipe),
+              recipes: recipes.map(mapRecipeToCurationRecipe),
             }
           : null
       );
@@ -360,7 +361,7 @@ export function useRecommendedCurations() {
       const data = response.data;
       const curations = data?.curations ?? [];
       const filtered = curations.filter((curation) => curation.recipes && curation.recipes.length > 0);
-      console.log(`[Curation] 추천 응답: ${curations.length}건 (유효 ${filtered.length}건)`, curations.map(c => `"${c.title}"(${c.recipes?.length ?? 0}개)`));
+      console.log(`[Curation] 추천 응답(${curations.length}건, 유효 ${filtered.length}건):`, JSON.stringify(curations.map(c => ({ title: c.title, recipes: (c.recipes ?? []).map(r => ({ title: r.title, sourceUrl: r.sourceUrl })) })), null, 2));
 
       if (page === 0) {
         const mapped = filtered.map((curation) => ({
@@ -536,18 +537,20 @@ export function useCurationShorts(curationId?: string, initialRecipes?: Curation
       let responsePageInfo: CurationV2PageInfo | undefined;
 
       if (curationId === SEARCH_TOP_ID) {
-        // TOP 레시피는 search API 사용
-        const response = await api.get<ApiResponse<HomeSearchResponse>>(
-          `/api/v2/recipes/search?page=${page}&size=${CURATION_PAGE_SIZE}`
-        );
+        // TOP 레시피는 TOP 큐레이션 API 사용
+        const url = `/api/v1/recipes/curations/top?page=${page}&size=${CURATION_PAGE_SIZE}`;
+        console.log(`[CurationShorts] TOP 요청: ${url}`);
+        const response = await api.get<ApiResponse<TopCurationResponse>>(url);
         const data = response.data;
-        nextItems = (data?.searchResult ?? []).map(mapSearchRecipeToTopItem);
+        console.log(`[CurationShorts] TOP 응답:`, JSON.stringify((data?.recipes ?? []).map(r => ({ title: r.title, sourceUrl: r.sourceUrl })), null, 2));
+        nextItems = (data?.recipes ?? []).map(mapRecipeToTopItem);
         responsePageInfo = data?.pageInfo;
       } else {
-        const response = await api.get<ApiResponse<CurationDetailResponse>>(
-          `/api/v2/recipes/curations/${curationId}/search?page=${page}&size=${CURATION_PAGE_SIZE}`
-        );
+        const url = `/api/v2/recipes/curations/${curationId}/search?page=${page}&size=${CURATION_PAGE_SIZE}`;
+        console.log(`[CurationShorts] 큐레이션(${curationId}) 요청: ${url}`);
+        const response = await api.get<ApiResponse<CurationDetailResponse>>(url);
         const data = response.data;
+        console.log(`[CurationShorts] 큐레이션(${curationId}) 응답:`, JSON.stringify((data?.recipes ?? []).map(r => ({ title: r.title, sourceUrl: r.sourceUrl })), null, 2));
         nextItems = (data?.recipes ?? []).map(mapRecipeToTopItem);
         responsePageInfo = data?.pageInfo;
       }
@@ -557,6 +560,7 @@ export function useCurationShorts(curationId?: string, initialRecipes?: Curation
       } else {
         setShorts((prev) => (page === 0 ? nextItems : appendUniqueShortsByKey(prev, nextItems)));
       }
+      console.log(`[CurationShorts] pageInfo:`, responsePageInfo);
       if (responsePageInfo) {
         setPageInfo(responsePageInfo);
       } else {
@@ -569,6 +573,9 @@ export function useCurationShorts(curationId?: string, initialRecipes?: Curation
         });
       }
       fetchedPagesRef.current.add(page);
+    } catch (err) {
+      console.error(`[CurationShorts] 에러 (curationId=${curationId}, page=${page}):`, err);
+      throw err;
     } finally {
       fetchingPagesRef.current.delete(page);
     }
