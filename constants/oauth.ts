@@ -13,6 +13,16 @@
 // 3. Callback URL 등록: shortkki://oauth/naver
 // ============================================================================
 
+// ============================================================================
+// BACKEND API 
+// ============================================================================
+// 로그인 엔드포인트: POST /api/auth/{provider}
+// Request: { code: string }
+// Response: { code, message, data: { accessToken, refreshToken, email, name, newMember } }
+// ============================================================================
+
+import Constants from "expo-constants";
+
 export const NAVER_CONFIG = {
   clientId: "em3ihyx5YXqUe550CY60",
   // redirectUri는 app.json의 scheme과 일치해야 함
@@ -44,16 +54,6 @@ export const GOOGLE_CONFIG = {
   authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
   tokenEndpoint: "https://oauth2.googleapis.com/token",
 };
-
-// ============================================================================
-// BACKEND API 
-// ============================================================================
-// 로그인 엔드포인트: POST /api/auth/{provider}
-// Request: { code: string }
-// Response: { code, message, data: { accessToken, refreshToken, email, name, newMember } }
-// ============================================================================
-
-import Constants from "expo-constants";
 
 // ============================================================================
 // APP ENVIRONMENT - 이 값을 변경하여 환경을 전환합니다
