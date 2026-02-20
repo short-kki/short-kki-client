@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import {
   Search,
   Bell,
@@ -25,6 +25,7 @@ import {
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows, SemanticColors } from "@/constants/design-system";
 import { useRecommendedCurations, useUnreadNotificationCount } from "@/hooks";
+import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
 import type { CurationSection } from "@/data/mock";
 import Svg, { Path } from "react-native-svg";
 
@@ -422,6 +423,17 @@ const CurationSectionRow = React.memo(function CurationSectionRow({
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { toast } = useLocalSearchParams<{ toast?: string }>();
+  const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } = useFeedbackToast(2500);
+  const lastHandledToastRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    if (lastHandledToastRef.current === toast) return;
+    lastHandledToastRef.current = toast;
+    showToast(toast);
+  }, [toast, showToast]);
+
   const scrollY = useRef(new Animated.Value(0)).current;
   const { width: screenWidth } = useWindowDimensions();
   const [selectedFilter, setSelectedFilter] = useState("전체");
@@ -914,6 +926,14 @@ export default function HomeScreen() {
           </Animated.View>
         </Animated.View>
       )}
+
+      <FeedbackToast
+        message={toastMessage}
+        variant={toastVariant}
+        opacity={toastOpacity}
+        translate={toastTranslate}
+        aboveTabBar
+      />
     </View>
   );
 }

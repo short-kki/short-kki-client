@@ -55,7 +55,7 @@ export default function TabLayout() {
   const handleUrlImport = useCallback(() => {
     const returnTab = currentTab;
     closeMenu(() => {
-      router.push({ pathname: "/(tabs)/add", params: { mode: "url", returnTab } });
+      router.push({ pathname: "/(tabs)/add", params: { returnTab } });
     });
   }, [closeMenu, currentTab, router]);
 
