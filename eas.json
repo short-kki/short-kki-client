@@ -26,7 +26,8 @@
         "EXPO_PUBLIC_API_URL": "https://api.shortkki.kr"
       },
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "autoIncrement": true
       }
     },
     "production": {
