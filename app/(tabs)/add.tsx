@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -138,13 +138,45 @@ const parseRecipeFromUrl = async (url: string): Promise<ParsedRecipe | null> => 
 export default function AddRecipeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ returnTab?: string }>();
+  const params = useLocalSearchParams<{ returnTab?: string; sharedUrl?: string }>();
 
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [parsedRecipe, setParsedRecipe] = useState<ParsedRecipe | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } = useFeedbackToast();
+
+  // 외부 앱에서 공유된 URL 자동 처리
+  useEffect(() => {
+    if (!params.sharedUrl) return;
+
+    const sharedUrl = params.sharedUrl;
+    setUrl(sharedUrl);
+
+    // URL 세팅 후 자동으로 미리보기 로드
+    (async () => {
+      setIsLoading(true);
+      setParsedRecipe(null);
+      try {
+        const result = await parseRecipeFromUrl(sharedUrl);
+        if (result) {
+          if (result.recipeId) {
+            showToast("이미 등록된 레시피로 이동합니다");
+            router.push(`/recipe/${result.recipeId}`);
+            return;
+          }
+          setParsedRecipe(result);
+        } else {
+          Alert.alert("오류", "레시피 정보를 가져올 수 없습니다.\nURL을 확인해주세요.");
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "레시피 정보를 가져오는 중 오류가 발생했습니다.";
+        Alert.alert("오류", message);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, [params.sharedUrl, router, showToast]);
 
   const handleSearch = async () => {
     Keyboard.dismiss();
