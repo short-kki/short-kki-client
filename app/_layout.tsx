@@ -6,6 +6,10 @@ import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, LogBox } from "react-native";
 import { useEffect } from "react";
 import "react-native-reanimated";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { Colors } from "@/constants/design-system";
+import { pushNotificationService } from "@/services/pushNotification";
 
 // 특정 에러 메시지 LogBox에서 무시
 LogBox.ignoreLogs([
@@ -13,11 +17,6 @@ LogBox.ignoreLogs([
   "이미 등록",
   "중복",
 ]);
-
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { Colors } from "@/constants/design-system";
-import { pushNotificationService } from "@/services/pushNotification";
 
 function RootLayoutNav() {
   const { isLoading } = useAuth();

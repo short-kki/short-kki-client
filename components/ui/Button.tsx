@@ -14,7 +14,6 @@ import {
   ActivityIndicator,
   ViewStyle,
   TextStyle,
-  PressableStateCallbackType,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -29,7 +28,6 @@ import {
   Shadows,
   Typography,
   ComponentSizes,
-  Animation,
 } from '@/constants/design-system';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -198,14 +196,14 @@ export function Button({
       damping: 15,
       stiffness: 400,
     });
-  }, []);
+  }, [scale]);
 
   const handlePressOut = useCallback(() => {
     scale.value = withSpring(1, {
       damping: 15,
       stiffness: 400,
     });
-  }, []);
+  }, [scale]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],

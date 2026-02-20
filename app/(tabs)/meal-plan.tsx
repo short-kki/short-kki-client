@@ -296,7 +296,6 @@ export default function MealPlanScreen() {
   const [localMeals, setLocalMeals] = useState<Record<string, CalendarMeal[]>>({});
   const [localGroupMeals, setLocalGroupMeals] = useState<Record<string, Record<string, CalendarMeal[]>>>({});
   const [showQueue, setShowQueue] = useState(false);
-  const [showPersonalMeals, setShowPersonalMeals] = useState(true);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [mealPlanTab, setMealPlanTab] = useState<"personal" | "group">(params.tab ?? "personal");
   const [menuTarget, setMenuTarget] = useState<
@@ -695,7 +694,7 @@ export default function MealPlanScreen() {
         }));
       }
     }
-  }, [selectedDate, addToCalendar, apiGroups]);
+  }, [selectedDate, addToCalendar, apiGroups, showToast]);
 
   const cancelDrop = useCallback(() => {
     stopAutoScroll();
@@ -733,7 +732,7 @@ export default function MealPlanScreen() {
 
     // 그룹 식단 탭인 경우
     if (mealPlanTab === "group") {
-      for (const [groupId, layout] of Object.entries(groupLayouts.current)) {
+      for (const [, layout] of Object.entries(groupLayouts.current)) {
         if (layout.height > 0 && y >= layout.pageY && y <= layout.pageY + layout.height) {
           const targetY = layout.pageY + 52;
           const targetX = layout.pageX;

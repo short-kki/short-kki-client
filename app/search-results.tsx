@@ -398,6 +398,7 @@ export default function SearchResultsScreen() {
         searchData.fetchNextPage();
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [searchData.hasNext, searchData.loadingMore, searchData.fetchNextPage]
   );
 

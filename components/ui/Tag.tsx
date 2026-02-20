@@ -164,13 +164,13 @@ export function Tag({
     if (isInteractive) {
       scale.value = withSpring(0.95, { damping: 15, stiffness: 400 });
     }
-  }, [isInteractive]);
+  }, [isInteractive, scale]);
 
   const handlePressOut = useCallback(() => {
     if (isInteractive) {
       scale.value = withSpring(1, { damping: 15, stiffness: 400 });
     }
-  }, [isInteractive]);
+  }, [isInteractive, scale]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -333,11 +333,11 @@ export function CategoryTag({
 
   const handlePressIn = useCallback(() => {
     scale.value = withSpring(0.95, { damping: 15, stiffness: 400 });
-  }, []);
+  }, [scale]);
 
   const handlePressOut = useCallback(() => {
     scale.value = withSpring(1, { damping: 15, stiffness: 400 });
-  }, []);
+  }, [scale]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],

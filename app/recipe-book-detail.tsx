@@ -24,12 +24,14 @@ import {
   Trash2,
   FolderInput,
   ChevronDown,
-  Check,
   Book,
   Users,
   X,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/design-system";
+import { useRecipeBookDetail, usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
+import { FeedbackToast, useFeedbackToast, truncateTitle } from "@/components/ui/FeedbackToast";
+import ConfirmActionModal from "@/components/ui/ConfirmActionModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_GAP = 10;
@@ -37,9 +39,6 @@ const HORIZONTAL_PADDING = 20;
 const CARD_WIDTH = (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - CARD_GAP) / 2;
 const BOOK_LIST_ITEM_HEIGHT = 73; // paddingVertical(14*2) + icon(44) + border(1)
 const BOOK_LIST_VISIBLE_COUNT = 3;
-import { useRecipeBookDetail, usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
-import { FeedbackToast, useFeedbackToast, truncateTitle } from "@/components/ui/FeedbackToast";
-import ConfirmActionModal from "@/components/ui/ConfirmActionModal";
 
 
 // 숫자 축약 포맷 (1000 → 1k, 1200 → 1.2k, 1000000 → 1M)
@@ -207,7 +206,6 @@ export default function RecipeBookDetailScreen() {
     recipes,
     loading,
     error,
-    totalCount,
     removeRecipe,
     moveRecipe,
     loadMore,

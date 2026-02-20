@@ -27,7 +27,6 @@ import {
   ChevronRight,
   Check,
   ImagePlus,
-  X,
   CheckCircle,
   Sparkles,
   AlertTriangle,
@@ -92,7 +91,7 @@ export default function GroupEditScreen() {
       scaleAnim.setValue(0);
       fadeAnim.setValue(0);
     }
-  }, [showSuccessModal]);
+  }, [showSuccessModal, fadeAnim, scaleAnim]);
 
   // 그룹 데이터 로드 시 상태 초기화 (수정 모드에서만)
   useEffect(() => {

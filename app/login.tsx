@@ -67,7 +67,7 @@ function FloatingIcon({
         true
       )
     );
-  }, []);
+  }, [delay, duration, floatRange, opacity, translateY]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -192,6 +192,7 @@ export default function LoginScreen() {
       router.setParams({ oauth_code: undefined, oauth_error: undefined, oauth_provider: undefined });
       setSavedCodeVerifier(null);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.oauth_code, params.oauth_error, params.oauth_provider, savedCodeVerifier]);
 
   const naverRedirectUri = AuthSession.makeRedirectUri({
@@ -251,6 +252,7 @@ export default function LoginScreen() {
     } else {
       setIsLoading(null);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [naverResponse]);
 
   useEffect(() => {
@@ -266,6 +268,7 @@ export default function LoginScreen() {
     } else {
       setIsLoading(null);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [googleResponse, googleRequest]);
 
   const handleCodeAuth = async (provider: "naver" | "google", code: string, codeVerifier?: string) => {

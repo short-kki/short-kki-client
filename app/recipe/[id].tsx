@@ -7,8 +7,6 @@ import {
   TouchableOpacity,
   StatusBar,
   Dimensions,
-  Alert,
-  Share,
   ActivityIndicator,
   Modal,
   Animated,
@@ -91,26 +89,6 @@ const DIFFICULTY_LABELS: Record<string, string> = {
   ETC: "기타",
 };
 
-
-// 기본 레시피 값 (로딩 전 또는 에러 시)
-const DEFAULT_RECIPE: RecipeResponse = {
-  id: 0,
-  title: "",
-  description: "",
-  mainImgUrl: "",
-  cookingTime: 0,
-  servingSize: 0,
-  difficulty: "BEGINNER",
-  cuisineType: "KOREAN",
-  mealType: "MAIN",
-  authorName: "",
-  bookmarkCount: 0,
-  ingredients: [],
-  steps: [],
-  tags: [],
-  createdAt: "",
-  updatedAt: "",
-};
 
 export default function RecipeDetailScreen() {
   'use no memo'; // React Compiler 비활성화
@@ -323,12 +301,12 @@ export default function RecipeDetailScreen() {
       });
       return () => handler.remove();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFullscreen, exitFullscreenJS]);
 
   // 비디오 관련 상태
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
-  const [isVideoReady, setIsVideoReady] = useState(false);
 
   // YouTube Video ID 추출
   const videoId = recipe?.sourceUrl ? extractYoutubeId(recipe.sourceUrl) : null;
@@ -346,7 +324,6 @@ export default function RecipeDetailScreen() {
   // YouTube 이벤트 리스너
   useYouTubeEvent(player, "ready", () => {
     console.log("YouTube player ready");
-    setIsVideoReady(true);
   });
 
   useYouTubeEvent(player, "stateChange", (state) => {
@@ -481,7 +458,7 @@ export default function RecipeDetailScreen() {
         setOwnedBookIds((prev) => prev.filter((id) => id !== bookId));
         await refreshRecipeState();
         showToast(`"${truncateTitle(bookName)}"에서 삭제됐어요!`, "danger");
-      } catch (error: any) {
+      } catch {
         showToast("삭제에 실패했어요", "danger");
       }
     } else {
@@ -490,8 +467,8 @@ export default function RecipeDetailScreen() {
         setOwnedBookIds((prev) => (prev.includes(bookId) ? prev : [...prev, bookId]));
         await refreshRecipeState();
         showToast(`"${truncateTitle(bookName)}"에 저장됐어요!`, "success");
-      } catch (error: any) {
-        if (error.message && error.message.includes("이미 레시피북에 추가된")) {
+      } catch (e: any) {
+        if (e.message && e.message.includes("이미 레시피북에 추가된")) {
           showToast("이미 해당 레시피북에 저장돼 있어요", "danger");
         } else {
           showToast("레시피 저장에 실패했어요", "danger");
@@ -511,7 +488,7 @@ export default function RecipeDetailScreen() {
     try {
       await addQueue(recipe.id);
       showToast(`"${truncateTitle(recipe.title)}" 레시피가 대기열에 추가됐어요!`, "success");
-    } catch (err) {
+    } catch {
       showToast("대기열에 추가하지 못했어요", "danger");
     }
   };
@@ -1019,7 +996,6 @@ export default function RecipeDetailScreen() {
               <Minimize2 size={20} color="#FFFFFF" />
             </TouchableOpacity>
           )}
-
         </RAnimated.View>
 
         {/* Content Section */}

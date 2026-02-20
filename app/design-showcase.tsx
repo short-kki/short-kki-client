@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import { ScrollView, View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Heart, Plus, ChefHat, Flame, Leaf, Clock } from 'lucide-react-native';
+import { Search, Heart, Plus, ChefHat, Flame, Leaf } from 'lucide-react-native';
 
 import {
   Button,
@@ -27,7 +27,6 @@ import {
   Spacing,
   Typography,
   TextStyles,
-  CommonStyles,
   SemanticColors,
 } from '@/constants/design-system';
 

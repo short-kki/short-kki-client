@@ -43,6 +43,7 @@ export default function GroupInviteScreen() {
     }
 
     loadGroupPreview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inviteCode]);
 
   const loadGroupPreview = async () => {

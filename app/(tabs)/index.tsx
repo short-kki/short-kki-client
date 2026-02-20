@@ -507,13 +507,6 @@ export default function HomeScreen() {
     });
   }, [router]);
 
-  const handleShortsPress = useCallback((shortsId: string) => {
-    router.push({
-      pathname: "/(tabs)/shorts",
-      params: { startIndex: shortsId },
-    });
-  }, [router]);
-
   const handleTopCurationPress = useCallback((shortsId: string) => {
     if (!topCuration) {
       router.push({
@@ -532,40 +525,20 @@ export default function HomeScreen() {
     });
   }, [router, topCuration]);
 
-  const handleSeeAllShorts = useCallback(() => {
-    router.push("/(tabs)/shorts");
-  }, [router]);
-
-  const handleSearch = useCallback(() => {
-    router.push("/search");
-  }, [router]);
-
-  const handleNotifications = useCallback(() => {
-    router.push("/notifications");
-  }, [router]);
-
   const handleSeeAllSection = useCallback((sectionId: string, sectionTitle: string) => {
     router.push(`/search-results?curationId=${sectionId}&curationTitle=${encodeURIComponent(sectionTitle)}` as any);
   }, [router]);
 
-  const handleSeeAllTrending = useCallback(() => {
-    router.push({
-      pathname: "/(tabs)/shorts",
-      params: { section: "trending" },
-    });
-  }, [router]);
-
   const FILTERS = ["전체", "한식", "양식", "일식", "디저트", "안주"];
 
-  const FILTER_MAP: Record<string, { type: "cuisine" | "meal"; value: string }> = {
-    "한식": { type: "cuisine", value: "KOREAN" },
-    "양식": { type: "cuisine", value: "WESTERN" },
-    "일식": { type: "cuisine", value: "JAPANESE" },
-    "디저트": { type: "meal", value: "DESSERT" },
-    "안주": { type: "meal", value: "SIDE_FOR_DRINK" },
-  };
-
   const filteredSections = useMemo(() => {
+    const FILTER_MAP: Record<string, { type: "cuisine" | "meal"; value: string }> = {
+      "한식": { type: "cuisine", value: "KOREAN" },
+      "양식": { type: "cuisine", value: "WESTERN" },
+      "일식": { type: "cuisine", value: "JAPANESE" },
+      "디저트": { type: "meal", value: "DESSERT" },
+      "안주": { type: "meal", value: "SIDE_FOR_DRINK" },
+    };
     if (selectedFilter === "전체") return sections;
     const filterConfig = FILTER_MAP[selectedFilter];
     if (!filterConfig) return sections;

@@ -38,7 +38,6 @@ import {
   PenSquare,
   Heart,
   Share2,
-  MessageCircle,
   PartyPopper,
   Check,
   AlertTriangle,
@@ -51,8 +50,6 @@ import { useGroups, useGroupFeeds, useGroupMembers, getGroupInviteCode } from "@
 import type { Group } from "@/data/mock";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const FEED_IMAGE_SIZE = SCREEN_WIDTH - 32 - 2; // padding + border
-
 // 그룹 타입 정의
 const GROUP_TYPES = [
   { value: 'COUPLE', label: '커플' },
@@ -92,7 +89,7 @@ export default function GroupScreen() {
   const { groups, createGroup, deleteGroup, leaveGroup, refetch: refetchGroups } = useGroups();
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const { feeds, toggleLike, deleteFeed, refetch: refetchFeeds } = useGroupFeeds(selectedGroup?.id);
-  const { members } = useGroupMembers(selectedGroup?.id);
+  useGroupMembers(selectedGroup?.id);
   const appliedRouteTargetRef = useRef<string | null>(null);
 
   // 그룹 탭을 다시 누르면 그룹 목록으로 돌아가기
@@ -380,14 +377,6 @@ export default function GroupScreen() {
         });
         break;
     }
-  };
-
-  const handleRecipeCardPress = (recipeId: string) => {
-    router.push(`/recipe/${recipeId}`);
-  };
-
-  const handleInviteMember = () => {
-    setShowInviteModal(true);
   };
 
   const handleInviteShare = async () => {
