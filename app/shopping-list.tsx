@@ -87,7 +87,6 @@ export default function ShoppingListScreen() {
     ]);
   };
 
-  const totalItems = items.length;
   const checkedItemsCount = checkedIds.size;
 
   return (
@@ -155,50 +154,6 @@ export default function ShoppingListScreen() {
             </Text>
           </TouchableOpacity>
         )}
-      </View>
-
-      {/* Progress Bar */}
-      <View
-        style={{
-          paddingHorizontal: 20,
-          paddingVertical: 16,
-          backgroundColor: Colors.neutral[0],
-          borderBottomWidth: 1,
-          borderBottomColor: Colors.neutral[100],
-        }}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 8,
-          }}
-        >
-          <Text style={{ fontSize: 14, color: Colors.neutral[600] }}>
-            진행률
-          </Text>
-          <Text style={{ fontSize: 14, fontWeight: "600", color: Colors.primary[500] }}>
-            {checkedItemsCount}/{totalItems} 완료
-          </Text>
-        </View>
-        <View
-          style={{
-            height: 8,
-            backgroundColor: Colors.neutral[200],
-            borderRadius: 4,
-            overflow: "hidden",
-          }}
-        >
-          <View
-            style={{
-              width: totalItems > 0 ? `${(checkedItemsCount / totalItems) * 100}%` : "0%",
-              height: "100%",
-              backgroundColor: Colors.primary[500],
-              borderRadius: 4,
-            }}
-          />
-        </View>
       </View>
 
       {/* Shopping List */}

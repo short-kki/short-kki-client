@@ -26,6 +26,7 @@ import {
 import { Colors, Typography, Spacing, BorderRadius, Shadows, SemanticColors } from "@/constants/design-system";
 import { useRecommendedCurations, useUnreadNotificationCount } from "@/hooks";
 import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
+import { useUser } from "@/contexts/AuthContext";
 import type { CurationSection } from "@/data/mock";
 import Svg, { Path } from "react-native-svg";
 
@@ -497,6 +498,9 @@ export default function HomeScreen() {
   // 읽지 않은 알림 수 조회
   const { count: unreadNotificationCount } = useUnreadNotificationCount();
 
+  // 현재 사용자 정보
+  const user = useUser();
+
   const handleRecipePress = useCallback((recipeId: string, section: CurationSection) => {
     router.push({
       pathname: "/(tabs)/shorts",
@@ -818,13 +822,22 @@ export default function HomeScreen() {
               backgroundColor: Colors.neutral[100],
               justifyContent: "center",
               alignItems: "center",
+              overflow: "hidden",
             }}
             onPress={() => {
               console.log("Profile pressed");
               router.push("/profile-edit");
             }}
           >
-            <User size={22} color={Colors.neutral[600]} />
+            {user?.profileImage ? (
+              <Image
+                source={{ uri: user.profileImage }}
+                style={{ width: 40, height: 40, borderRadius: 20 }}
+                contentFit="cover"
+              />
+            ) : (
+              <User size={22} color={Colors.neutral[600]} />
+            )}
           </Pressable>
         </View>
         <View style={{ height: FILTER_BAR_HEIGHT }}>
