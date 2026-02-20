@@ -10,7 +10,6 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { Colors } from "@/constants/design-system";
 import { pushNotificationService } from "@/services/pushNotification";
-import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 
 // 특정 에러 메시지 LogBox에서 무시
 LogBox.ignoreLogs([
@@ -27,22 +26,6 @@ function extractUrl(text: string): string | null {
 
 function RootLayoutNav() {
   const { isLoading } = useAuth();
-  const router = useRouter();
-  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
-
-  // 외부 앱에서 공유된 URL 처리
-  useEffect(() => {
-    if (!hasShareIntent) return;
-
-    const url = shareIntent.webUrl || (shareIntent.text ? extractUrl(shareIntent.text) : null);
-    if (url) {
-      router.replace({
-        pathname: "/(tabs)/add",
-        params: { sharedUrl: url },
-      } as any);
-    }
-    resetShareIntent();
-  }, [hasShareIntent, shareIntent.webUrl, shareIntent.text, router, resetShareIntent]);
 
   // 푸시 알림 초기화
   useEffect(() => {
@@ -111,13 +94,11 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.neutral[50] }}>
-      <ShareIntentProvider>
-        <AuthProvider>
-          <ThemeProvider value={colorScheme === "dark" ? AppDarkTheme : AppLightTheme}>
-            <RootLayoutNav />
-          </ThemeProvider>
-        </AuthProvider>
-      </ShareIntentProvider>
+      <AuthProvider>
+        <ThemeProvider value={colorScheme === "dark" ? AppDarkTheme : AppLightTheme}>
+          <RootLayoutNav />
+        </ThemeProvider>
+      </AuthProvider>
     </GestureHandlerRootView>
   );
 }
