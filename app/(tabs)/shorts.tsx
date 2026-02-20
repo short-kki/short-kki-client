@@ -100,12 +100,21 @@ interface VideoItemProps {
   bookmarkCount: number;
   isScreenFocused: boolean;
   focusEpoch: number;
+  appResumeKey: number;
 }
 
 // 개별 비디오 아이템 컴포넌트 (YouTube 플레이어 - react-native-youtube-bridge)
-function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onBookmarkPress, isBookmarked, bookmarkCount, isScreenFocused, focusEpoch }: VideoItemProps) {
+function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onBookmarkPress, isBookmarked, bookmarkCount, isScreenFocused, focusEpoch, appResumeKey }: VideoItemProps) {
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  // 앱 복귀 시 WebView 재생성을 위해 상태 초기화
+  useEffect(() => {
+    if (appResumeKey > 0) {
+      setIsReady(false);
+      setIsPlaying(false);
+    }
+  }, [appResumeKey]);
   const playerWidth = Math.max(screenWidth, itemHeight * (16 / 9));
 
   // react-native-youtube-bridge 플레이어 초기화
@@ -176,6 +185,18 @@ function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMu
     return count.toString();
   };
 
+  // YouTube 앱으로 직접 열기 (Android에서 브라우저 경유 시 화면 2개 쌓이는 문제 방지)
+  const openSourceVideo = useCallback(async () => {
+    const webUrl = `https://www.youtube.com/shorts/${item.videoId}`;
+    if (Platform.OS === 'android') {
+      try {
+        await Linking.openURL(`vnd.youtube://${item.videoId}`);
+        return;
+      } catch {}
+    }
+    await Linking.openURL(webUrl);
+  }, [item.videoId]);
+
   // 재생/일시정지 토글
   const togglePlayPause = useCallback(() => {
     if (isPlaying) {
@@ -235,6 +256,7 @@ function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMu
           }}
         >
           <YoutubeView
+            key={appResumeKey}
             player={player}
             width={playerWidth}
             height={itemHeight}
@@ -476,7 +498,7 @@ function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMu
         </TouchableOpacity>
 
         {/* YouTube 원본 */}
-        <TouchableOpacity onPress={() => Linking.openURL(`https://www.youtube.com/shorts/${item.videoId}`)} activeOpacity={0.8} style={{ alignItems: "center" }}>
+        <TouchableOpacity onPress={openSourceVideo} activeOpacity={0.8} style={{ alignItems: "center" }}>
           <View
             style={{
               width: 48,
@@ -564,6 +586,7 @@ export default function ShortsScreen() {
   const [isMuted, setIsMuted] = useState(true);
   const [isScreenFocused, setIsScreenFocused] = useState(true);
   const [focusEpoch, setFocusEpoch] = useState(0);
+  const [appResumeKey, setAppResumeKey] = useState(0);
 
   // 탭 포커스/블러 관리
   useFocusEffect(
@@ -581,6 +604,7 @@ export default function ShortsScreen() {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active') {
         setFocusEpoch((prev) => prev + 1);
+        setAppResumeKey((prev) => prev + 1);
       }
     });
     return () => subscription.remove();
@@ -943,9 +967,10 @@ export default function ShortsScreen() {
         bookmarkCount={bookmarkCounts[item.id] ?? item.bookmarks ?? 0}
         isScreenFocused={isScreenFocused}
         focusEpoch={focusEpoch}
+        appResumeKey={appResumeKey}
       />
     ),
-    [activeIndex, itemHeight, screenWidth, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, ownedBookIdsByVideo, bookmarkCounts, isScreenFocused, focusEpoch]
+    [activeIndex, itemHeight, screenWidth, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, ownedBookIdsByVideo, bookmarkCounts, isScreenFocused, focusEpoch, appResumeKey]
   );
 
   const keyExtractor = useCallback((item: ShortsItem) => item.id, []);
