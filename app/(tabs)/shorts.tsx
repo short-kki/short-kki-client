@@ -12,6 +12,7 @@ import type { CurationRecipe, ShortsItem } from "@/data/mock";
 import { USE_MOCK, api } from "@/services/api";
 import { extractYoutubeId } from "@/utils/youtube";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useFocusEffect } from "@react-navigation/native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -39,6 +40,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Animated,
+  AppState,
   Easing,
   FlatList,
   KeyboardAvoidingView,
@@ -96,10 +98,12 @@ interface VideoItemProps {
   onBookmarkPress: () => void;
   isBookmarked: boolean;
   bookmarkCount: number;
+  isScreenFocused: boolean;
+  focusEpoch: number;
 }
 
 // 개별 비디오 아이템 컴포넌트 (YouTube 플레이어 - react-native-youtube-bridge)
-function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onBookmarkPress, isBookmarked, bookmarkCount }: VideoItemProps) {
+function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onBookmarkPress, isBookmarked, bookmarkCount, isScreenFocused, focusEpoch }: VideoItemProps) {
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const playerWidth = Math.max(screenWidth, itemHeight * (16 / 9));
@@ -135,15 +139,21 @@ function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMu
   // 활성화 상태에 따라 재생/일시정지
   useEffect(() => {
     if (isReady) {
-      if (isActive) {
-        player.play();
-        setIsPlaying(true);
+      if (isActive && isScreenFocused) {
+        player.seekTo(0);
+        // seekTo가 WebView 브리지를 통해 비동기 처리되므로,
+        // 충분한 지연 후 play를 호출해야 안정적으로 재생됨
+        const timer = setTimeout(() => {
+          player.play();
+          setIsPlaying(true);
+        }, 300);
+        return () => clearTimeout(timer);
       } else {
         player.pause();
         setIsPlaying(false);
       }
     }
-  }, [isActive, isReady, player]);
+  }, [isActive, isScreenFocused, focusEpoch, isReady, player]);
 
   // 음소거 상태 변경
   useEffect(() => {
@@ -552,6 +562,29 @@ export default function ShortsScreen() {
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
+  const [isScreenFocused, setIsScreenFocused] = useState(true);
+  const [focusEpoch, setFocusEpoch] = useState(0);
+
+  // 탭 포커스/블러 관리
+  useFocusEffect(
+    useCallback(() => {
+      setIsScreenFocused(true);
+      setFocusEpoch((prev) => prev + 1);
+      return () => {
+        setIsScreenFocused(false);
+      };
+    }, [])
+  );
+
+  // 앱 백그라운드→포그라운드 복귀 시 epoch 증가
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        setFocusEpoch((prev) => prev + 1);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
 
   // 북마크 관련 상태
   const [showBookmarkSheet, setShowBookmarkSheet] = useState(false);
@@ -908,9 +941,11 @@ export default function ShortsScreen() {
         onBookmarkPress={() => openBookmarkSheet(item.id)}
         isBookmarked={(ownedBookIdsByVideo[item.id] || []).length > 0}
         bookmarkCount={bookmarkCounts[item.id] ?? item.bookmarks ?? 0}
+        isScreenFocused={isScreenFocused}
+        focusEpoch={focusEpoch}
       />
     ),
-    [activeIndex, itemHeight, screenWidth, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, ownedBookIdsByVideo, bookmarkCounts]
+    [activeIndex, itemHeight, screenWidth, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, ownedBookIdsByVideo, bookmarkCounts, isScreenFocused, focusEpoch]
   );
 
   const keyExtractor = useCallback((item: ShortsItem) => item.id, []);
