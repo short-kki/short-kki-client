@@ -41,7 +41,15 @@ export default {
         ITSAppUsesNonExemptEncryption: false,
         UIBackgroundModes: ["remote-notification"],
         NSAppTransportSecurity: {
-          NSAllowsArbitraryLoads: true,
+          NSExceptionDomains: {
+            "dev.shortkki.kr": {
+              NSExceptionAllowsInsecureHTTPLoads: true,
+              NSIncludesSubdomains: true,
+            },
+            "localhost": {
+              NSExceptionAllowsInsecureHTTPLoads: true,
+            },
+          },
         },
       },
     },

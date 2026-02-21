@@ -98,7 +98,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const loadAuthState = async () => {
     try {
       const authData = await getAuthData();
-      console.log('[Auth] 저장된 인증 데이터 로드:', JSON.stringify(authData?.user, null, 2));
 
       if (authData) {
         setUser(authData.user);
@@ -161,7 +160,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (currentUser?.user) {
       const updatedUser = { ...currentUser.user, ...updates };
       await saveUser(updatedUser);
-      console.log('[Auth] 사용자 정보 저장 완료:', updatedUser.profileImage);
     }
   }, []);
 

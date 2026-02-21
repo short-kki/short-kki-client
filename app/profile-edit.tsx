@@ -62,7 +62,6 @@ export default function ProfileEditScreen() {
       setSaving(true);
 
       let finalFileId = profileImgFileId;
-      let finalImageUrl = profileImgUrl;
 
       // 새 이미지가 선택된 경우 업로드
       if (selectedImage) {
@@ -72,10 +71,7 @@ export default function ProfileEditScreen() {
             "MEMBER_PROFILE_IMG",
             "PUBLIC"
           );
-          console.log("[ProfileEdit] 업로드 결과:", JSON.stringify(uploaded));
           finalFileId = uploaded.fileId;
-          finalImageUrl = uploaded.url; // 서버에서 반환된 URL 사용
-          console.log("[ProfileEdit] finalImageUrl:", finalImageUrl);
         } catch (uploadError) {
           console.error("이미지 업로드 실패:", uploadError);
           Alert.alert("오류", "이미지 업로드에 실패했습니다. 다시 시도해주세요.");
@@ -92,7 +88,6 @@ export default function ProfileEditScreen() {
 
       // 서버에서 최신 프로필 조회 (CDN URL 포함)
       const updatedProfile = await getMyProfile();
-      console.log("[ProfileEdit] 서버 프로필 조회:", updatedProfile.profileImgUrl);
 
       // AuthContext 업데이트 (서버에서 받은 CDN URL 사용)
       updateUser({
