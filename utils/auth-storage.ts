@@ -3,15 +3,17 @@
  *
  * 토큰 저장/관리 유틸리티
  *
- * Note: Expo Go에서는 메모리 스토리지 사용 (앱 재시작 시 로그아웃됨)
- * 프로덕션 빌드에서는 SecureStore 사용 권장
+ * 네이티브 빌드: expo-secure-store 사용 (영구 저장)
+ * Expo Go: 메모리 스토리지 폴백 (앱 재시작 시 로그아웃됨)
  */
 
+// import * as SecureStore from 'expo-secure-store';
+
 // ============================================================================
-// IN-MEMORY STORAGE (Expo Go 호환)
+// STORAGE ADAPTER
 // ============================================================================
-// Expo Go에서 네이티브 모듈 문제로 인해 메모리 스토리지 사용
-// 프로덕션에서는 expo-secure-store 또는 AsyncStorage 사용 권장
+// TODO: 테스트 완료 후 SecureStore로 다시 변경
+// 현재: 메모리 스토리지 (앱 재시작 시 로그아웃됨)
 
 const memoryStorage: Record<string, string> = {};
 

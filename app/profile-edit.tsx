@@ -86,10 +86,13 @@ export default function ProfileEditScreen() {
         profileImgFileId: finalFileId,
       });
 
-      // AuthContext 업데이트
+      // 서버에서 최신 프로필 조회 (CDN URL 포함)
+      const updatedProfile = await getMyProfile();
+
+      // AuthContext 업데이트 (서버에서 받은 CDN URL 사용)
       updateUser({
-        name,
-        profileImage: selectedImage?.uri || profileImgUrl || undefined,
+        name: updatedProfile.name,
+        profileImage: updatedProfile.profileImgUrl || undefined,
       });
 
       Alert.alert("저장 완료", "프로필이 업데이트되었습니다.", [
