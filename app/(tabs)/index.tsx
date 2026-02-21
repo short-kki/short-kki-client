@@ -834,6 +834,8 @@ export default function HomeScreen() {
                 source={{ uri: user.profileImage }}
                 style={{ width: 40, height: 40, borderRadius: 20 }}
                 contentFit="cover"
+                onError={(e) => console.log("[Home] 프로필 이미지 로드 에러:", e)}
+                onLoad={() => console.log("[Home] 프로필 이미지 로드 성공")}
               />
             ) : (
               <User size={22} color={Colors.neutral[600]} />

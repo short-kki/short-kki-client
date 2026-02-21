@@ -19,9 +19,9 @@ import {
   AuthTokens,
   User,
   saveAuthData,
+  saveUser,
   getAuthData,
   clearAuthData,
-  isLoggedIn as checkIsLoggedIn,
 } from '@/utils/auth-storage';
 import { pushNotificationService } from '@/services/pushNotification';
 
@@ -98,6 +98,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const loadAuthState = async () => {
     try {
       const authData = await getAuthData();
+      console.log('[Auth] 저장된 인증 데이터 로드:', JSON.stringify(authData?.user, null, 2));
 
       if (authData) {
         setUser(authData.user);
@@ -148,11 +149,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
   /**
    * 사용자 정보 업데이트
    */
-  const updateUser = useCallback((updates: Partial<User>) => {
+  const updateUser = useCallback(async (updates: Partial<User>) => {
     setUser((prev) => {
       if (!prev) return null;
-      return { ...prev, ...updates };
+      const updatedUser = { ...prev, ...updates };
+      return updatedUser;
     });
+
+    // 저장소에도 저장
+    const currentUser = await getAuthData();
+    if (currentUser?.user) {
+      const updatedUser = { ...currentUser.user, ...updates };
+      await saveUser(updatedUser);
+      console.log('[Auth] 사용자 정보 저장 완료:', updatedUser.profileImage);
+    }
   }, []);
 
   const value = useMemo(
