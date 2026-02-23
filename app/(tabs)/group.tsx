@@ -51,7 +51,7 @@ import {
   HelpCircle,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
-import { API_BASE_URL } from "@/constants/oauth";
+import { API_BASE_URL } from "@/constants/env";
 import { useGroups, useGroupFeeds, useGroupMembers, getGroupInviteCode } from "@/hooks";
 import { api } from "@/services/api";
 import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";

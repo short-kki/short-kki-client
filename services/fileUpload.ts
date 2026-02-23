@@ -6,7 +6,7 @@
  */
 
 import { api, USE_MOCK } from './api';
-import { API_BASE_URL } from '@/constants/oauth';
+import { API_BASE_URL } from '@/constants/env';
 import { getAuthData } from '@/utils/auth-storage';
 
 // ============================================================================

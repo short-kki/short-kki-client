@@ -31,7 +31,8 @@ import Svg, { Path } from "react-native-svg";
 import { ChefHat, CookingPot, Flame, Heart, Sparkles, UtensilsCrossed } from "lucide-react-native";
 
 import { Colors, SemanticColors, Spacing, Typography } from "@/constants/design-system";
-import { API_BASE_URL, DEV_MODE, GOOGLE_CONFIG, NAVER_CONFIG } from "@/constants/oauth";
+import { GOOGLE_CONFIG, NAVER_CONFIG } from "@/constants/oauth";
+import { API_BASE_URL, DEV_MODE } from "@/constants/env";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthData } from "@/utils/auth-storage";
 

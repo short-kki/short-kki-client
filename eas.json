@@ -24,7 +24,7 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.shortkki.kr"
+        "EXPO_PUBLIC_API_URL": "http://api.shortkki.kr"
       },
       "android": {
         "buildType": "app-bundle",
@@ -33,7 +33,7 @@
     },
     "production": {
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.shortkki.kr"
+        "EXPO_PUBLIC_API_URL": "http://api.shortkki.kr"
       }
     }
   },

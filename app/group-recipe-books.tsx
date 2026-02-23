@@ -14,7 +14,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { ArrowLeft, Folder, Book } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { useGroupRecipeBooksById } from "@/hooks";
-import { API_BASE_URL } from "@/constants/oauth";
+import { API_BASE_URL } from "@/constants/env";
 
 export default function GroupRecipeBooksScreen() {
   const insets = useSafeAreaInsets();
