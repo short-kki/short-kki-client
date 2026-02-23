@@ -6,6 +6,7 @@ import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, LogBox } from "react-native";
 import { useEffect } from "react";
 import "react-native-reanimated";
+import { useShareIntent } from "expo-share-intent";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { Colors } from "@/constants/design-system";
@@ -26,6 +27,8 @@ function extractUrl(text: string): string | null {
 
 function RootLayoutNav() {
   const { isLoading } = useAuth();
+  const router = useRouter();
+  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
 
   // 푸시 알림 초기화
   useEffect(() => {
@@ -34,6 +37,23 @@ function RootLayoutNav() {
 
     return () => pushNotificationService.cleanup();
   }, []);
+
+  // 외부 앱에서 URL 공유 수신 → 레시피 가져오기 페이지로 이동
+  useEffect(() => {
+    if (!hasShareIntent) return;
+
+    const sharedText = shareIntent.text || "";
+    const sharedUrl = extractUrl(sharedText) || shareIntent.webUrl || null;
+
+    if (sharedUrl) {
+      router.push({
+        pathname: "/(tabs)/add",
+        params: { sharedUrl },
+      });
+    }
+
+    resetShareIntent();
+  }, [hasShareIntent]);
 
   // 인증 상태 로딩 중일 때 스플래시 표시
   if (isLoading) {
