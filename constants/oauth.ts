@@ -14,6 +14,16 @@
 // 3. iOS Bundle ID, URL Scheme 등록
 // ============================================================================
 
+// ============================================================================
+// BACKEND API 
+// ============================================================================
+// 로그인 엔드포인트: POST /api/auth/{provider}
+// Request: { code: string }
+// Response: { code, message, data: { accessToken, refreshToken, email, name, newMember } }
+// ============================================================================
+
+import Constants from "expo-constants";
+
 export const NAVER_CONFIG = {
   consumerKey: process.env.EXPO_PUBLIC_NAVER_CONSUMER_KEY || "",
   consumerSecret: process.env.EXPO_PUBLIC_NAVER_CONSUMER_SECRET || "",
@@ -38,16 +48,6 @@ export const GOOGLE_CONFIG = {
   // Android 앱용 클라이언트 ID
   androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || "",
 };
-
-// ============================================================================
-// BACKEND API 
-// ============================================================================
-// 로그인 엔드포인트: POST /api/auth/{provider}
-// Request: { code: string }
-// Response: { code, message, data: { accessToken, refreshToken, email, name, newMember } }
-// ============================================================================
-
-import Constants from "expo-constants";
 
 // ============================================================================
 // APP ENVIRONMENT - 이 값을 변경하여 환경을 전환합니다
