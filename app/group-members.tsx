@@ -29,7 +29,7 @@ import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-sy
 import { useGroupMembers, getGroupInviteCode } from "@/hooks";
 
 // 딥링크 베이스 URL (환경별 API 서버)
-import { API_BASE_URL } from "@/constants/oauth";
+import { API_BASE_URL } from "@/constants/env";
 const INVITE_BASE_URL = API_BASE_URL;
 
 // 멤버 역할 타입

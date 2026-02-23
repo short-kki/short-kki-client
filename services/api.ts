@@ -4,7 +4,7 @@
  * 서버 연동 시 이 파일에서 baseURL과 헤더 설정을 변경합니다.
  */
 
-import { API_BASE_URL } from '@/constants/oauth';
+import { API_BASE_URL } from '@/constants/env';
 import { getAuthData } from '@/utils/auth-storage';
 
 // Mock 데이터 사용 여부 (개발 모드에서 true, 실서버 테스트시 false로 변경)

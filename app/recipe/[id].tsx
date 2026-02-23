@@ -60,7 +60,7 @@ import {
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/design-system";
 import { recipeApi, type RecipeResponse } from "@/services/recipeApi";
-import { API_BASE_URL } from "@/constants/oauth";
+import { API_BASE_URL } from "@/constants/env";
 import { api } from "@/services/api";
 import { useRecipeQueue, useGroups, usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
 import { FeedbackToast, useFeedbackToast, truncateTitle } from "@/components/ui/FeedbackToast";

@@ -127,6 +127,15 @@ export default {
       favicon: "./assets/images/favicon.png",
     },
     plugins: [
+      "./plugins/withAndroidVersion",
+      [
+        "expo-build-properties",
+        {
+          android: {
+            usesCleartextTraffic: true,
+          },
+        },
+      ],
       "expo-router",
       [
         "expo-splash-screen",

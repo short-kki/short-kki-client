@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '@/services/api';
-import { API_BASE_URL } from '@/constants/oauth';
+import { API_BASE_URL } from '@/constants/env';
 import {
   type RecipeBook,
   type Recipe,
