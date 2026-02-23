@@ -34,8 +34,9 @@ yarn-error.*
 .env
 .env*.local
 
-# Firebase config files
-# google-services.json, GoogleService-Info.plist는 빌드에 필요하여 포함
+# Firebase config files (로컬에만 보관, EAS 클라우드 빌드 시 eas secret으로 등록 필요)
+google-services.json
+GoogleService-Info.plist
 
 # typescript
 *.tsbuildinfo
