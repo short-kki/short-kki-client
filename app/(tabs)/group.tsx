@@ -51,8 +51,7 @@ import {
   HelpCircle,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
-import { APP_ENV } from "@/constants/oauth";
-
+import { API_BASE_URL } from "@/constants/oauth";
 import { useGroups, useGroupFeeds, useGroupMembers, getGroupInviteCode } from "@/hooks";
 import { api } from "@/services/api";
 import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
@@ -443,9 +442,7 @@ export default function GroupScreen() {
       const inviteCode = await getGroupInviteCode(selectedGroup.id);
 
       // 딥링크 URL 생성
-      // 프로덕션: Universal Links / App Links, 로컬/개발: 커스텀 스킴
-      const inviteBaseUrl = APP_ENV === "prod" ? "https://shortkki.com" : "shortkki:/";
-      const inviteUrl = `${inviteBaseUrl}/group/invite/${inviteCode}`;
+      const inviteUrl = `${API_BASE_URL}/group/invite/${inviteCode}`;
 
       // 시스템 공유 시트 열기
       await Share.share(

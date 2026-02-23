@@ -3,6 +3,8 @@
  * 환경변수를 사용하여 민감한 정보를 분리합니다.
  */
 
+require("dotenv").config();
+
 const NAVER_CONSUMER_KEY = process.env.EXPO_PUBLIC_NAVER_CONSUMER_KEY;
 const NAVER_CONSUMER_SECRET = process.env.EXPO_PUBLIC_NAVER_CONSUMER_SECRET;
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
@@ -42,8 +44,13 @@ export default {
         ITSAppUsesNonExemptEncryption: false,
         UIBackgroundModes: ["remote-notification"],
         NSAppTransportSecurity: {
+          NSAllowsArbitraryLoads: true,
           NSExceptionDomains: {
             "dev.shortkki.kr": {
+              NSExceptionAllowsInsecureHTTPLoads: true,
+              NSIncludesSubdomains: true,
+            },
+            "api.shortkki.kr": {
               NSExceptionAllowsInsecureHTTPLoads: true,
               NSIncludesSubdomains: true,
             },
@@ -85,6 +92,29 @@ export default {
             {
               scheme: "https",
               host: "shortkki.com",
+              pathPrefix: "/group/invite/",
+            },
+          ],
+          category: ["BROWSABLE", "DEFAULT"],
+        },
+        {
+          action: "VIEW",
+          data: [
+            {
+              scheme: "http",
+              host: "dev.shortkki.kr",
+              pathPrefix: "/group/invite/",
+            },
+          ],
+          category: ["BROWSABLE", "DEFAULT"],
+        },
+        {
+          action: "VIEW",
+          data: [
+            {
+              scheme: "http",
+              host: "*",
+              port: "8080",
               pathPrefix: "/group/invite/",
             },
           ],

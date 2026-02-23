@@ -163,6 +163,11 @@ export function useGroups() {
       } else {
         // 실제 API 호출: GET /api/v1/groups/my
         const response = await api.get<ApiResponse<ApiGroup[]>>('/api/v1/groups/my');
+        console.log("[Groups] API 응답:", JSON.stringify(response.data.map(g => ({
+          id: g.id,
+          name: g.name,
+          thumbnailImgUrl: g.thumbnailImgUrl,
+        })), null, 2));
         const mappedGroups = response.data.map(mapApiGroupToGroup);
         setGroups(mappedGroups);
       }
@@ -189,7 +194,7 @@ export function useGroups() {
   const createGroup = useCallback(async (data: {
     name: string;
     description?: string;
-    thumbnailImgUrl?: string;
+    thumbnailImgFileId?: number;
     groupType: 'COUPLE' | 'FAMILY' | 'FRIENDS' | 'ETC';
   }): Promise<Group> => {
     if (USE_MOCK) {
@@ -198,7 +203,7 @@ export function useGroups() {
         id: Date.now().toString(),
         name: data.name,
         memberCount: 1,
-        thumbnail: data.thumbnailImgUrl || null,
+        thumbnail: null,
         lastActivity: '방금',
       };
       addGroup(newGroup);
@@ -652,7 +657,7 @@ export function useGroupDetail(groupId?: string) {
   const updateGroup = useCallback(async (data: {
     name: string;
     description?: string;
-    thumbnailImgUrl?: string;
+    thumbnailImgFileId?: number;
     groupType: 'COUPLE' | 'FAMILY' | 'FRIENDS' | 'ETC';
   }): Promise<void> => {
     if (!groupId) throw new Error('그룹 ID가 없습니다');

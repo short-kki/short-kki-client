@@ -28,11 +28,9 @@ import {
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { useGroupMembers, getGroupInviteCode } from "@/hooks";
 
-// 딥링크 베이스 URL
-// 프로덕션: Universal Links / App Links (https://shortkki.com)
-// 로컬/개발: 커스텀 스킴 (shortkki:/)
-import { APP_ENV } from "@/constants/oauth";
-const INVITE_BASE_URL = APP_ENV === "prod" ? "https://shortkki.com" : "shortkki:/";
+// 딥링크 베이스 URL (환경별 API 서버)
+import { API_BASE_URL } from "@/constants/oauth";
+const INVITE_BASE_URL = API_BASE_URL;
 
 // 멤버 역할 타입
 type MemberRole = "owner" | "admin" | "member";

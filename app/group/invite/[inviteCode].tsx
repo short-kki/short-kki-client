@@ -28,7 +28,7 @@ export default function GroupInviteScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { inviteCode } = useLocalSearchParams<{ inviteCode: string }>();
-  const { isAuthenticated } = useAuth();
+  const { isLoggedIn } = useAuth();
 
   const [status, setStatus] = useState<JoinStatus>("loading");
   const [groupPreview, setGroupPreview] = useState<GroupPreview | null>(null);
@@ -67,7 +67,7 @@ export default function GroupInviteScreen() {
 
   const handleJoinGroup = async () => {
     // 로그인 필요
-    if (!isAuthenticated) {
+    if (!isLoggedIn) {
       router.replace({
         pathname: "/login",
         params: { redirect: `/group/invite/${inviteCode}` },
