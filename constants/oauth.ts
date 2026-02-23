@@ -63,7 +63,7 @@ export const API_BASE_URL = (() => {
   const env: AppEnv = APP_ENV;
   switch (env) {
     case "prod":
-      return "https://api.shortkki.kr";
+      return "http://api.shortkki.kr";
     case "dev":
       return "http://dev.shortkki.kr";
     case "local":
