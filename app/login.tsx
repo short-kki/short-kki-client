@@ -1,7 +1,5 @@
-import * as AuthSession from "expo-auth-session";
 import { Image } from "expo-image";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,6 +11,12 @@ import {
   Text,
   View,
 } from "react-native";
+import {
+  GoogleSignin,
+  statusCodes,
+  isSuccessResponse,
+} from "@react-native-google-signin/google-signin";
+import NaverLogin from "@react-native-seoul/naver-login";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -30,6 +34,12 @@ import { Colors, SemanticColors, Spacing, Typography } from "@/constants/design-
 import { API_BASE_URL, DEV_MODE, GOOGLE_CONFIG, NAVER_CONFIG } from "@/constants/oauth";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthData } from "@/utils/auth-storage";
+
+// Google Sign-In 설정 (idToken 발급용)
+GoogleSignin.configure({
+  webClientId: GOOGLE_CONFIG.webClientId,
+  iosClientId: GOOGLE_CONFIG.iosClientId,
+});
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -81,8 +91,6 @@ function FloatingIcon({
   );
 }
 
-WebBrowser.maybeCompleteAuthSession();
-
 function GoogleIcon({ size = 20 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 48 48">
@@ -114,38 +122,10 @@ interface LoginData {
   refreshToken: string;
   email: string;
   name: string;
+  profileImageUrl?: string;
   isNewMember: boolean;
 }
 
-async function sendCodeToServer(
-  provider: "naver" | "google",
-  code: string,
-  codeVerifier?: string
-): Promise<LoginData> {
-  const platform = Platform.OS; // "ios" | "android"
-  const body: { code: string; codeVerifier?: string; platform: string } = { code, platform };
-  if (codeVerifier) {
-    body.codeVerifier = codeVerifier;
-  }
-
-  // 백엔드 enum과 일치하도록 대문자로 변환 (NAVER, GOOGLE)
-  const providerUpperCase = provider.toUpperCase();
-
-  const response = await fetch(`${API_BASE_URL}/api/auth/${providerUpperCase}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Server auth error:", errorText);
-    throw new Error("서버 인증 실패");
-  }
-
-  const apiResponse: ApiResponse<LoginData> = await response.json();
-  return apiResponse.data;
-}
 
 function createMockAuthData(provider: "naver" | "google"): AuthData {
   const mockId = `mock_${provider}_${Date.now()}`;
@@ -169,139 +149,18 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { signIn } = useAuth();
   const [isLoading, setIsLoading] = useState<"naver" | "google" | "dev" | null>(null);
-  const [savedCodeVerifier, setSavedCodeVerifier] = useState<string | null>(null);
   const router = useRouter();
-  const params = useLocalSearchParams<{
-    oauth_code?: string;
-    oauth_error?: string;
-    oauth_provider?: "naver" | "google";
-  }>();
 
-  // Android에서 OAuth 콜백 라우트로부터 전달받은 코드 처리
+  // Naver Login 초기화
   useEffect(() => {
-    if (params.oauth_code && params.oauth_provider) {
-      setIsLoading(params.oauth_provider);
-      // 구글은 저장해둔 codeVerifier 사용, 네이버는 필요 없음
-      const codeVerifier = params.oauth_provider === "google" ? savedCodeVerifier ?? undefined : undefined;
-      handleCodeAuth(params.oauth_provider, params.oauth_code, codeVerifier);
-      // 파라미터 및 저장된 codeVerifier 초기화
-      router.setParams({ oauth_code: undefined, oauth_error: undefined, oauth_provider: undefined });
-      setSavedCodeVerifier(null);
-    } else if (params.oauth_error) {
-      Alert.alert("로그인 실패", "OAuth 인증에 실패했습니다.");
-      router.setParams({ oauth_code: undefined, oauth_error: undefined, oauth_provider: undefined });
-      setSavedCodeVerifier(null);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.oauth_code, params.oauth_error, params.oauth_provider, savedCodeVerifier]);
-
-  const naverRedirectUri = AuthSession.makeRedirectUri({
-    scheme: "shortkki",
-    path: "oauth/naver",
-  });
-
-  const googleClientId = Platform.select({
-    ios: GOOGLE_CONFIG.iosClientId,
-    android: GOOGLE_CONFIG.androidClientId,
-    default: GOOGLE_CONFIG.iosClientId,
-  });
-
-  const googleRedirectUri = Platform.select({
-    ios: AuthSession.makeRedirectUri({
-      scheme: "com.googleusercontent.apps.6350831070-agbndp2mc029cemdtv2ekqlemrne04ik",
-    }),
-    android: AuthSession.makeRedirectUri({
-      scheme: "com.googleusercontent.apps.6350831070-mp5ndlvk9h49n9lp34f17g0k9jevokji",
-    }),
-    default: AuthSession.makeRedirectUri({
-      scheme: "com.googleusercontent.apps.6350831070-mp5ndlvk9h49n9lp34f17g0k9jevokji",
-    }),
-  });
-
-  const [naverRequest, naverResponse, naverPromptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: NAVER_CONFIG.clientId,
-      redirectUri: naverRedirectUri,
-      responseType: AuthSession.ResponseType.Code,
-      scopes: [],
-      usePKCE: false,
-    },
-    { authorizationEndpoint: NAVER_CONFIG.authorizationEndpoint }
-  );
-
-  const [googleRequest, googleResponse, googlePromptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: googleClientId!,
-      redirectUri: googleRedirectUri!,
-      responseType: AuthSession.ResponseType.Code,
-      scopes: ["openid", "profile", "email"],
-      usePKCE: true,
-    },
-    { authorizationEndpoint: GOOGLE_CONFIG.authorizationEndpoint }
-  );
-
-  useEffect(() => {
-    if (!naverResponse) return;
-
-    if (naverResponse.type === "success") {
-      const { code } = naverResponse.params;
-      handleCodeAuth("naver", code);
-    } else if (naverResponse.type === "error") {
-      setIsLoading(null);
-      Alert.alert("로그인 실패", "네이버 로그인에 실패했습니다.");
-    } else {
-      setIsLoading(null);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [naverResponse]);
-
-  useEffect(() => {
-    if (!googleResponse || !googleRequest) return;
-
-    if (googleResponse.type === "success") {
-      const { code } = googleResponse.params;
-      const codeVerifier = googleRequest.codeVerifier;
-      handleCodeAuth("google", code, codeVerifier);
-    } else if (googleResponse.type === "error") {
-      setIsLoading(null);
-      Alert.alert("로그인 실패", "구글 로그인에 실패했습니다.");
-    } else {
-      setIsLoading(null);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [googleResponse, googleRequest]);
-
-  const handleCodeAuth = async (provider: "naver" | "google", code: string, codeVerifier?: string) => {
-    try {
-      if (DEV_MODE.ENABLE_MOCK_LOGIN) {
-        try {
-          const result = await sendCodeToServer(provider, code, codeVerifier);
-          const authData = createAuthDataFromResponse(result, provider);
-          await signIn(authData);
-          if (result.isNewMember) {
-            Alert.alert("환영합니다!", `${result.name}님, 숏끼에 오신 것을 환영해요!`);
-          }
-          return;
-        } catch {
-          const mockAuthData = createMockAuthData(provider);
-          await signIn(mockAuthData);
-          return;
-        }
-      }
-
-      const result = await sendCodeToServer(provider, code, codeVerifier);
-      const authData = createAuthDataFromResponse(result, provider);
-      await signIn(authData);
-      if (result.isNewMember) {
-        Alert.alert("환영합니다!", `${result.name}님, 숏끼에 오신 것을 환영해요!`);
-      }
-    } catch (error) {
-      console.error(`${provider} code auth error:`, error);
-      Alert.alert("로그인 실패", "인증 처리 중 오류가 발생했습니다.");
-    } finally {
-      setIsLoading(null);
-    }
-  };
+    NaverLogin.initialize({
+      appName: NAVER_CONFIG.appName,
+      consumerKey: NAVER_CONFIG.consumerKey,
+      consumerSecret: NAVER_CONFIG.consumerSecret,
+      serviceUrlSchemeIOS: NAVER_CONFIG.serviceUrlScheme,
+      disableNaverAppAuthIOS: false,
+    });
+  }, []);
 
   const createAuthDataFromResponse = (response: LoginData, provider: "naver" | "google"): AuthData => ({
     tokens: {
@@ -312,38 +171,141 @@ export default function LoginScreen() {
       id: response.memberId.toString(),
       email: response.email,
       name: response.name,
+      profileImage: response.profileImageUrl,
       provider,
     },
   });
 
+  // 네이버 로그인 (네이티브 SDK + accessToken)
   const handleNaverLogin = async () => {
-    if (!naverRequest) {
-      Alert.alert("잠시만요", "로그인 준비 중입니다. 다시 시도해주세요.");
-      return;
-    }
     setIsLoading("naver");
     try {
-      await naverPromptAsync();
-    } catch {
+      const result = await NaverLogin.login();
+
+      if (result.isSuccess && result.successResponse) {
+        const accessToken = result.successResponse.accessToken;
+
+        if (!accessToken) {
+          throw new Error("accessToken을 받지 못했습니다.");
+        }
+
+        // 백엔드에 accessToken 전송
+        await handleNaverAccessTokenAuth(accessToken);
+      } else {
+        // 사용자가 취소하거나 실패한 경우
+        setIsLoading(null);
+        if (result.failureResponse) {
+          console.error("Naver login failed:", result.failureResponse);
+        }
+      }
+    } catch (error) {
+      setIsLoading(null);
+      console.error("Naver login error:", error);
+      Alert.alert("로그인 실패", "네이버 로그인에 실패했습니다.");
+    }
+  };
+
+  // 네이버 accessToken 백엔드 인증
+  const handleNaverAccessTokenAuth = async (accessToken: string) => {
+    try {
+      const platform = Platform.OS;
+      const response = await fetch(`${API_BASE_URL}/api/auth/NAVER`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken, platform }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Naver auth server error:", errorText);
+        throw new Error("서버 인증 실패");
+      }
+
+      const apiResponse: ApiResponse<LoginData> = await response.json();
+      const result = apiResponse.data;
+      const authData = createAuthDataFromResponse(result, "naver");
+      await signIn(authData);
+
+      if (result.isNewMember) {
+        Alert.alert("환영합니다!", `${result.name}님, 숏끼에 오신 것을 환영해요!`);
+      }
+    } catch (error) {
+      console.error("Naver accessToken auth error:", error);
+      Alert.alert("로그인 실패", "인증 처리 중 오류가 발생했습니다.");
+    } finally {
       setIsLoading(null);
     }
   };
 
+  // 구글 로그인 (네이티브 SDK + idToken)
   const handleGoogleLogin = async () => {
-    if (!googleRequest) {
-      Alert.alert("잠시만요", "로그인 준비 중입니다. 다시 시도해주세요.");
-      return;
-    }
     setIsLoading("google");
-    // Android 콜백 처리를 위해 codeVerifier 저장
-    if (googleRequest.codeVerifier) {
-      setSavedCodeVerifier(googleRequest.codeVerifier);
-    }
     try {
-      await googlePromptAsync();
-    } catch {
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+
+      if (isSuccessResponse(response)) {
+        const idToken = response.data.idToken;
+
+        if (!idToken) {
+          throw new Error("idToken을 받지 못했습니다.");
+        }
+
+        // 백엔드에 idToken 전송
+        await handleGoogleIdTokenAuth(idToken);
+      } else {
+        // 사용자가 취소한 경우
+        setIsLoading(null);
+      }
+    } catch (error: unknown) {
       setIsLoading(null);
-      setSavedCodeVerifier(null);
+
+      if (error && typeof error === "object" && "code" in error) {
+        const signInError = error as { code: string };
+        if (signInError.code === statusCodes.SIGN_IN_CANCELLED) {
+          return; // 사용자 취소 - 조용히 처리
+        } else if (signInError.code === statusCodes.IN_PROGRESS) {
+          return; // 이미 진행 중
+        } else if (signInError.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+          Alert.alert("로그인 실패", "Google Play 서비스를 사용할 수 없습니다.");
+          return;
+        }
+      }
+
+      console.error("Google login error:", error);
+      Alert.alert("로그인 실패", "구글 로그인에 실패했습니다.");
+    }
+  };
+
+  // 구글 idToken 백엔드 인증
+  const handleGoogleIdTokenAuth = async (idToken: string) => {
+    try {
+      const platform = Platform.OS;
+      const response = await fetch(`${API_BASE_URL}/api/auth/GOOGLE`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, platform }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Google auth server error:", errorText);
+        throw new Error("서버 인증 실패");
+      }
+
+      const apiResponse: ApiResponse<LoginData> = await response.json();
+      const result = apiResponse.data;
+      const authData = createAuthDataFromResponse(result, "google");
+      await signIn(authData);
+
+      if (result.isNewMember) {
+        Alert.alert("환영합니다!", `${result.name}님, 숏끼에 오신 것을 환영해요!`);
+      }
+    } catch (error) {
+      console.error("Google idToken auth error:", error);
+      Alert.alert("로그인 실패", "인증 처리 중 오류가 발생했습니다.");
+    } finally {
+      setIsLoading(null);
     }
   };
 

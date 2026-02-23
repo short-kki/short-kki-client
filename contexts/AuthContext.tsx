@@ -19,11 +19,12 @@ import {
   AuthTokens,
   User,
   saveAuthData,
+  saveUser,
   getAuthData,
   clearAuthData,
-  isLoggedIn as checkIsLoggedIn,
 } from '@/utils/auth-storage';
 import { pushNotificationService } from '@/services/pushNotification';
+import { getMyProfile } from '@/services/memberApi';
 
 // ============================================================================
 // TYPES
@@ -104,6 +105,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setTokens(authData.tokens);
         // 기존 로그인 상태면 푸시 토큰 등록
         pushNotificationService.registerToken();
+
+        // 서버에서 최신 프로필 가져와서 업데이트
+        try {
+          const profile = await getMyProfile();
+          const updatedUser: User = {
+            ...authData.user,
+            name: profile.name,
+            email: profile.email,
+            profileImage: profile.profileImgUrl || undefined,
+          };
+          setUser(updatedUser);
+          await saveUser(updatedUser);
+        } catch {
+          // 프로필 조회 실패해도 기존 저장된 데이터로 진행
+        }
       }
     } catch (error) {
       console.error('Failed to load auth state:', error);
@@ -148,11 +164,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
   /**
    * 사용자 정보 업데이트
    */
-  const updateUser = useCallback((updates: Partial<User>) => {
+  const updateUser = useCallback(async (updates: Partial<User>) => {
     setUser((prev) => {
       if (!prev) return null;
-      return { ...prev, ...updates };
+      const updatedUser = { ...prev, ...updates };
+      return updatedUser;
     });
+
+    // 저장소에도 저장
+    const currentUser = await getAuthData();
+    if (currentUser?.user) {
+      const updatedUser = { ...currentUser.user, ...updates };
+      await saveUser(updatedUser);
+    }
   }, []);
 
   const value = useMemo(
