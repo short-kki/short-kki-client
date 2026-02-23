@@ -122,6 +122,7 @@ interface LoginData {
   refreshToken: string;
   email: string;
   name: string;
+  profileImageUrl?: string;
   isNewMember: boolean;
 }
 
@@ -170,6 +171,7 @@ export default function LoginScreen() {
       id: response.memberId.toString(),
       email: response.email,
       name: response.name,
+      profileImage: response.profileImageUrl,
       provider,
     },
   });

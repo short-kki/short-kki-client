@@ -7,24 +7,43 @@
  * Expo Go: 메모리 스토리지 폴백 (앱 재시작 시 로그아웃됨)
  */
 
-// import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from 'expo-secure-store';
 
 // ============================================================================
 // STORAGE ADAPTER
 // ============================================================================
-// TODO: 테스트 완료 후 SecureStore로 다시 변경
-// 현재: 메모리 스토리지 (앱 재시작 시 로그아웃됨)
+// SecureStore 사용 (영구 저장, 앱 재시작 후에도 로그인 유지)
+// SecureStore 사용 불가 시 메모리 폴백 (Expo Go 등)
 
 const memoryStorage: Record<string, string> = {};
 
+const isSecureStoreAvailable = (): boolean => {
+  try {
+    return SecureStore !== null && typeof SecureStore.getItemAsync === 'function';
+  } catch {
+    return false;
+  }
+};
+
 const storage = {
   getItem: async (key: string): Promise<string | null> => {
+    if (isSecureStoreAvailable()) {
+      return SecureStore.getItemAsync(key);
+    }
     return memoryStorage[key] || null;
   },
   setItem: async (key: string, value: string): Promise<void> => {
+    if (isSecureStoreAvailable()) {
+      await SecureStore.setItemAsync(key, value);
+      return;
+    }
     memoryStorage[key] = value;
   },
   removeItem: async (key: string): Promise<void> => {
+    if (isSecureStoreAvailable()) {
+      await SecureStore.deleteItemAsync(key);
+      return;
+    }
     delete memoryStorage[key];
   },
 };

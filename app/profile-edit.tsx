@@ -12,7 +12,7 @@ import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Camera, X } from "lucide-react-native";
+import { Camera, X, LogOut } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { useAuth } from "@/contexts/AuthContext";
 import { getMyProfile, updateMyProfile, deleteMyAccount } from "@/services/memberApi";
@@ -381,7 +381,7 @@ export default function ProfileEditScreen() {
           </View>
         </View>
 
-        {/* 회원탈퇴 */}
+        {/* 로그아웃 / 회원탈퇴 */}
         <View
           style={{
             paddingHorizontal: Spacing.lg,
@@ -389,8 +389,37 @@ export default function ProfileEditScreen() {
             paddingTop: Spacing.xl,
             borderTopWidth: 1,
             borderTopColor: Colors.neutral[100],
+            gap: 4,
           }}
         >
+          <TouchableOpacity
+            onPress={() => {
+              Alert.alert("로그아웃", "정말 로그아웃 하시겠습니까?", [
+                { text: "취소", style: "cancel" },
+                { text: "로그아웃", style: "destructive", onPress: () => signOut() },
+              ]);
+            }}
+            activeOpacity={0.7}
+            disabled={saving}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              paddingVertical: Spacing.md,
+              gap: 6,
+            }}
+          >
+            <LogOut size={16} color={Colors.neutral[500]} />
+            <Text
+              style={{
+                fontSize: Typography.fontSize.sm,
+                fontWeight: "500",
+                color: Colors.neutral[500],
+              }}
+            >
+              로그아웃
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={handleDeleteAccount}
             activeOpacity={0.7}

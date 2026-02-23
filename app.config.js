@@ -37,6 +37,7 @@ export default {
       supportsTablet: true,
       bundleIdentifier: "com.anonymous.short-kki-client",
       googleServicesFile: "./GoogleService-Info.plist",
+      associatedDomains: ["applinks:shortkki.com"],
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         UIBackgroundModes: ["remote-notification"],
@@ -73,6 +74,18 @@ export default {
               scheme: "shortkki",
               host: "oauth",
               pathPrefix: "/",
+            },
+          ],
+          category: ["BROWSABLE", "DEFAULT"],
+        },
+        {
+          action: "VIEW",
+          autoVerify: true,
+          data: [
+            {
+              scheme: "https",
+              host: "shortkki.com",
+              pathPrefix: "/group/invite/",
             },
           ],
           category: ["BROWSABLE", "DEFAULT"],

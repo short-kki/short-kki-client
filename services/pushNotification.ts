@@ -104,20 +104,10 @@ class PushNotificationService {
       const Notifications = await import('expo-notifications');
       const Device = await import('expo-device');
 
-      // iOS 시뮬레이터는 푸시 불가능 - mock 토큰 사용
+      // iOS 시뮬레이터는 APNS 미지원 → FCM 토큰 발급 불가
       if (Platform.OS === 'ios' && !Device.isDevice) {
-        console.log('[Push] iOS 시뮬레이터에서는 푸시 알림이 지원되지 않습니다.');
-        const mockToken = `mock-fcm-token-ios-${Date.now()}`;
-        this.fcmToken = mockToken;
-
-        if (!USE_MOCK) {
-          await api.post('/api/v1/notifications/fcm-token', {
-            fcmToken: mockToken,
-            platform: 'IOS',
-          });
-          console.log('[Push] Mock FCM 토큰 서버 등록 (iOS 시뮬레이터)');
-        }
-        return mockToken;
+        console.log('[Push] iOS 시뮬레이터에서는 푸시 알림이 지원되지 않습니다. (토큰 발급 스킵)');
+        return null;
       }
 
       // Android 에뮬레이터 및 실제 기기 - 실제 FCM 토큰 발급 시도
