@@ -359,15 +359,16 @@ export default function LoginScreen() {
       console.log('Dev Login Success - User:', authData.user.name, 'ID:', authData.user.id);
       await signIn(authData);
     } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
-        console.error("[DevLogin] timeout");
-        Alert.alert("로그인 실패", "서버 응답이 없습니다. 네트워크/서버 상태를 확인해주세요.");
+      const err = error instanceof Error ? error : new Error(String(error));
+      const isTimeout = err.name === "AbortError";
+
+      console.error("[DevLogin] error:", err.message);
+
+      if (isTimeout) {
+        Alert.alert("로그인 실패", "서버 응답이 없습니다. 네트워크 상태를 확인해주세요.");
+      } else {
+        Alert.alert("로그인 실패", "로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
       }
-      console.error("Dev Login Error:", error);
-      console.log("Dev Login: 서버 연결 실패, Mock 로그인 사용");
-      // 서버 연결 실패 시 Mock 로그인으로 폴백
-      const mockAuthData = createMockAuthData("naver");
-      await signIn(mockAuthData);
     } finally {
       console.log("[DevLogin] done");
       setIsLoading(null);
