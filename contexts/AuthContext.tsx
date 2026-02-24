@@ -82,7 +82,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const isLoggedIn = !!user;
 
     // 로그인 후에도 접근 가능한 페이지들
-    const allowedRoutes = ['design-showcase', 'search', 'search-results', 'notifications', 'settings', 'profile-edit', 'recipe', 'recipe-create-manual', 'shopping-list', 'recipe-book-detail', 'group-recipe-books', 'group-members', 'group-edit', 'group-feed-create', 'group-calendar'];
+    const allowedRoutes = ['design-showcase', 'search', 'search-results', 'notifications', 'settings', 'profile-edit', 'recipe', 'recipe-create-manual', 'shopping-list', 'recipe-book-detail', 'group-recipe-books', 'group-members', 'group-edit', 'group-feed-create', 'group-calendar', 'group'];
 
     if (!isLoggedIn && inAuthGroup) {
       // 로그인 안 됨 + 보호된 영역 접근 시 → 로그인 화면으로
