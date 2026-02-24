@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import {
   Search,
   Bell,
@@ -496,7 +496,13 @@ export default function HomeScreen() {
   } = useRecommendedCurations();
 
   // 읽지 않은 알림 수 조회
-  const { count: unreadNotificationCount } = useUnreadNotificationCount();
+  const { count: unreadNotificationCount, refetch: refetchUnreadCount } = useUnreadNotificationCount();
+
+  useFocusEffect(
+    useCallback(() => {
+      refetchUnreadCount();
+    }, [refetchUnreadCount])
+  );
 
   // 현재 사용자 정보
   const user = useUser();

@@ -14,7 +14,7 @@ import Constants from "expo-constants";
 // APP ENVIRONMENT
 // ============================================================================
 export type AppEnv = "local" | "dev" | "prod";
-export const APP_ENV = "dev" as AppEnv;
+export const APP_ENV = "local" as AppEnv;
 
 // ============================================================================
 // API BASE URL — APP_ENV에 따라 자동 결정
