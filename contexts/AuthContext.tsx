@@ -23,6 +23,7 @@ import {
   getAuthData,
   clearAuthData,
 } from '@/utils/auth-storage';
+import { setAuthFailureHandler } from '@/services/api';
 import { pushNotificationService } from '@/services/pushNotification';
 import { getMyProfile } from '@/services/memberApi';
 
@@ -148,18 +149,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * 로그아웃 처리
    */
   const signOut = useCallback(async () => {
+    // 푸시 토큰 삭제 실패는 로그아웃을 막지 않음
     try {
-      // 푸시 토큰 삭제
       await pushNotificationService.unregisterToken();
-      await clearAuthData();
-      setUser(null);
-      setTokens(null);
-      router.replace('/login');
     } catch (error) {
-      console.error('Failed to sign out:', error);
-      throw error;
+      console.warn('Failed to unregister push token during sign-out:', error);
     }
+
+    await clearAuthData();
+    setUser(null);
+    setTokens(null);
+    router.replace('/login');
   }, [router]);
+
+  useEffect(() => {
+    setAuthFailureHandler(signOut);
+    return () => setAuthFailureHandler(null);
+  }, [signOut]);
 
   /**
    * 사용자 정보 업데이트

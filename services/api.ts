@@ -5,7 +5,7 @@
  */
 
 import { API_BASE_URL } from '@/constants/env';
-import { getAuthData } from '@/utils/auth-storage';
+import { getAuthData, getTokens, saveTokens } from '@/utils/auth-storage';
 
 // Mock 데이터 사용 여부 (개발 모드에서 true, 실서버 테스트시 false로 변경)
 export const USE_MOCK = false;
@@ -14,6 +14,27 @@ export const USE_MOCK = false;
 const defaultHeaders = {
   'Content-Type': 'application/json',
 };
+
+const REFRESH_ENDPOINT = '/api/auth/refresh';
+
+type AuthFailureHandler = (() => Promise<void> | void) | null;
+let authFailureHandler: AuthFailureHandler = null;
+let refreshPromise: Promise<string | null> | null = null;
+let authFailureHandling = false;
+
+interface BaseResponse<T> {
+  code: string;
+  message: string;
+  data: T;
+}
+
+interface RefreshTokenResponse {
+  accessToken: string;
+}
+
+export function setAuthFailureHandler(handler: AuthFailureHandler): void {
+  authFailureHandler = handler;
+}
 
 // 인증 헤더 생성
 async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -24,17 +45,102 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   return {};
 }
 
+async function triggerAuthFailure(): Promise<void> {
+  if (!authFailureHandler || authFailureHandling) {
+    return;
+  }
+  authFailureHandling = true;
+  try {
+    await authFailureHandler();
+  } finally {
+    authFailureHandling = false;
+  }
+}
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    const tokens = await getTokens();
+    const refreshToken = tokens?.refreshToken;
+    if (!refreshToken) {
+      return null;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}${REFRESH_ENDPOINT}`, {
+        method: 'POST',
+        headers: defaultHeaders,
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const payload = (await response.json()) as BaseResponse<RefreshTokenResponse>;
+      const newAccessToken = payload?.data?.accessToken;
+      if (!newAccessToken) {
+        return null;
+      }
+
+      await saveTokens({
+        accessToken: newAccessToken,
+        refreshToken,
+        expiresAt: tokens?.expiresAt,
+      });
+
+      return newAccessToken;
+    } catch {
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+async function parseErrorResponse(response: Response, endpoint: string): Promise<never> {
+  let errorMessage = `API Error: ${response.status}`;
+  try {
+    const errorData = await response.json();
+    const isDuplicateError =
+      errorData.code === "SOURCE_003" ||
+      errorData.message?.includes("이미 등록") ||
+      errorData.message?.includes("이미 레시피북에 추가된") ||
+      errorData.message?.includes("중복") ||
+      response.status === 409;
+
+    if (isDuplicateError) {
+      console.log(`API Info [${endpoint}]:`, errorData);
+    } else {
+      console.error(`API Error [${endpoint}]:`, errorData);
+    }
+
+    if (errorData.message) {
+      errorMessage = errorData.message;
+    } else if (errorData.code) {
+      errorMessage = `${errorData.code}: ${errorData.message || response.statusText}`;
+    }
+  } catch {
+    console.error(`API Error [${endpoint}] (no JSON):`, response.status, response.statusText);
+  }
+  throw new Error(errorMessage);
+}
+
 // 기본 fetch 래퍼
 async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {},
-  requiresAuth: boolean = true
+  requiresAuth: boolean = true,
+  allowRetry: boolean = true
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
 
-  // 인증이 필요한 요청이면 Bearer 토큰 추가
   const authHeaders = requiresAuth ? await getAuthHeaders() : {};
-
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -44,35 +150,21 @@ async function fetchApi<T>(
     },
   });
 
-  if (!response.ok) {
-    // 에러 응답 본문 파싱 시도
-    let errorMessage = `API Error: ${response.status}`;
-    try {
-      const errorData = await response.json();
-      // 중복/이미 등록된 에러는 console.log로 처리 (LogBox에 안 뜨게)
-      const isDuplicateError =
-        errorData.code === "SOURCE_003" ||
-        errorData.message?.includes("이미 등록") ||
-        errorData.message?.includes("이미 레시피북에 추가된") ||
-        errorData.message?.includes("중복") ||
-        response.status === 409;
-
-      if (isDuplicateError) {
-        console.log(`API Info [${endpoint}]:`, errorData);
-      } else {
-        console.error(`API Error [${endpoint}]:`, errorData);
-      }
-
-      if (errorData.message) {
-        errorMessage = errorData.message;
-      } else if (errorData.code) {
-        errorMessage = `${errorData.code}: ${errorData.message || response.statusText}`;
-      }
-    } catch {
-      // JSON 파싱 실패 시 기본 메시지 사용
-      console.error(`API Error [${endpoint}] (no JSON):`, response.status, response.statusText);
+  if (
+    response.status === 401 &&
+    requiresAuth &&
+    allowRetry &&
+    endpoint !== REFRESH_ENDPOINT
+  ) {
+    const newAccessToken = await refreshAccessToken();
+    if (newAccessToken) {
+      return fetchApi<T>(endpoint, options, requiresAuth, false);
     }
-    throw new Error(errorMessage);
+    await triggerAuthFailure();
+  }
+
+  if (!response.ok) {
+    return parseErrorResponse(response, endpoint);
   }
 
   // 204 No Content 등 빈 응답 처리
