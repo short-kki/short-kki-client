@@ -161,6 +161,7 @@ async function fetchApi<T>(
       return fetchApi<T>(endpoint, options, requiresAuth, false);
     }
     await triggerAuthFailure();
+    throw new Error('AUTH_SESSION_EXPIRED');
   }
 
   if (!response.ok) {
