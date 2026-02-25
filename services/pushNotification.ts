@@ -16,7 +16,7 @@ import { api, USE_MOCK } from './api';
 // 개발 빌드에서만 true로 변경
 const ENABLE_PUSH = true;
 
-type NotificationType = 'GROUP_INVITE' | 'RECIPE_SHARED' | 'CALENDAR_UPDATE' | 'COMMENT_ADDED';
+type NotificationType = 'GROUP_INVITE' | 'GROUP_MEMBER_JOINED' | 'RECIPE_SHARED' | 'RECIPE_IMPORT_COMPLETED' | 'CALENDAR_UPDATE' | 'COMMENT_ADDED' | 'FEED_ADDED';
 
 interface NotificationData {
   type?: NotificationType;
@@ -149,7 +149,7 @@ class PushNotificationService {
   }
 
   private handleNavigation(data: NotificationData): void {
-    const { relatedUrl, type } = data;
+    const { relatedUrl, type, groupId, targetId } = data;
 
     if (relatedUrl) {
       setTimeout(() => router.push(relatedUrl as never), 100);
@@ -157,13 +157,25 @@ class PushNotificationService {
     }
 
     if (type) {
-      const routes: Record<NotificationType, string> = {
-        GROUP_INVITE: '/(tabs)/group',
-        RECIPE_SHARED: '/(tabs)/recipe-book',
-        CALENDAR_UPDATE: '/(tabs)/meal-plan',
-        COMMENT_ADDED: '/notifications',
-      };
-      const route = routes[type];
+      let route: string | null = null;
+      const id = targetId || groupId;
+
+      switch (type) {
+        case 'GROUP_INVITE':
+        case 'GROUP_MEMBER_JOINED':
+        case 'CALENDAR_UPDATE':
+        case 'FEED_ADDED':
+          route = id ? `/(tabs)/group?groupId=${id}` : '/(tabs)/group';
+          break;
+        case 'RECIPE_SHARED':
+        case 'RECIPE_IMPORT_COMPLETED':
+          route = targetId ? `/recipe/${targetId}` : '/(tabs)/recipe-book';
+          break;
+        case 'COMMENT_ADDED':
+          route = '/notifications';
+          break;
+      }
+
       if (route) {
         setTimeout(() => router.push(route as never), 100);
       }
