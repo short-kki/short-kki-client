@@ -5,7 +5,7 @@
  */
 
 import { API_BASE_URL } from '@/constants/env';
-import { getAuthData, getTokens, saveTokens } from '@/utils/auth-storage';
+import { extractJwtExpiresAt, getAuthData, getTokens, saveTokens } from '@/utils/auth-storage';
 
 // Mock 데이터 사용 여부 (개발 모드에서 true, 실서버 테스트시 false로 변경)
 export const USE_MOCK = false;
@@ -89,7 +89,7 @@ async function refreshAccessToken(): Promise<string | null> {
       await saveTokens({
         accessToken: newAccessToken,
         refreshToken,
-        expiresAt: tokens?.expiresAt,
+        expiresAt: extractJwtExpiresAt(newAccessToken),
       });
 
       return newAccessToken;

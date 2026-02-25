@@ -34,7 +34,7 @@ import { Colors, SemanticColors, Spacing, Typography } from "@/constants/design-
 import { GOOGLE_CONFIG, NAVER_CONFIG } from "@/constants/oauth";
 import { API_BASE_URL, DEV_MODE } from "@/constants/env";
 import { useAuth } from "@/contexts/AuthContext";
-import { AuthData } from "@/utils/auth-storage";
+import { AuthData, extractJwtExpiresAt } from "@/utils/auth-storage";
 
 // Google Sign-In 설정 (idToken 발급용)
 GoogleSignin.configure({
@@ -167,6 +167,7 @@ export default function LoginScreen() {
     tokens: {
       accessToken: response.accessToken,
       refreshToken: response.refreshToken,
+      expiresAt: extractJwtExpiresAt(response.accessToken),
     },
     user: {
       id: response.memberId.toString(),
@@ -348,6 +349,7 @@ export default function LoginScreen() {
         tokens: {
           accessToken: loginData.accessToken,
           refreshToken: loginData.refreshToken || "",
+          expiresAt: extractJwtExpiresAt(loginData.accessToken),
         },
         user: {
           id: String(loginData.memberId || 1), // null이면 1로 폴백
