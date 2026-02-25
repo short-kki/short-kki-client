@@ -1078,7 +1078,7 @@ export default function GroupScreen() {
 
               {(() => {
                 const selectedFeed = feeds.find(f => f.id === selectedFeedId);
-                const isMyFeed = selectedFeed?.authorId === currentUser?.id;
+                const isMyFeed = !!(selectedFeed?.authorId && currentUser?.id && selectedFeed.authorId === currentUser.id);
                 return isMyFeed ? (
                   <>
                     <TouchableOpacity
@@ -1112,12 +1112,12 @@ export default function GroupScreen() {
                         삭제
                       </Text>
                     </TouchableOpacity>
+
+                    {/* 구분선 */}
+                    <View style={{ height: 1, backgroundColor: Colors.neutral[100], marginVertical: 4 }} />
                   </>
                 ) : null;
               })()}
-
-              {/* 구분선 */}
-              <View style={{ height: 1, backgroundColor: Colors.neutral[100], marginVertical: 4 }} />
 
               <TouchableOpacity
                 activeOpacity={0.6}
@@ -2172,7 +2172,7 @@ export default function GroupScreen() {
 
             {(() => {
               const selectedFeed = feeds.find(f => f.id === selectedFeedId);
-              const isMyFeed = selectedFeed?.authorId === currentUser?.id;
+              const isMyFeed = !!(selectedFeed?.authorId && currentUser?.id && selectedFeed.authorId === currentUser.id);
               return isMyFeed ? (
                 <>
                   <TouchableOpacity
@@ -2206,12 +2206,12 @@ export default function GroupScreen() {
                       삭제
                     </Text>
                   </TouchableOpacity>
+
+                  {/* 구분선 */}
+                  <View style={{ height: 1, backgroundColor: Colors.neutral[100], marginVertical: 4 }} />
                 </>
               ) : null;
             })()}
-
-            {/* 구분선 */}
-            <View style={{ height: 1, backgroundColor: Colors.neutral[100], marginVertical: 4 }} />
 
             <TouchableOpacity
               activeOpacity={0.6}
