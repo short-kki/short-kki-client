@@ -76,11 +76,19 @@ const GROUP_TYPES = [
 
 type GroupTypeValue = typeof GROUP_TYPES[number]['value'];
 
+// 서버 시간을 KST로 파싱 (타임존 정보 없으면 +09:00 간주)
+function parseServerDate(dateString: string): Date {
+  if (dateString.includes('T') && !dateString.includes('Z') && !dateString.includes('+') && !dateString.includes('-', dateString.indexOf('T'))) {
+    return new Date(dateString + '+09:00');
+  }
+  return new Date(dateString);
+}
+
 // 상대 시간 포맷 (lastFeedAt용)
 function formatRelativeTime(dateString: string | null): string {
   if (!dateString) return '피드 없음';
 
-  const date = new Date(dateString);
+  const date = parseServerDate(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMinutes = Math.floor(diffMs / (1000 * 60));
