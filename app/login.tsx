@@ -11,12 +11,22 @@ import {
   Text,
   View,
 } from "react-native";
-import {
-  GoogleSignin,
-  statusCodes,
-  isSuccessResponse,
-} from "@react-native-google-signin/google-signin";
-import NaverLogin from "@react-native-seoul/naver-login";
+// 네이티브 SDK는 Expo Go에서 사용 불가 — 조건부 import
+let GoogleSignin: any = null;
+let statusCodes: any = {};
+let isSuccessResponse: any = () => false;
+let NaverLogin: any = null;
+
+try {
+  const googleModule = require("@react-native-google-signin/google-signin");
+  GoogleSignin = googleModule.GoogleSignin;
+  statusCodes = googleModule.statusCodes;
+  isSuccessResponse = googleModule.isSuccessResponse;
+} catch {}
+
+try {
+  NaverLogin = require("@react-native-seoul/naver-login").default;
+} catch {}
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -37,10 +47,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AuthData } from "@/utils/auth-storage";
 
 // Google Sign-In 설정 (idToken 발급용)
-GoogleSignin.configure({
-  webClientId: GOOGLE_CONFIG.webClientId,
-  iosClientId: GOOGLE_CONFIG.iosClientId,
-});
+if (GoogleSignin?.configure) {
+  GoogleSignin.configure({
+    webClientId: GOOGLE_CONFIG.webClientId,
+    iosClientId: GOOGLE_CONFIG.iosClientId,
+  });
+}
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -154,13 +166,18 @@ export default function LoginScreen() {
 
   // Naver Login 초기화
   useEffect(() => {
-    NaverLogin.initialize({
-      appName: NAVER_CONFIG.appName,
-      consumerKey: NAVER_CONFIG.consumerKey,
-      consumerSecret: NAVER_CONFIG.consumerSecret,
-      serviceUrlSchemeIOS: NAVER_CONFIG.serviceUrlScheme,
-      disableNaverAppAuthIOS: false,
-    });
+    try {
+      if (!NaverLogin || !NaverLogin.initialize) return;
+      NaverLogin.initialize({
+        appName: NAVER_CONFIG.appName,
+        consumerKey: NAVER_CONFIG.consumerKey,
+        consumerSecret: NAVER_CONFIG.consumerSecret,
+        serviceUrlSchemeIOS: NAVER_CONFIG.serviceUrlScheme,
+        disableNaverAppAuthIOS: false,
+      });
+    } catch {
+      // Expo Go에서는 네이티브 모듈 사용 불가
+    }
   }, []);
 
   const createAuthDataFromResponse = (response: LoginData, provider: "naver" | "google"): AuthData => ({
@@ -179,6 +196,10 @@ export default function LoginScreen() {
 
   // 네이버 로그인 (네이티브 SDK + accessToken)
   const handleNaverLogin = async () => {
+    if (!NaverLogin?.login) {
+      Alert.alert("알림", "네이버 로그인은 개발 빌드에서만 사용 가능합니다.");
+      return;
+    }
     setIsLoading("naver");
     try {
       const result = await NaverLogin.login();
@@ -240,6 +261,10 @@ export default function LoginScreen() {
 
   // 구글 로그인 (네이티브 SDK + idToken)
   const handleGoogleLogin = async () => {
+    if (!GoogleSignin?.signIn) {
+      Alert.alert("알림", "구글 로그인은 개발 빌드에서만 사용 가능합니다.");
+      return;
+    }
     setIsLoading("google");
     try {
       await GoogleSignin.hasPlayServices();
