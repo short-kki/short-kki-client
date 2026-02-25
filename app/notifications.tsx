@@ -132,7 +132,7 @@ export default function NotificationsScreen() {
       case "GROUP_INVITE":
       case "GROUP_MEMBER_JOINED":
       case "CALENDAR_UPDATE":
-        router.push(`/group-detail?id=${notification.targetId}`);
+        router.push(`/(tabs)/group?groupId=${notification.targetId}`);
         break;
       case "RECIPE_SHARED":
       case "RECIPE_IMPORT_COMPLETED":
@@ -143,7 +143,7 @@ export default function NotificationsScreen() {
         // 피드 상세로 이동 (그룹 피드)
         const groupId = notification.payload?.groupId;
         if (groupId) {
-          router.push(`/group-detail?id=${groupId}`);
+          router.push(`/(tabs)/group?groupId=${groupId}`);
         }
         break;
     }
