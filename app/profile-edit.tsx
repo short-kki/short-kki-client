@@ -12,7 +12,7 @@ import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Camera, X, LogOut } from "lucide-react-native";
+import { Camera, X, LogOut, User } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { useAuth } from "@/contexts/AuthContext";
 import { getMyProfile, updateMyProfile, deleteMyAccount } from "@/services/memberApi";
@@ -203,8 +203,8 @@ export default function ProfileEditScreen() {
     }
   };
 
-  // 표시할 프로필 이미지 (선택된 이미지 > 기존 이미지 > 기본 이미지)
-  const displayImage = selectedImage?.uri || profileImgUrl || "https://i.pravatar.cc/200?img=10";
+  // 표시할 프로필 이미지 (선택된 이미지 > 기존 이미지 > null)
+  const displayImage = selectedImage?.uri || profileImgUrl || null;
 
   if (loading) {
     return (
@@ -292,14 +292,29 @@ export default function ProfileEditScreen() {
             style={{ position: "relative" }}
             disabled={saving}
           >
-            <Image
-              source={{ uri: displayImage }}
-              style={{
-                width: 100,
-                height: 100,
-                borderRadius: 50,
-              }}
-            />
+            {displayImage ? (
+              <Image
+                source={{ uri: displayImage }}
+                style={{
+                  width: 100,
+                  height: 100,
+                  borderRadius: 50,
+                }}
+              />
+            ) : (
+              <View
+                style={{
+                  width: 100,
+                  height: 100,
+                  borderRadius: 50,
+                  backgroundColor: Colors.primary[100],
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <User size={44} color={Colors.primary[500]} />
+              </View>
+            )}
             <View
               style={{
                 position: "absolute",

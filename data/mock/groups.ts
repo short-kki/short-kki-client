@@ -27,6 +27,7 @@ export interface FeedPost {
   id: string;
   type: "post";
   feedType?: "USER_CREATED" | "DAILY_MENU_NOTIFICATION" | "NEW_RECIPE_ADDED";
+  authorId?: string;
   user: string;
   userAvatar: string;
   userProfileImgUrl?: string | null;
