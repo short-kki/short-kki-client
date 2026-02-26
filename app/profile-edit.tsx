@@ -435,29 +435,7 @@ export default function ProfileEditScreen() {
               로그아웃
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleDeleteAccount}
-            activeOpacity={0.7}
-            disabled={saving || deleting}
-            style={{
-              paddingVertical: Spacing.md,
-              alignItems: "center",
-            }}
-          >
-            {deleting ? (
-              <ActivityIndicator size="small" color={Colors.error.main} />
-            ) : (
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.sm,
-                  fontWeight: "500",
-                  color: Colors.error.main,
-                }}
-              >
-                회원탈퇴
-              </Text>
-            )}
-          </TouchableOpacity>
+          {/* 회원탈퇴 - 임시 비활성화 */}
         </View>
       </ScrollView>
     </View>
