@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { USE_MOCK, api } from '@/services/api';
+import { parseServerDate } from '@/utils/date';
 import {
   MOCK_GROUPS,
   MOCK_FEEDS,
@@ -129,7 +130,7 @@ function mapApiMemberToGroupMember(apiMember: ApiGroupMember): GroupMember {
 
 // 상대 시간 포맷
 function formatRelativeTime(dateString: string): string {
-  const date = new Date(dateString);
+  const date = parseServerDate(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMinutes = Math.floor(diffMs / (1000 * 60));

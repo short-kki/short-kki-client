@@ -57,6 +57,7 @@ import { api } from "@/services/api";
 import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
 import { useUser } from "@/contexts/AuthContext";
 import type { Group } from "@/data/mock";
+import { parseServerDate } from "@/utils/date";
 
 const REPORT_TYPES = [
   { id: "INACCURATE", label: "잘못된 정보", icon: AlertTriangle, description: "게시글에 사실과 다르거나 오해를 일으킬 수 있는 내용이 있어요" },
@@ -81,7 +82,7 @@ type GroupTypeValue = typeof GROUP_TYPES[number]['value'];
 function formatRelativeTime(dateString: string | null): string {
   if (!dateString) return '피드 없음';
 
-  const date = new Date(dateString);
+  const date = parseServerDate(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMinutes = Math.floor(diffMs / (1000 * 60));

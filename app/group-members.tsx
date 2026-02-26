@@ -30,6 +30,7 @@ import { useGroupMembers, getGroupInviteCode } from "@/hooks";
 
 // 딥링크 베이스 URL (환경별 API 서버)
 import { API_BASE_URL } from "@/constants/env";
+import { parseServerDate } from "@/utils/date";
 const INVITE_BASE_URL = API_BASE_URL;
 
 // 멤버 역할 타입
@@ -46,7 +47,7 @@ interface Member {
 
 // 날짜 포맷 함수 (YYYY-MM-DDTHH:mm:ss -> YYYY.MM.DD)
 function formatDate(dateString: string): string {
-  const date = new Date(dateString);
+  const date = parseServerDate(dateString);
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
