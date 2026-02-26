@@ -30,6 +30,7 @@ interface BaseResponse<T> {
 
 interface RefreshTokenResponse {
   accessToken: string;
+  refreshToken: string;
 }
 
 export function setAuthFailureHandler(handler: AuthFailureHandler): void {
@@ -64,8 +65,9 @@ async function refreshAccessToken(): Promise<string | null> {
 
   refreshPromise = (async () => {
     const tokens = await getTokens();
+    const accessToken = tokens?.accessToken;
     const refreshToken = tokens?.refreshToken;
-    if (!refreshToken) {
+    if (!accessToken || !refreshToken) {
       return null;
     }
 
@@ -73,7 +75,7 @@ async function refreshAccessToken(): Promise<string | null> {
       const response = await fetch(`${API_BASE_URL}${REFRESH_ENDPOINT}`, {
         method: 'POST',
         headers: defaultHeaders,
-        body: JSON.stringify({ refreshToken }),
+        body: JSON.stringify({ accessToken, refreshToken }),
       });
 
       if (!response.ok) {
@@ -82,13 +84,14 @@ async function refreshAccessToken(): Promise<string | null> {
 
       const payload = (await response.json()) as BaseResponse<RefreshTokenResponse>;
       const newAccessToken = payload?.data?.accessToken;
-      if (!newAccessToken) {
+      const newRefreshToken = payload?.data?.refreshToken;
+      if (!newAccessToken || !newRefreshToken) {
         return null;
       }
 
       await saveTokens({
         accessToken: newAccessToken,
-        refreshToken,
+        refreshToken: newRefreshToken,
         expiresAt: extractJwtExpiresAt(newAccessToken),
       });
 
