@@ -138,6 +138,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setTokens(data.tokens);
       // 푸시 토큰 등록
       pushNotificationService.registerToken();
+
+      // 서버에서 최신 프로필 가져와서 업데이트 (프로필 이미지 등)
+      try {
+        const profile = await getMyProfile();
+        const updatedUser: User = {
+          ...data.user,
+          name: profile.name,
+          email: profile.email,
+          profileImage: profile.profileImgUrl || undefined,
+        };
+        setUser(updatedUser);
+        await saveUser(updatedUser);
+      } catch {
+        // 프로필 조회 실패해도 로그인은 진행
+      }
     } catch (error) {
       console.error('Failed to sign in:', error);
       throw error;
