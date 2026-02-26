@@ -98,6 +98,52 @@ async function deleteItem(key: string): Promise<void> {
   await storage.removeItem(key);
 }
 
+function decodeBase64Url(input: string): string | null {
+  let normalized = input.replace(/-/g, '+').replace(/_/g, '/');
+  const padLength = normalized.length % 4;
+  if (padLength > 0) {
+    normalized += '='.repeat(4 - padLength);
+  }
+
+  try {
+    if (typeof globalThis.atob === 'function') {
+      return globalThis.atob(normalized);
+    }
+    if (typeof Buffer !== 'undefined') {
+      return Buffer.from(normalized, 'base64').toString('utf-8');
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function extractJwtExpiresAt(accessToken: string): number | undefined {
+  if (!accessToken) {
+    return undefined;
+  }
+
+  const payloadPart = accessToken.split('.')[1];
+  if (!payloadPart) {
+    return undefined;
+  }
+
+  const decodedPayload = decodeBase64Url(payloadPart);
+  if (!decodedPayload) {
+    return undefined;
+  }
+
+  try {
+    const payload = JSON.parse(decodedPayload) as { exp?: number };
+    if (typeof payload.exp !== 'number') {
+      return undefined;
+    }
+    return payload.exp * 1000;
+  } catch {
+    return undefined;
+  }
+}
+
 // ============================================================================
 // TOKEN MANAGEMENT
 // ============================================================================
