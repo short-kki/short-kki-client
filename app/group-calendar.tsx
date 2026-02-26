@@ -55,7 +55,7 @@ const EMPTY_MEALS: CalendarMeal[] = [];
 export default function GroupCalendarScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ groupId: string; groupName: string }>();
+  const params = useLocalSearchParams<{ groupId: string; groupName: string; date: string }>();
 
   const today = useMemo(() => {
     const d = new Date();
@@ -63,8 +63,17 @@ export default function GroupCalendarScreen() {
     return d;
   }, []);
 
-  const [selectedDate, setSelectedDate] = useState(formatDateId(today));
-  const [viewMonth, setViewMonth] = useState({ year: today.getFullYear(), month: today.getMonth() });
+  // date 파라미터가 있으면 해당 날짜로 초기화 (알림에서 진입 시)
+  const initialDate = useMemo(() => {
+    if (params.date) {
+      const parsed = new Date(params.date + 'T00:00:00');
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    return today;
+  }, [params.date, today]);
+
+  const [selectedDate, setSelectedDate] = useState(formatDateId(initialDate));
+  const [viewMonth, setViewMonth] = useState({ year: initialDate.getFullYear(), month: initialDate.getMonth() });
 
   // 월간 뷰 기준 조회 기간
   const dateRange = useMemo(() => {

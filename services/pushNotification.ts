@@ -149,36 +149,64 @@ class PushNotificationService {
   }
 
   private handleNavigation(data: NotificationData): void {
-    const { relatedUrl, type, groupId, targetId } = data;
+    const { relatedUrl, type, targetId } = data;
 
     if (relatedUrl) {
       setTimeout(() => router.push(relatedUrl as never), 100);
       return;
     }
 
-    if (type) {
-      let route: string | null = null;
-      const id = targetId || groupId;
+    if (!type) return;
 
-      switch (type) {
-        case 'GROUP_INVITE':
-        case 'GROUP_MEMBER_JOINED':
-        case 'CALENDAR_UPDATE':
-        case 'FEED_ADDED':
-          route = id ? `/(tabs)/group?groupId=${id}` : '/(tabs)/group';
-          break;
-        case 'RECIPE_SHARED':
-        case 'RECIPE_IMPORT_COMPLETED':
-          route = targetId ? `/recipe/${targetId}` : '/(tabs)/recipe-book';
-          break;
-        case 'COMMENT_ADDED':
-          route = '/notifications';
-          break;
-      }
+    // payload는 JSON string으로 올 수 있으므로 파싱
+    let payload: Record<string, string> = {};
+    if (typeof data.payload === 'string') {
+      try { payload = JSON.parse(data.payload); } catch {}
+    } else if (data.payload && typeof data.payload === 'object') {
+      payload = data.payload as Record<string, string>;
+    }
 
-      if (route) {
-        setTimeout(() => router.push(route as never), 100);
-      }
+    // data 최상위 또는 payload 내부에서 값 추출
+    const groupId = (data.groupId as string) || payload.groupId;
+    const recipeId = (data.recipeId as string) || payload.recipeId;
+
+    let route: string | null = null;
+
+    switch (type) {
+      case 'GROUP_MEMBER_JOINED':
+        // targetId = groupId
+        route = targetId ? `/(tabs)/group?groupId=${targetId}` : (groupId ? `/(tabs)/group?groupId=${groupId}` : '/(tabs)/group');
+        break;
+      case 'RECIPE_SHARED':
+      case 'RECIPE_IMPORT_COMPLETED':
+        // targetId = recipeId
+        route = targetId ? `/recipe/${targetId}` : '/(tabs)/recipe-book';
+        break;
+      case 'FEED_ADDED':
+        // targetId = feedId, groupId는 payload에서
+        route = groupId ? `/(tabs)/group?groupId=${groupId}` : '/(tabs)/group';
+        break;
+      case 'CALENDAR_UPDATE':
+        // targetId = calendarId, groupId와 date는 payload에서
+        if (groupId) {
+          const calendarDate = (data.date as string) || payload.date;
+          route = calendarDate
+            ? `/group-calendar?groupId=${groupId}&date=${calendarDate}`
+            : `/group-calendar?groupId=${groupId}`;
+        } else {
+          route = '/(tabs)/group';
+        }
+        break;
+      case 'GROUP_INVITE':
+        route = groupId ? `/(tabs)/group?groupId=${groupId}` : '/(tabs)/group';
+        break;
+      case 'COMMENT_ADDED':
+        route = groupId ? `/(tabs)/group?groupId=${groupId}` : '/notifications';
+        break;
+    }
+
+    if (route) {
+      setTimeout(() => router.push(route as never), 100);
     }
   }
 
