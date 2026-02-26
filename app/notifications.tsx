@@ -128,20 +128,43 @@ export default function NotificationsScreen() {
     }
 
     // 알림 타입에 따라 해당 화면으로 이동
+    // payload의 모든 값은 String 타입
+    const { groupId, recipeId, date } = notification.payload || {};
+
     switch (notification.type) {
-      case "GROUP_INVITE":
       case "GROUP_MEMBER_JOINED":
-      case "CALENDAR_UPDATE":
+        // targetId = groupId
         router.push(`/(tabs)/group?groupId=${notification.targetId}`);
         break;
       case "RECIPE_SHARED":
-      case "RECIPE_IMPORT_COMPLETED":
+        // targetId = recipeId
         router.push(`/recipe/${notification.targetId}`);
         break;
-      case "COMMENT_ADDED":
+      case "RECIPE_IMPORT_COMPLETED":
+        // targetId = recipeId
+        router.push(`/recipe/${notification.targetId}`);
+        break;
       case "FEED_ADDED":
-        // 피드 상세로 이동 (그룹 피드)
-        const groupId = notification.payload?.groupId;
+        // targetId = feedId, payload.groupId로 그룹 이동
+        if (groupId) {
+          router.push(`/(tabs)/group?groupId=${groupId}`);
+        }
+        break;
+      case "CALENDAR_UPDATE":
+        // targetId = calendarId, payload.groupId로 캘린더 이동, date로 해당 날짜 선택
+        if (groupId) {
+          const calendarRoute = date
+            ? `/group-calendar?groupId=${groupId}&date=${date}`
+            : `/group-calendar?groupId=${groupId}`;
+          router.push(calendarRoute as never);
+        }
+        break;
+      case "GROUP_INVITE":
+        if (groupId) {
+          router.push(`/(tabs)/group?groupId=${groupId}`);
+        }
+        break;
+      case "COMMENT_ADDED":
         if (groupId) {
           router.push(`/(tabs)/group?groupId=${groupId}`);
         }

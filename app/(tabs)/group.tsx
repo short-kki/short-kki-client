@@ -55,7 +55,9 @@ import { API_BASE_URL } from "@/constants/env";
 import { useGroups, useGroupFeeds, useGroupMembers, getGroupInviteCode } from "@/hooks";
 import { api } from "@/services/api";
 import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
+import { useUser } from "@/contexts/AuthContext";
 import type { Group } from "@/data/mock";
+import { parseServerDate } from "@/utils/date";
 
 const REPORT_TYPES = [
   { id: "INACCURATE", label: "잘못된 정보", icon: AlertTriangle, description: "게시글에 사실과 다르거나 오해를 일으킬 수 있는 내용이 있어요" },
@@ -80,7 +82,7 @@ type GroupTypeValue = typeof GROUP_TYPES[number]['value'];
 function formatRelativeTime(dateString: string | null): string {
   if (!dateString) return '피드 없음';
 
-  const date = new Date(dateString);
+  const date = parseServerDate(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMinutes = Math.floor(diffMs / (1000 * 60));
@@ -100,6 +102,7 @@ export default function GroupScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ groupId?: string; _t?: string }>();
+  const currentUser = useUser();
 
   // Hooks로 데이터 관리
   const { groups, createGroup, deleteGroup, leaveGroup, refetch: refetchGroups } = useGroups();
@@ -1074,40 +1077,48 @@ export default function GroupScreen() {
                 marginBottom: Spacing.xl,
               }} />
 
-              <TouchableOpacity
-                activeOpacity={0.6}
-                onPress={() => handleFeedMenuAction("edit")}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: Spacing.md,
-                  paddingVertical: 14,
-                }}
-              >
-                <Edit3 size={20} color={Colors.neutral[600]} />
-                <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.neutral[900] }}>
-                  수정
-                </Text>
-              </TouchableOpacity>
+              {(() => {
+                const selectedFeed = feeds.find(f => f.id === selectedFeedId);
+                const isMyFeed = !!(selectedFeed?.authorId && currentUser?.id && selectedFeed.authorId === currentUser.id);
+                return isMyFeed ? (
+                  <>
+                    <TouchableOpacity
+                      activeOpacity={0.6}
+                      onPress={() => handleFeedMenuAction("edit")}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: Spacing.md,
+                        paddingVertical: 14,
+                      }}
+                    >
+                      <Edit3 size={20} color={Colors.neutral[600]} />
+                      <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.neutral[900] }}>
+                        수정
+                      </Text>
+                    </TouchableOpacity>
 
-              <TouchableOpacity
-                activeOpacity={0.6}
-                onPress={() => handleFeedMenuAction("delete")}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: Spacing.md,
-                  paddingVertical: 14,
-                }}
-              >
-                <Trash2 size={20} color={Colors.error.main} />
-                <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.error.main }}>
-                  삭제
-                </Text>
-              </TouchableOpacity>
+                    <TouchableOpacity
+                      activeOpacity={0.6}
+                      onPress={() => handleFeedMenuAction("delete")}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: Spacing.md,
+                        paddingVertical: 14,
+                      }}
+                    >
+                      <Trash2 size={20} color={Colors.error.main} />
+                      <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.error.main }}>
+                        삭제
+                      </Text>
+                    </TouchableOpacity>
 
-              {/* 구분선 */}
-              <View style={{ height: 1, backgroundColor: Colors.neutral[100], marginVertical: 4 }} />
+                    {/* 구분선 */}
+                    <View style={{ height: 1, backgroundColor: Colors.neutral[100], marginVertical: 4 }} />
+                  </>
+                ) : null;
+              })()}
 
               <TouchableOpacity
                 activeOpacity={0.6}
@@ -2160,40 +2171,48 @@ export default function GroupScreen() {
               marginBottom: Spacing.xl,
             }} />
 
-            <TouchableOpacity
-              activeOpacity={0.6}
-              onPress={() => handleFeedMenuAction("edit")}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: Spacing.md,
-                paddingVertical: 14,
-              }}
-            >
-              <Edit3 size={20} color={Colors.neutral[600]} />
-              <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.neutral[900] }}>
-                수정
-              </Text>
-            </TouchableOpacity>
+            {(() => {
+              const selectedFeed = feeds.find(f => f.id === selectedFeedId);
+              const isMyFeed = !!(selectedFeed?.authorId && currentUser?.id && selectedFeed.authorId === currentUser.id);
+              return isMyFeed ? (
+                <>
+                  <TouchableOpacity
+                    activeOpacity={0.6}
+                    onPress={() => handleFeedMenuAction("edit")}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: Spacing.md,
+                      paddingVertical: 14,
+                    }}
+                  >
+                    <Edit3 size={20} color={Colors.neutral[600]} />
+                    <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.neutral[900] }}>
+                      수정
+                    </Text>
+                  </TouchableOpacity>
 
-            <TouchableOpacity
-              activeOpacity={0.6}
-              onPress={() => handleFeedMenuAction("delete")}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: Spacing.md,
-                paddingVertical: 14,
-              }}
-            >
-              <Trash2 size={20} color={Colors.error.main} />
-              <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.error.main }}>
-                삭제
-              </Text>
-            </TouchableOpacity>
+                  <TouchableOpacity
+                    activeOpacity={0.6}
+                    onPress={() => handleFeedMenuAction("delete")}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: Spacing.md,
+                      paddingVertical: 14,
+                    }}
+                  >
+                    <Trash2 size={20} color={Colors.error.main} />
+                    <Text style={{ fontSize: 16, fontWeight: "500", color: Colors.error.main }}>
+                      삭제
+                    </Text>
+                  </TouchableOpacity>
 
-            {/* 구분선 */}
-            <View style={{ height: 1, backgroundColor: Colors.neutral[100], marginVertical: 4 }} />
+                  {/* 구분선 */}
+                  <View style={{ height: 1, backgroundColor: Colors.neutral[100], marginVertical: 4 }} />
+                </>
+              ) : null;
+            })()}
 
             <TouchableOpacity
               activeOpacity={0.6}

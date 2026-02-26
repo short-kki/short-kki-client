@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/services/api';
+import { parseServerDate } from '@/utils/date';
 
 // API 응답 타입
 interface ApiResponse<T> {
@@ -61,7 +62,7 @@ export interface Notification {
 
 // 상대 시간 포맷
 function formatRelativeTime(dateString: string): string {
-  const date = new Date(dateString);
+  const date = parseServerDate(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
