@@ -23,6 +23,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
 import { getMyProfile, MemberProfile } from "@/services/memberApi";
+import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
 
 const stats = [
   { label: "레시피", value: 12 },
@@ -63,6 +64,7 @@ export default function ProfileScreen() {
   const { user, signOut, updateUser } = useAuth();
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [profile, setProfile] = useState<MemberProfile | null>(null);
+  const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } = useFeedbackToast();
 
   // 프로필 데이터 로드
   const loadProfile = useCallback(async () => {
@@ -105,7 +107,7 @@ export default function ProfileScreen() {
         url: "https://shortkki.com/profile/요리조리",
       });
     } catch {
-      // 공유 실패 무시
+      showToast("공유에 실패했어요", "danger");
     }
   };
 
@@ -561,6 +563,13 @@ export default function ProfileScreen() {
         {/* Bottom padding */}
         <View style={{ height: 120 }} />
       </ScrollView>
+
+      <FeedbackToast
+        message={toastMessage}
+        variant={toastVariant}
+        opacity={toastOpacity}
+        translate={toastTranslate}
+      />
     </View>
   );
 }
