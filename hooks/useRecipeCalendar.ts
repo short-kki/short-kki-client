@@ -151,22 +151,16 @@ export function useRecipeCalendar(startDate: string, endDate: string) {
         }
       } else {
         // 실제 API 호출: GET /api/v1/calendar/recipes?startDate=...&endDate=...
-        console.log(`[Calendar API] 요청: startDate=${startDate}, endDate=${endDate}`);
-
         const response = await api.get<ApiResponse<CalendarApiResponse>>(
           `/api/v1/calendar/recipes?startDate=${startDate}&endDate=${endDate}`
         );
 
-        console.log('[Calendar API] 응답:', JSON.stringify(response, null, 2));
-
         // personalCalendars 처리
         const personalCalendars = response.data?.personalCalendars || [];
-        console.log(`[Calendar API] 개인 캘린더: ${personalCalendars.length}개`);
         const newPersonalByDate = groupByDate(personalCalendars);
 
         // groupCalendars 처리: 그룹별로 묶인 구조를 풀어서 groupId → 날짜별 맵으로 변환
         const groupCalendars = response.data?.groupCalendars || [];
-        console.log(`[Calendar API] 그룹 캘린더: ${groupCalendars.length}개 그룹`);
 
         // 그룹 목록 저장 (식단 유무와 관계없이)
         const groupList: GroupInfo[] = groupCalendars.map((gc) => ({
@@ -177,7 +171,6 @@ export function useRecipeCalendar(startDate: string, endDate: string) {
 
         const groupMealsFlattened: CalendarMeal[] = [];
         for (const groupCalendar of groupCalendars) {
-          console.log(`[Calendar API] 그룹 ${groupCalendar.groupId} (${groupCalendar.groupName}): ${groupCalendar.calendars?.length || 0}개 식단`);
           for (const calendar of (groupCalendar.calendars || [])) {
             groupMealsFlattened.push({
               ...calendar,
@@ -186,7 +179,6 @@ export function useRecipeCalendar(startDate: string, endDate: string) {
             });
           }
         }
-        console.log(`[Calendar API] 총 그룹 식단: ${groupMealsFlattened.length}개`);
         const newGroupByGroupDate = groupByGroupAndDate(groupMealsFlattened);
 
         // force면 교체, 아니면 병합 (fetch 범위 내 날짜는 새 데이터로, 범위 밖은 보존)
@@ -298,7 +290,6 @@ export function useRecipeQueue() {
 
   // 대기열 추가: POST /api/v1/calendar/queue
   const addQueue = useCallback(async (recipeId: number): Promise<RecipeQueue | null> => {
-    console.log('[useRecipeQueue] 대기열 추가 요청 - recipeId:', recipeId);
     if (USE_MOCK) {
       const newItem: RecipeQueue = {
         id: Date.now(),
@@ -342,8 +333,6 @@ export function useRecipeQueue() {
     scheduledDate: string,
     groupId?: number | null
   ): Promise<CalendarMeal | null> => {
-    console.log('[useRecipeQueue] 캘린더 추가 요청 - queueId:', queueId, 'date:', scheduledDate);
-
     // 낙관적 업데이트: 대기열에서 제거
     const queueItem = queues.find(q => q.id === queueId);
     setQueues(prev => prev.filter(q => q.id !== queueId));

@@ -44,8 +44,6 @@ const ITEM_HEIGHT = WINDOW_HEIGHT - TAB_BAR_HEIGHT;
  * - 현재 보이는 아이템만 재생 (isActive prop)
  */
 export default function VideoFeed() {
-    console.log("VideoFeed rendering, videos:", DUMMY_VIDEOS.length);
-
     // 현재 재생 중인 비디오 인덱스
     const [activeIndex, setActiveIndex] = useState<number>(0);
 

@@ -23,7 +23,7 @@ const GOOGLE_ANDROID_URL_SCHEME = toGoogleUrlScheme(GOOGLE_ANDROID_CLIENT_ID);
 
 export default {
   expo: {
-    name: "short-kki-client",
+    name: "숏끼",
     slug: "short-kki-client",
     version: "1.0.0",
     orientation: "portrait",
@@ -65,10 +65,8 @@ export default {
       package: "com.anonymous.shortkki",
       googleServicesFile: "./google-services.json",
       adaptiveIcon: {
-        backgroundColor: "#E6F4FE",
+        backgroundColor: "#FFFFFF",
         foregroundImage: "./assets/images/android-icon-foreground.png",
-        backgroundImage: "./assets/images/android-icon-background.png",
-        monochromeImage: "./assets/images/android-icon-monochrome.png",
       },
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
@@ -127,6 +125,7 @@ export default {
       favicon: "./assets/images/favicon.png",
     },
     plugins: [
+      "@react-native-firebase/app",
       "./plugins/withAndroidVersion",
       [
         "expo-build-properties",

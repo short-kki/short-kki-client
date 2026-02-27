@@ -102,7 +102,6 @@ function normalizeImageUrl(url: string | null | undefined): string | null {
 
 // 백엔드 응답을 프론트엔드 타입으로 변환
 function mapRecipeBookFromApi(apiResponse: RecipeBookApiResponse): RecipeBook {
-  // console.log('[RecipeBook API] 응답:', JSON.stringify(apiResponse, null, 2));
   return {
     id: String(apiResponse.id),
     name: apiResponse.title,

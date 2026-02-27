@@ -11,6 +11,9 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { Colors } from "@/constants/design-system";
 import { pushNotificationService } from "@/services/pushNotification";
+import { remoteConfigService } from "@/services/remoteConfig";
+import { useUpdateCheck } from "@/hooks/useUpdateCheck";
+import UpdateModal from "@/components/ui/UpdateModal";
 
 // 특정 에러 메시지 LogBox에서 무시
 LogBox.ignoreLogs([
@@ -29,11 +32,13 @@ function RootLayoutNav() {
   const { isLoading } = useAuth();
   const router = useRouter();
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
+  const { needsUpdate, updateMessage } = useUpdateCheck();
 
-  // 푸시 알림 초기화
+  // 푸시 알림 + Remote Config 초기화
   useEffect(() => {
     pushNotificationService.initialize();
     pushNotificationService.handleInitialNotification();
+    remoteConfigService.initialize();
 
     return () => pushNotificationService.cleanup();
   }, []);
@@ -41,6 +46,7 @@ function RootLayoutNav() {
   // 외부 앱에서 URL 공유 수신 → 레시피 가져오기 페이지로 이동
   useEffect(() => {
     if (!hasShareIntent) return;
+    if (isLoading) return;
 
     const sharedText = shareIntent.text || "";
     const sharedUrl = extractUrl(sharedText) || shareIntent.webUrl || null;
@@ -53,7 +59,7 @@ function RootLayoutNav() {
     }
 
     resetShareIntent();
-  }, [hasShareIntent]);
+  }, [hasShareIntent, isLoading]);
 
   // 인증 상태 로딩 중일 때 스플래시 표시
   if (isLoading) {
@@ -87,6 +93,7 @@ function RootLayoutNav() {
         <Stack.Screen name="group/invite/[inviteCode]" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
+      <UpdateModal visible={needsUpdate} message={updateMessage} />
     </>
   );
 }

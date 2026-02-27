@@ -131,24 +131,13 @@ export default function GroupEditScreen() {
       setIsSaving(true);
 
       let finalThumbnailFileId: number | null = null;
-      console.log("[Group Edit] 기존 썸네일 URL:", thumbnailImgUrl);
-      console.log("[Group Edit] 새 이미지 선택 여부:", !!selectedImage);
 
       // 새 이미지가 선택되었으면 업로드
       if (selectedImage) {
-        console.log("[Group Edit] 선택된 이미지:", JSON.stringify({
-          uri: selectedImage.uri,
-          fileName: selectedImage.fileName,
-          mimeType: selectedImage.mimeType,
-          fileSize: selectedImage.fileSize,
-          width: selectedImage.width,
-          height: selectedImage.height,
-        }, null, 2));
         setIsUploadingImage(true);
         try {
           const uploadedFile = await uploadImage(selectedImage, "FEED_IMG", "PUBLIC");
           finalThumbnailFileId = uploadedFile.fileId;
-          console.log("[Group Edit] 썸네일 업로드 완료:", JSON.stringify(uploadedFile, null, 2));
         } catch (uploadError) {
           console.error("[Group Edit] 이미지 업로드 실패:", uploadError);
           Alert.alert("오류", "이미지 업로드에 실패했습니다.");
@@ -159,8 +148,6 @@ export default function GroupEditScreen() {
         setIsUploadingImage(false);
       }
 
-      console.log("[Group Edit] 최종 썸네일 fileId:", finalThumbnailFileId);
-
       const groupData = {
         name: name.trim(),
         description: description.trim() || undefined,
@@ -169,14 +156,10 @@ export default function GroupEditScreen() {
       };
 
       if (isCreateMode) {
-        console.log("[Group Edit] 그룹 생성 요청:", JSON.stringify(groupData, null, 2));
         const newGroup = await createGroup(groupData);
-        console.log("[Group Edit] 그룹 생성 응답:", JSON.stringify(newGroup, null, 2));
         setCreatedGroupId(newGroup.id);
       } else {
-        console.log("[Group Edit] 그룹 수정 요청:", JSON.stringify(groupData, null, 2));
         await updateGroup(groupData);
-        console.log("[Group Edit] 그룹 수정 완료");
       }
       setShowSuccessModal(true);
     } catch (error) {
