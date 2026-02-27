@@ -1,5 +1,5 @@
 import React from "react";
-import { Linking, Modal, Platform, Pressable, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Linking, Modal, Platform, Pressable, Text, TouchableOpacity, View } from "react-native";
 import { Download } from "lucide-react-native";
 import { BorderRadius, Colors } from "@/constants/design-system";
 
@@ -14,9 +14,12 @@ const STORE_URL = Platform.select({
 });
 
 export default function UpdateModal({ visible, message }: UpdateModalProps) {
-  const handleUpdate = () => {
-    if (STORE_URL) {
-      Linking.openURL(STORE_URL);
+  const handleUpdate = async () => {
+    if (!STORE_URL) return;
+    try {
+      await Linking.openURL(STORE_URL);
+    } catch {
+      Alert.alert("안내", "스토어를 열 수 없습니다. 직접 스토어에서 업데이트해주세요.");
     }
   };
 
