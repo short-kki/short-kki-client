@@ -49,7 +49,7 @@ import { AuthData, extractJwtExpiresAt } from "@/utils/auth-storage";
 
 // Google Sign-In 설정 (idToken 발급용)
 if (GoogleSignin?.configure) {
-  console.log("[GoogleSignIn] configure with webClientId:", GOOGLE_CONFIG.webClientId);
+  if (__DEV__) console.log("[GoogleSignIn] configure with webClientId:", GOOGLE_CONFIG.webClientId);
   GoogleSignin.configure({
     webClientId: GOOGLE_CONFIG.webClientId,
     iosClientId: GOOGLE_CONFIG.iosClientId,
@@ -221,12 +221,12 @@ export default function LoginScreen() {
         // 사용자가 취소하거나 실패한 경우
         setIsLoading(null);
         if (result.failureResponse) {
-          console.error("Naver login failed:", result.failureResponse);
+          if (__DEV__) console.error("Naver login failed:", result.failureResponse);
         }
       }
     } catch (error) {
       setIsLoading(null);
-      console.error("Naver login error:", error);
+      if (__DEV__) console.error("Naver login error:", error);
       Alert.alert("로그인 실패", "네이버 로그인에 실패했습니다.");
     }
   };
@@ -243,7 +243,7 @@ export default function LoginScreen() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Naver auth server error:", errorText);
+        if (__DEV__) console.error("Naver auth server error:", errorText);
         throw new Error("서버 인증 실패");
       }
 
@@ -256,7 +256,7 @@ export default function LoginScreen() {
         Alert.alert("환영합니다!", `${result.name}님, 숏끼에 오신 것을 환영해요!`);
       }
     } catch (error) {
-      console.error("Naver accessToken auth error:", error);
+      if (__DEV__) console.error("Naver accessToken auth error:", error);
       Alert.alert("로그인 실패", "인증 처리 중 오류가 발생했습니다.");
     } finally {
       setIsLoading(null);
@@ -271,15 +271,15 @@ export default function LoginScreen() {
     }
     setIsLoading("google");
     try {
-      console.log("[GoogleLogin] 1. hasPlayServices 확인 중...");
+      if (__DEV__) console.log("[GoogleLogin] hasPlayServices 확인 중...");
       await GoogleSignin.hasPlayServices();
-      console.log("[GoogleLogin] 2. signIn 호출 중...");
+      if (__DEV__) console.log("[GoogleLogin] signIn 호출 중...");
       const response = await GoogleSignin.signIn();
-      console.log("[GoogleLogin] 3. signIn 응답:", JSON.stringify(response).substring(0, 200));
+      if (__DEV__) console.log("[GoogleLogin] signIn 응답 수신, success:", isSuccessResponse(response));
 
       if (isSuccessResponse(response)) {
         const idToken = response.data.idToken;
-        console.log("[GoogleLogin] 4. idToken 존재:", !!idToken);
+        if (__DEV__) console.log("[GoogleLogin] idToken 존재:", !!idToken);
 
         if (!idToken) {
           throw new Error("idToken을 받지 못했습니다.");
@@ -288,8 +288,7 @@ export default function LoginScreen() {
         // 백엔드에 idToken 전송
         await handleGoogleIdTokenAuth(idToken);
       } else {
-        console.log("[GoogleLogin] signIn 실패 응답:", JSON.stringify(response));
-        Alert.alert("디버그", `signIn 응답: ${JSON.stringify(response).substring(0, 300)}`);
+        if (__DEV__) console.log("[GoogleLogin] signIn 실패 응답");
         // 사용자가 취소한 경우
         setIsLoading(null);
       }
@@ -298,7 +297,7 @@ export default function LoginScreen() {
 
       if (error && typeof error === "object" && "code" in error) {
         const signInError = error as { code: string; message?: string };
-        console.log("[GoogleLogin] 에러 코드:", signInError.code, "메시지:", signInError.message);
+        if (__DEV__) console.log("[GoogleLogin] 에러 코드:", signInError.code);
 
         if (signInError.code === statusCodes.SIGN_IN_CANCELLED) {
           return; // 사용자 취소 - 조용히 처리
@@ -310,10 +309,8 @@ export default function LoginScreen() {
         }
       }
 
-      const errMsg = error instanceof Error ? error.message : String(error);
-      const errCode = error && typeof error === "object" && "code" in error ? (error as { code: string }).code : "unknown";
-      console.error("Google login error:", error);
-      Alert.alert("구글 로그인 에러", `code: ${errCode}\nmessage: ${errMsg}`);
+      if (__DEV__) console.error("Google login error:", error);
+      Alert.alert("로그인 실패", "구글 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
     }
   };
 
@@ -322,24 +319,23 @@ export default function LoginScreen() {
     try {
       const platform = Platform.OS;
       const url = `${API_BASE_URL}/api/auth/GOOGLE`;
-      console.log("[GoogleAuth] 5. 백엔드 요청:", url, "platform:", platform);
+      if (__DEV__) console.log("[GoogleAuth] 백엔드 요청:", url, "platform:", platform);
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idToken, platform }),
       });
 
-      console.log("[GoogleAuth] 6. 백엔드 응답 status:", response.status);
+      if (__DEV__) console.log("[GoogleAuth] 백엔드 응답 status:", response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Google auth server error:", errorText);
-        Alert.alert("백엔드 에러", `status: ${response.status}\n${errorText.substring(0, 300)}`);
+        if (__DEV__) console.error("Google auth server error:", errorText);
         throw new Error("서버 인증 실패");
       }
 
       const apiResponse: ApiResponse<LoginData> = await response.json();
-      console.log("[GoogleAuth] 7. 백엔드 응답:", JSON.stringify(apiResponse).substring(0, 200));
+      if (__DEV__) console.log("[GoogleAuth] 백엔드 응답 code:", apiResponse.code);
       const result = apiResponse.data;
       const authData = createAuthDataFromResponse(result, "google");
       await signIn(authData);
@@ -348,9 +344,8 @@ export default function LoginScreen() {
         Alert.alert("환영합니다!", `${result.name}님, 숏끼에 오신 것을 환영해요!`);
       }
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : JSON.stringify(error);
-      console.error("Google idToken auth error:", error);
-      Alert.alert("백엔드 인증 에러", `${errMsg}`);
+      if (__DEV__) console.error("Google idToken auth error:", error);
+      Alert.alert("로그인 실패", "인증 처리 중 오류가 발생했습니다.");
     } finally {
       setIsLoading(null);
     }
@@ -360,9 +355,8 @@ export default function LoginScreen() {
     if (!isDevMode) return;
     setIsLoading("dev");
     try {
-      console.log("[DevLogin] start");
       const requestUrl = `${API_BASE_URL}/api/dev/tokens?memberId=1`;
-      console.log("[DevLogin] request:", requestUrl);
+      if (__DEV__) console.log("[DevLogin] request:", requestUrl);
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       // 개발자용 테스트 로그인 API 호출
@@ -375,18 +369,18 @@ export default function LoginScreen() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("[DevLogin] server error:", response.status, errorText);
-        throw new Error(`서버 에러: ${response.status} - ${errorText}`);
+        if (__DEV__) console.error("[DevLogin] server error:", response.status, errorText);
+        throw new Error(`서버 에러: ${response.status}`);
       }
 
       const apiResponse: ApiResponse<LoginData> = await response.json();
-      console.log("[DevLogin] response:", JSON.stringify(apiResponse));
+      if (__DEV__) console.log("[DevLogin] response code:", apiResponse.code);
 
       // BaseResponse 형태로 응답이 오므로 .data에서 추출
       const loginData = apiResponse.data;
 
       if (!loginData.accessToken) {
-        console.error('No access token in response:', loginData);
+        if (__DEV__) console.error("[DevLogin] No access token in response");
         throw new Error("토큰이 없습니다");
       }
 
@@ -404,13 +398,13 @@ export default function LoginScreen() {
         },
       };
 
-      console.log('Dev Login Success - User:', authData.user.name, 'ID:', authData.user.id);
+      if (__DEV__) console.log("[DevLogin] Success - User:", authData.user.name);
       await signIn(authData);
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       const isTimeout = err.name === "AbortError";
 
-      console.error("[DevLogin] error:", err.message);
+      if (__DEV__) console.error("[DevLogin] error:", err.message);
 
       if (isTimeout) {
         Alert.alert("로그인 실패", "서버 응답이 없습니다. 네트워크 상태를 확인해주세요.");
@@ -418,7 +412,6 @@ export default function LoginScreen() {
         Alert.alert("로그인 실패", "로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
       }
     } finally {
-      console.log("[DevLogin] done");
       setIsLoading(null);
     }
   };
