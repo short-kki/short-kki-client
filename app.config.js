@@ -23,7 +23,7 @@ const GOOGLE_ANDROID_URL_SCHEME = toGoogleUrlScheme(GOOGLE_ANDROID_CLIENT_ID);
 
 export default {
   expo: {
-    name: "short-kki-client",
+    name: "숏끼",
     slug: "short-kki-client",
     version: "1.0.0",
     orientation: "portrait",
