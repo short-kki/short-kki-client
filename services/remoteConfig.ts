@@ -48,6 +48,9 @@ class RemoteConfigService {
     } catch (error) {
       console.warn('[RemoteConfig] 초기화 실패, 기본값 사용:', error);
       this.devModeEnabled = false;
+      this.minimumBuildNumber = 0;
+      this.minimumAppVersion = '0.0.0';
+      this.updateMessage = '새로운 버전이 출시되었습니다. 업데이트 후 이용해주세요.';
     } finally {
       this.initialized = true;
     }
