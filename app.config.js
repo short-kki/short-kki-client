@@ -125,6 +125,7 @@ export default {
       favicon: "./assets/images/favicon.png",
     },
     plugins: [
+      "@react-native-firebase/app",
       "./plugins/withAndroidVersion",
       [
         "expo-build-properties",

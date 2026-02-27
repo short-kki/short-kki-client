@@ -42,8 +42,9 @@ import { ChefHat, CookingPot, Flame, Heart, Sparkles, UtensilsCrossed } from "lu
 
 import { Colors, SemanticColors, Spacing, Typography } from "@/constants/design-system";
 import { GOOGLE_CONFIG, NAVER_CONFIG } from "@/constants/oauth";
-import { API_BASE_URL, DEV_MODE } from "@/constants/env";
+import { API_BASE_URL } from "@/constants/env";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDevMode } from "@/hooks/useDevMode";
 import { AuthData, extractJwtExpiresAt } from "@/utils/auth-storage";
 
 // Google Sign-In 설정 (idToken 발급용)
@@ -161,6 +162,7 @@ function createMockAuthData(provider: "naver" | "google"): AuthData {
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { signIn } = useAuth();
+  const { isDevMode } = useDevMode();
   const [isLoading, setIsLoading] = useState<"naver" | "google" | "dev" | null>(null);
   const router = useRouter();
 
@@ -337,7 +339,7 @@ export default function LoginScreen() {
   };
 
   const handleDevLogin = async () => {
-    if (!DEV_MODE.ENABLE_MOCK_LOGIN) return;
+    if (!isDevMode) return;
     setIsLoading("dev");
     try {
       console.log("[DevLogin] start");
@@ -485,7 +487,7 @@ export default function LoginScreen() {
           </Pressable>
         </View>
 
-        {DEV_MODE.ENABLE_MOCK_LOGIN && (
+        {isDevMode && (
           <Pressable onPress={handleDevLogin} disabled={isLoading !== null} style={styles.devLoginButton}>
             {isLoading === "dev" ? (
               <ActivityIndicator size="small" color={Colors.primary[500]} />

@@ -11,6 +11,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { Colors } from "@/constants/design-system";
 import { pushNotificationService } from "@/services/pushNotification";
+import { remoteConfigService } from "@/services/remoteConfig";
 
 // 특정 에러 메시지 LogBox에서 무시
 LogBox.ignoreLogs([
@@ -30,10 +31,11 @@ function RootLayoutNav() {
   const router = useRouter();
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
 
-  // 푸시 알림 초기화
+  // 푸시 알림 + Remote Config 초기화
   useEffect(() => {
     pushNotificationService.initialize();
     pushNotificationService.handleInitialNotification();
+    remoteConfigService.initialize();
 
     return () => pushNotificationService.cleanup();
   }, []);
