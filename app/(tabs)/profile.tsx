@@ -104,8 +104,8 @@ export default function ProfileScreen() {
         message: "숏끼에서 요리조리님의 프로필을 확인해보세요!",
         url: "https://shortkki.com/profile/요리조리",
       });
-    } catch (error) {
-      console.log(error);
+    } catch {
+      // 공유 실패 무시
     }
   };
 

@@ -45,9 +45,6 @@ class RemoteConfigService {
       this.minimumAppVersion = remoteConfig.getValue('minimum_app_version').asString();
       this.updateMessage = remoteConfig.getValue('update_message').asString();
 
-      console.log('[RemoteConfig] dev_mode_enabled:', this.devModeEnabled);
-      console.log('[RemoteConfig] minimum_build_number:', this.minimumBuildNumber);
-      console.log('[RemoteConfig] minimum_app_version:', this.minimumAppVersion);
     } catch (error) {
       console.warn('[RemoteConfig] 초기화 실패, 기본값 사용:', error);
       this.devModeEnabled = false;

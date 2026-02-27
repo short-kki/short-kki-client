@@ -780,7 +780,6 @@ export default function HomeScreen() {
               gap: Spacing.sm,
             }}
             onPress={() => {
-              console.log("Search pressed");
               router.push("/search");
             }}
           >
@@ -801,7 +800,6 @@ export default function HomeScreen() {
               alignItems: "center",
             }}
             onPress={() => {
-              console.log("Notifications pressed");
               router.push("/notifications");
             }}
           >
@@ -834,7 +832,6 @@ export default function HomeScreen() {
               overflow: "hidden",
             }}
             onPress={() => {
-              console.log("Profile pressed");
               router.push("/profile-edit");
             }}
           >

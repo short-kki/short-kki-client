@@ -712,14 +712,12 @@ export default function ShortsScreen() {
   }, []);
 
   const handleViewRecipe = useCallback((recipeId: string) => {
-    console.log("[Shorts] handleViewRecipe called - recipeId:", recipeId, "type:", typeof recipeId);
     router.push(`/recipe/${recipeId}`);
   }, [router]);
 
   const { addQueue } = useRecipeQueue();
 
   const handleAddToMealPlan = useCallback(async (recipeId: string, title: string) => {
-    console.log('[Shorts] 대기열 추가 버튼 클릭 - recipeId:', recipeId, 'title:', title);
     try {
       await addQueue(parseInt(recipeId));
       showToast(`"${title}" 레시피가 대기열에 추가됐어요!`, "success");

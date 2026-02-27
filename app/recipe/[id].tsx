@@ -29,6 +29,7 @@ import RAnimated, {
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -108,8 +109,6 @@ export default function RecipeDetailScreen() {
 
   // 데이터 로딩 - 가장 먼저 실행되도록 배치
   useEffect(() => {
-    console.log("[RecipeDetail] useEffect - id:", id);
-
     if (!id || isNaN(id)) {
       setError("잘못된 접근입니다.");
       setLoading(false);
@@ -120,7 +119,6 @@ export default function RecipeDetailScreen() {
     setLoading(true);
     setError(null);
 
-    console.log("[RecipeDetail] Calling GET /api/v1/recipes/" + id);
     Promise.all([
       recipeApi.getById(id),
       api.get<{ data: number[] | { recipeBookIds?: number[] } }>(
@@ -128,7 +126,6 @@ export default function RecipeDetailScreen() {
       ).catch(() => null),
     ]).then(([data, bookmarkRes]) => {
       if (cancelled) return;
-      console.log("[RecipeDetail] API OK - title:", data?.title);
       setRecipe(data);
       setServings(data.servingSize);
       // 북마크 확인 API 응답이 있으면 그걸 우선 사용
@@ -327,12 +324,9 @@ export default function RecipeDetailScreen() {
   });
 
   // YouTube 이벤트 리스너
-  useYouTubeEvent(player, "ready", () => {
-    console.log("YouTube player ready");
-  });
+  useYouTubeEvent(player, "ready", () => {});
 
   useYouTubeEvent(player, "stateChange", (state) => {
-    console.log("Player state:", state);
     if (state === PlayerState.PLAYING) {
       setIsVideoPlaying(true);
     } else if (state === PlayerState.PAUSED || state === PlayerState.ENDED) {
@@ -963,14 +957,14 @@ export default function RecipeDetailScreen() {
 
           {/* Top gradient for header readability */}
           {!isFullscreen && (
-            <View
+            <LinearGradient
+              colors={["rgba(0,0,0,0.45)", "transparent"]}
               style={{
                 position: "absolute",
                 left: 0,
                 right: 0,
                 top: 0,
                 height: 120,
-                backgroundColor: "rgba(0,0,0,0.3)",
               }}
               pointerEvents="none"
             />

@@ -35,7 +35,6 @@ interface VideoFeedItemProps {
 function VideoFeedItem({ item, isActive, itemHeight }: VideoFeedItemProps) {
   const router = useRouter();
   const videoId = extractYoutubeId(item.url);
-  console.log("VideoFeedItem rendering, videoId:", videoId, "url:", item.url);
   const playerRef = useRef<YoutubeIframeRef>(null);
 
   const [isMuted, setIsMuted] = useState(true);
@@ -75,7 +74,6 @@ function VideoFeedItem({ item, isActive, itemHeight }: VideoFeedItemProps) {
   // 비디오 상태 변경 핸들러
   const handleStateChange = useCallback(
     (state: string) => {
-      console.log(`[Video] State: ${state}, videoId: ${videoId}`);
       if (state === "ended") {
         playerRef.current?.seekTo(0, true);
       }

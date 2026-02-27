@@ -148,8 +148,8 @@ export default function RecipeCreateManualScreen() {
         // 인증 헤더 포함하여 요청 (문서는 불필요라고 하지만 서버에서 403 반환)
         const response = await api.get<{ data: IngredientsApiResponse }>("/api/v1/ingredients");
         setApiIngredients(response.data.ingredients);
-      } catch (error) {
-        console.log("재료 목록 조회 실패:", error);
+      } catch {
+        // 재료 목록 조회 실패 무시
       } finally {
         setIngredientsLoading(false);
       }
@@ -161,14 +161,6 @@ export default function RecipeCreateManualScreen() {
   const filteredIngredients = apiIngredients.filter((ing) =>
     ing.name.toLowerCase().includes(ingredientSearchQuery.toLowerCase())
   );
-
-  // Debug: 컴포넌트 마운트 확인
-  useEffect(() => {
-    console.log("🎨 RecipeCreateManualScreen 마운트됨!");
-    return () => {
-      console.log("🎨 RecipeCreateManualScreen 언마운트됨!");
-    };
-  }, []);
 
   // ============================================================================
   // HANDLERS - Ingredients
@@ -352,7 +344,6 @@ export default function RecipeCreateManualScreen() {
         errorMessage.includes("conflict") ||
         error?.message?.includes("409")
       ) {
-        console.log("Duplicate recipe - treating as success");
         setSavedRecipeTitle(title.trim());
         setShowSaveSuccessModal(true);
         return;
