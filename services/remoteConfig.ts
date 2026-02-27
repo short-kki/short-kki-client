@@ -10,6 +10,9 @@
 class RemoteConfigService {
   private initialized = false;
   private devModeEnabled = false;
+  private minimumBuildNumber = 0;
+  private minimumAppVersion = '0.0.0';
+  private updateMessage = '';
 
   async initialize(): Promise<void> {
     if (__DEV__) {
@@ -26,6 +29,9 @@ class RemoteConfigService {
 
       await remoteConfig.setDefaults({
         dev_mode_enabled: false,
+        minimum_build_number: 0,
+        minimum_app_version: '0.0.0',
+        update_message: '새로운 버전이 출시되었습니다. 업데이트 후 이용해주세요.',
       });
 
       await remoteConfig.setConfigSettings({
@@ -35,9 +41,15 @@ class RemoteConfigService {
       await remoteConfig.fetchAndActivate();
 
       this.devModeEnabled = remoteConfig.getValue('dev_mode_enabled').asBoolean();
+      this.minimumBuildNumber = remoteConfig.getValue('minimum_build_number').asNumber();
+      this.minimumAppVersion = remoteConfig.getValue('minimum_app_version').asString();
+      this.updateMessage = remoteConfig.getValue('update_message').asString();
+
       console.log('[RemoteConfig] dev_mode_enabled:', this.devModeEnabled);
+      console.log('[RemoteConfig] minimum_build_number:', this.minimumBuildNumber);
+      console.log('[RemoteConfig] minimum_app_version:', this.minimumAppVersion);
     } catch (error) {
-      console.warn('[RemoteConfig] 초기화 실패, 기본값(false) 사용:', error);
+      console.warn('[RemoteConfig] 초기화 실패, 기본값 사용:', error);
       this.devModeEnabled = false;
     } finally {
       this.initialized = true;
@@ -51,6 +63,18 @@ class RemoteConfigService {
 
   isInitialized(): boolean {
     return this.initialized;
+  }
+
+  getMinimumBuildNumber(): number {
+    return this.minimumBuildNumber;
+  }
+
+  getMinimumAppVersion(): string {
+    return this.minimumAppVersion;
+  }
+
+  getUpdateMessage(): string {
+    return this.updateMessage;
   }
 }
 

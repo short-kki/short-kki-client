@@ -12,6 +12,8 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { Colors } from "@/constants/design-system";
 import { pushNotificationService } from "@/services/pushNotification";
 import { remoteConfigService } from "@/services/remoteConfig";
+import { useUpdateCheck } from "@/hooks/useUpdateCheck";
+import UpdateModal from "@/components/ui/UpdateModal";
 
 // 특정 에러 메시지 LogBox에서 무시
 LogBox.ignoreLogs([
@@ -30,6 +32,7 @@ function RootLayoutNav() {
   const { isLoading } = useAuth();
   const router = useRouter();
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
+  const { needsUpdate, updateMessage } = useUpdateCheck();
 
   // 푸시 알림 + Remote Config 초기화
   useEffect(() => {
@@ -90,6 +93,7 @@ function RootLayoutNav() {
         <Stack.Screen name="group/invite/[inviteCode]" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
+      <UpdateModal visible={needsUpdate} message={updateMessage} />
     </>
   );
 }

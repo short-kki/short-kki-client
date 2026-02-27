@@ -43,5 +43,8 @@ export type { Notification, NotificationType } from './useNotifications';
 // 개발자 모드
 export { useDevMode } from './useDevMode';
 
+// 강제 업데이트 체크
+export { useUpdateCheck } from './useUpdateCheck';
+
 // 기존 hooks
 export { useColorScheme } from './use-color-scheme';
