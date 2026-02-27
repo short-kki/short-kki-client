@@ -437,8 +437,8 @@ export default function AddRecipeScreen() {
                       <Text style={{ fontSize: 14, fontWeight: "600", color: Colors.neutral[400] }}>
                         레시피 미리보기
                       </Text>
-                      <Text style={{ fontSize: 12, color: Colors.neutral[400] }}>
-                        링크를 붙여넣고 검색해 보세요
+                      <Text style={{ fontSize: 12, color: Colors.neutral[400], textAlign: "center", lineHeight: 18 }}>
+                        {"링크를 붙여넣거나,\nYouTube 공유 버튼으로 바로 가져올 수 있어요"}
                       </Text>
                     </View>
                   )}
@@ -475,7 +475,7 @@ export default function AddRecipeScreen() {
                       )}
                     </View>
                     <Text style={{ fontSize: 13, color: Colors.neutral[600] }}>
-                      {parsedRecipe ? parsedRecipe.author : "작성자"}
+                      {parsedRecipe ? parsedRecipe.author : "원작자"}
                     </Text>
                   </View>
                 </View>
