@@ -43,6 +43,7 @@ function RootLayoutNav() {
   // 외부 앱에서 URL 공유 수신 → 레시피 가져오기 페이지로 이동
   useEffect(() => {
     if (!hasShareIntent) return;
+    if (isLoading) return;
 
     const sharedText = shareIntent.text || "";
     const sharedUrl = extractUrl(sharedText) || shareIntent.webUrl || null;
@@ -55,7 +56,7 @@ function RootLayoutNav() {
     }
 
     resetShareIntent();
-  }, [hasShareIntent]);
+  }, [hasShareIntent, isLoading]);
 
   // 인증 상태 로딩 중일 때 스플래시 표시
   if (isLoading) {
