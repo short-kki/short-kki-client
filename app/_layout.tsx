@@ -10,6 +10,7 @@ import "react-native-reanimated";
 import { useShareIntent } from "expo-share-intent";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { MuteProvider } from "@/contexts/MuteContext";
 import { Colors } from "@/constants/design-system";
 import { pushNotificationService } from "@/services/pushNotification";
 import { remoteConfigService } from "@/services/remoteConfig";
@@ -132,9 +133,11 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.neutral[50] }}>
       <AuthProvider>
-        <ThemeProvider value={colorScheme === "dark" ? AppDarkTheme : AppLightTheme}>
-          <RootLayoutNav />
-        </ThemeProvider>
+        <MuteProvider>
+          <ThemeProvider value={colorScheme === "dark" ? AppDarkTheme : AppLightTheme}>
+            <RootLayoutNav />
+          </ThemeProvider>
+        </MuteProvider>
       </AuthProvider>
     </GestureHandlerRootView>
   );

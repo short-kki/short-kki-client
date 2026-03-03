@@ -68,6 +68,7 @@ import { FeedbackToast, useFeedbackToast, truncateTitle } from "@/components/ui/
 import { GroupSelectBottomSheet } from "@/components/ui";
 import { YoutubeView, useYouTubePlayer, useYouTubeEvent, PlayerState } from "react-native-youtube-bridge";
 import { extractYoutubeId } from "@/utils/youtube";
+import { useMute } from "@/contexts/MuteContext";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const VIDEO_HEIGHT = SCREEN_WIDTH * 0.85;
@@ -309,7 +310,7 @@ export default function RecipeDetailScreen() {
   // 비디오 관련 상태
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
+  const { isMuted, toggleMute } = useMute();
   const isPlayerReady = useRef(false);
   const pendingPlay = useRef(false);
 
@@ -329,6 +330,12 @@ export default function RecipeDetailScreen() {
   // YouTube 이벤트 리스너
   useYouTubeEvent(player, "ready", () => {
     isPlayerReady.current = true;
+    // 글로벌 음소거 상태 동기화
+    if (isMuted) {
+      player.mute();
+    } else {
+      player.unMute();
+    }
     if (pendingPlay.current) {
       pendingPlay.current = false;
       player.play();
@@ -365,16 +372,15 @@ export default function RecipeDetailScreen() {
     }
   }, [isVideoPlaying, player]);
 
-  // 음소거 토글
-  const toggleMute = useCallback(() => {
-    const newMuted = !isMuted;
-    setIsMuted(newMuted);
-    if (newMuted) {
-      player.mute();
-    } else {
+  // 음소거 토글 — 글로벌 상태 변경 + 플레이어 동기화
+  const handleToggleMute = useCallback(() => {
+    if (isMuted) {
       player.unMute();
+    } else {
+      player.mute();
     }
-  }, [isMuted, player]);
+    toggleMute();
+  }, [isMuted, player, toggleMute]);
 
   // 데이터 로딩은 컴포넌트 상단 useEffect에서 처리
   const refreshRecipeState = useCallback(async () => {
@@ -963,7 +969,7 @@ export default function RecipeDetailScreen() {
           {/* 음소거 토글 버튼 - 스케일 래퍼 바깥 */}
           {videoId && isVideoPlaying && (
             <TouchableOpacity
-              onPress={toggleMute}
+              onPress={handleToggleMute}
               activeOpacity={0.8}
               style={{
                 position: "absolute",

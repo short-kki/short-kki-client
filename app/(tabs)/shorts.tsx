@@ -60,6 +60,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PlayerState, YoutubeView, useYouTubeEvent, useYouTubePlayer } from "react-native-youtube-bridge";
+import { useMute } from "@/contexts/MuteContext";
 
 const FEEDBACK_TYPES = [
   { id: "INACCURATE", label: "잘못된 정보", icon: AlertTriangle, description: "레시피 내용이 부정확하거나 오류가 있어요" },
@@ -583,7 +584,7 @@ export default function ShortsScreen() {
   }, [curationShortsData, isCurationMode, shorts, curationShorts]);
 
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isMuted, setIsMuted] = useState(true);
+  const { isMuted, toggleMute } = useMute();
   const [isScreenFocused, setIsScreenFocused] = useState(true);
   const [focusEpoch, setFocusEpoch] = useState(0);
   const [appResumeKey, setAppResumeKey] = useState(0);
@@ -707,9 +708,7 @@ export default function ShortsScreen() {
     }
   }, [activeIndex, fetchNextCurationPage, hasNextCurationPage, isCurationMode, loadingMoreCuration, SHORTS_DATA.length]);
 
-  const toggleMute = useCallback(() => {
-    setIsMuted((prev) => !prev);
-  }, []);
+  // toggleMute는 useMute()에서 제공
 
   const handleViewRecipe = useCallback((recipeId: string) => {
     router.push(`/recipe/${recipeId}`);
