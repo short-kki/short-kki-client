@@ -17,6 +17,7 @@ import {
   Platform,
   ActivityIndicator,
   KeyboardAvoidingView,
+  LayoutChangeEvent,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -190,7 +191,8 @@ export default function GroupScreen() {
 
   // 그룹 메뉴 바텀시트 애니메이션
   const groupMenuOverlayOpacity = useRef(new Animated.Value(0)).current;
-  const groupMenuSheetTranslateY = useRef(new Animated.Value(300)).current;
+  const groupMenuSheetTranslateY = useRef(new Animated.Value(500)).current;
+  const groupMenuHeightRef = useRef(500);
 
   const openGroupMenu = useCallback(() => {
     setShowGroupMenuModal(true);
@@ -217,7 +219,7 @@ export default function GroupScreen() {
         useNativeDriver: true,
       }),
       Animated.timing(groupMenuSheetTranslateY, {
-        toValue: 300,
+        toValue: groupMenuHeightRef.current,
         duration: 200,
         useNativeDriver: true,
       }),
@@ -227,9 +229,15 @@ export default function GroupScreen() {
     });
   }, [groupMenuOverlayOpacity, groupMenuSheetTranslateY]);
 
+  const handleGroupMenuLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    groupMenuHeightRef.current = height;
+  }, []);
+
   // 피드 메뉴 바텀시트 애니메이션
   const feedMenuOverlayOpacity = useRef(new Animated.Value(0)).current;
-  const feedMenuSheetTranslateY = useRef(new Animated.Value(300)).current;
+  const feedMenuSheetTranslateY = useRef(new Animated.Value(500)).current;
+  const feedMenuHeightRef = useRef(500);
 
   const openFeedMenu = useCallback(() => {
     setShowFeedMenuModal(true);
@@ -256,7 +264,7 @@ export default function GroupScreen() {
         useNativeDriver: true,
       }),
       Animated.timing(feedMenuSheetTranslateY, {
-        toValue: 300,
+        toValue: feedMenuHeightRef.current,
         duration: 200,
         useNativeDriver: true,
       }),
@@ -265,6 +273,11 @@ export default function GroupScreen() {
       onDone?.();
     });
   }, [feedMenuOverlayOpacity, feedMenuSheetTranslateY]);
+
+  const handleFeedMenuLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    feedMenuHeightRef.current = height;
+  }, []);
 
   // 피드백(신고) 관련 상태
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -2040,6 +2053,7 @@ export default function GroupScreen() {
 
           {/* 시트 */}
           <Animated.View
+            onLayout={handleGroupMenuLayout}
             style={{
               transform: [{ translateY: groupMenuSheetTranslateY }],
               backgroundColor: "#FFFFFF",
@@ -2151,6 +2165,7 @@ export default function GroupScreen() {
           </Animated.View>
 
           <Animated.View
+            onLayout={handleFeedMenuLayout}
             style={{
               transform: [{ translateY: feedMenuSheetTranslateY }],
               backgroundColor: "#FFFFFF",

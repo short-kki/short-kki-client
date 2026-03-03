@@ -14,6 +14,7 @@ import {
   Animated as RNAnimated,
   Easing,
   ActivityIndicator,
+  LayoutChangeEvent,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -386,7 +387,8 @@ export default function MealPlanScreen() {
   }, [apiGroupMeals]);
   const [menuModalVisible, setMenuModalVisible] = useState(false);
   const menuOverlayOpacity = useRef(new RNAnimated.Value(0)).current;
-  const menuSheetTranslateY = useRef(new RNAnimated.Value(300)).current;
+  const menuSheetTranslateY = useRef(new RNAnimated.Value(500)).current;
+  const menuSheetHeightRef = useRef(500);
 
   const openMealMenu = useCallback((target: NonNullable<typeof menuTarget>) => {
     setMenuTarget(target);
@@ -414,7 +416,7 @@ export default function MealPlanScreen() {
         useNativeDriver: true,
       }),
       RNAnimated.timing(menuSheetTranslateY, {
-        toValue: 300,
+        toValue: menuSheetHeightRef.current,
         duration: 200,
         useNativeDriver: true,
       }),
@@ -422,6 +424,11 @@ export default function MealPlanScreen() {
       setMenuModalVisible(false);
     });
   }, [menuOverlayOpacity, menuSheetTranslateY]);
+
+  const handleMenuSheetLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    menuSheetHeightRef.current = height;
+  }, []);
 
   // ========== 드래그 앤 드랍 ==========
   const [draggedRecipe, setDraggedRecipe] = useState<{ id: string; recipeId: string; title: string; thumbnail: string } | null>(null);
@@ -1602,6 +1609,7 @@ export default function MealPlanScreen() {
 
           {/* 시트 - 슬라이드업 */}
           <RNAnimated.View
+            onLayout={handleMenuSheetLayout}
             style={{
               transform: [{ translateY: menuSheetTranslateY }],
               backgroundColor: "#FFFFFF",

@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  LayoutChangeEvent,
 } from "react-native";
 import DraggableFlatList, { ScaleDecorator, type RenderItemParams } from "react-native-draggable-flatlist";
 import { Image } from "expo-image";
@@ -258,7 +259,8 @@ export default function RecipeBookScreen() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showMenuModal, setShowMenuModal] = useState(false);
   const menuOverlayOpacity = useRef(new Animated.Value(0)).current;
-  const menuSheetTranslateY = useRef(new Animated.Value(300)).current;
+  const menuSheetTranslateY = useRef(new Animated.Value(500)).current;
+  const menuSheetHeightRef = useRef(500);
 
   const openMenuSheet = useCallback(() => {
     setShowMenuModal(true);
@@ -285,7 +287,7 @@ export default function RecipeBookScreen() {
         useNativeDriver: true,
       }),
       Animated.timing(menuSheetTranslateY, {
-        toValue: 300,
+        toValue: menuSheetHeightRef.current,
         duration: 200,
         useNativeDriver: true,
       }),
@@ -294,6 +296,11 @@ export default function RecipeBookScreen() {
       onDone?.();
     });
   }, [menuOverlayOpacity, menuSheetTranslateY]);
+
+  const handleMenuSheetLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    menuSheetHeightRef.current = height;
+  }, []);
 
   const [newBookName, setNewBookName] = useState("");
   const [editingBook, setEditingBook] = useState<RecipeBook | null>(null);
@@ -1117,6 +1124,7 @@ export default function RecipeBookScreen() {
 
           {/* 시트 */}
           <Animated.View
+            onLayout={handleMenuSheetLayout}
             style={{
               transform: [{ translateY: menuSheetTranslateY }],
               backgroundColor: "#FFFFFF",
