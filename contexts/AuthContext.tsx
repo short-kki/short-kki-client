@@ -184,6 +184,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     await clearAuthData();
+    hasPerformedInitialRedirect.current = false;
     setUser(null);
     setTokens(null);
     router.replace('/login');
