@@ -17,6 +17,8 @@ import {
   Platform,
   ActivityIndicator,
   KeyboardAvoidingView,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -107,7 +109,7 @@ export default function GroupScreen() {
   // Hooks로 데이터 관리
   const { groups, createGroup, deleteGroup, leaveGroup, refetch: refetchGroups } = useGroups();
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
-  const { feeds, toggleLike, deleteFeed, refetch: refetchFeeds } = useGroupFeeds(selectedGroup?.id);
+  const { feeds, loading: feedsLoading, loadingMore, hasNext, toggleLike, deleteFeed, refetch: refetchFeeds, fetchNextPage } = useGroupFeeds(selectedGroup?.id);
   useGroupMembers(selectedGroup?.id);
   const appliedRouteTargetRef = useRef<string | null>(null);
 
@@ -609,6 +611,13 @@ export default function GroupScreen() {
             style={{ flex: 1 }}
             contentContainerStyle={{ flexGrow: 1 }}
             showsVerticalScrollIndicator={false}
+            onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+              const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+              if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 200) {
+                fetchNextPage();
+              }
+            }}
+            scrollEventThrottle={400}
           >
             {/* 피드 목록 */}
             {feeds.length === 0 ? (
@@ -985,25 +994,31 @@ export default function GroupScreen() {
             ))
             )}
 
-            {/* 하단 메시지 */}
-            <View style={{ alignItems: "center", paddingVertical: 40 }}>
-              <View
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 24,
-                  backgroundColor: Colors.neutral[100],
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  marginBottom: 12,
-                }}
-              >
-                <Check size={24} color={Colors.neutral[400]} />
+            {/* 하단: 로딩 or 완료 메시지 */}
+            {loadingMore ? (
+              <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                <ActivityIndicator size="small" color={Colors.neutral[400]} />
               </View>
-              <Text style={{ fontSize: 14, fontWeight: '500', color: Colors.neutral[500] }}>
-                모든 피드를 확인했어요
-              </Text>
-            </View>
+            ) : !hasNext ? (
+              <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                <View
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 24,
+                    backgroundColor: Colors.neutral[100],
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    marginBottom: 12,
+                  }}
+                >
+                  <Check size={24} color={Colors.neutral[400]} />
+                </View>
+                <Text style={{ fontSize: 14, fontWeight: '500', color: Colors.neutral[500] }}>
+                  모든 피드를 확인했어요
+                </Text>
+              </View>
+            ) : null}
 
             <View style={{ height: 80 }} />
           </ScrollView>
