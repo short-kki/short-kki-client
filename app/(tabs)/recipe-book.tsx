@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -28,7 +28,6 @@ import {
   Trash2,
   Lock,
   Users,
-  GripVertical,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows, ComponentSizes } from "@/constants/design-system";
 import { usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
@@ -49,7 +48,7 @@ interface RecipeBook {
 }
 
 // 레시피북 카드 컴포넌트
-function RecipeBookCard({
+const RecipeBookCard = React.memo(function RecipeBookCard({
   book,
   onPress,
   onMenuPress,
@@ -59,17 +58,21 @@ function RecipeBookCard({
   dragging = false,
 }: {
   book: RecipeBook;
-  onPress: () => void;
-  onMenuPress: () => void;
+  onPress: (bookId: string, bookName?: string) => void;
+  onMenuPress: (book: RecipeBook) => void;
   onGroupPress?: () => void;
   draggable?: boolean;
   onDrag?: () => void;
   dragging?: boolean;
 }) {
+  const handlePress = useCallback(() => onPress(book.id, book.name), [onPress, book.id, book.name]);
+  const handleMenuPress = useCallback(() => onMenuPress(book), [onMenuPress, book]);
+
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPress={handlePress}
       disabled={dragging}
+      {...(draggable && onDrag ? { onLongPress: onDrag, delayLongPress: 200 } : {})}
       activeOpacity={0.8}
       style={{
         backgroundColor: Colors.neutral[900],
@@ -153,28 +156,10 @@ function RecipeBookCard({
             gap: 6,
           }}
         >
-          {draggable && (
-            <TouchableOpacity
-              onLongPress={onDrag}
-              delayLongPress={120}
-              activeOpacity={0.8}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                backgroundColor: "rgba(0,0,0,0.4)",
-                justifyContent: "center",
-                alignItems: "center",
-                opacity: dragging ? 1 : 0.85,
-              }}
-            >
-              <GripVertical size={16} color="#FFFFFF" />
-            </TouchableOpacity>
-          )}
           <TouchableOpacity
             onPress={(e) => {
               e.stopPropagation();
-              onMenuPress();
+              handleMenuPress();
             }}
             activeOpacity={0.7}
             style={{
@@ -246,7 +231,7 @@ function RecipeBookCard({
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 export default function RecipeBookScreen() {
   const insets = useSafeAreaInsets();
@@ -347,7 +332,13 @@ export default function RecipeBookScreen() {
   const fixedPersonalBooks = personalBooks.filter((book) => book.isDefault);
 
   useEffect(() => {
-    setMutablePersonalBooks(personalBooks.filter((book) => !book.isDefault));
+    const incoming = personalBooks.filter((book) => !book.isDefault);
+    setMutablePersonalBooks((prev) => {
+      if (prev.length === incoming.length && prev.every((b, i) => b.id === incoming[i].id)) {
+        return prev;
+      }
+      return incoming;
+    });
   }, [personalBooks]);
 
   // params가 변경될 때 필터 업데이트 (_t 타임스탬프로 매번 새로운 네비게이션 감지)
@@ -472,21 +463,87 @@ export default function RecipeBookScreen() {
     }
   }, [refetchPersonal, reorderRecipeBooks]);
 
+  const keyExtractor = useCallback((item: RecipeBook) => item.id, []);
+
+  const handleDragEnd = useCallback(({ data }: { data: RecipeBook[] }) => {
+    void handlePersonalBooksReorder(data);
+  }, [handlePersonalBooksReorder]);
+
   const renderReorderableBook = useCallback(
     ({ item, drag, isActive }: RenderItemParams<RecipeBook>) => (
       <ScaleDecorator activeScale={1.01}>
         <RecipeBookCard
           book={item}
-          onPress={() => handleRecipeBookPress(item.id, item.name)}
-          onMenuPress={() => handleMenuPress(item)}
-          draggable
+          onPress={handleRecipeBookPress}
+          onMenuPress={handleMenuPress}
+          draggable={mutablePersonalBooks.length > 1}
           dragging={isActive}
           onDrag={drag}
         />
       </ScaleDecorator>
     ),
-    [handleMenuPress, handleRecipeBookPress]
+    [handleMenuPress, handleRecipeBookPress, mutablePersonalBooks.length]
   );
+
+  const listHeader = useMemo(() => (
+    <View>
+      {fixedPersonalBooks.map((book) => (
+        <RecipeBookCard
+          key={book.id}
+          book={book}
+          onPress={handleRecipeBookPress}
+          onMenuPress={handleMenuPress}
+        />
+      ))}
+    </View>
+  ), [fixedPersonalBooks, handleRecipeBookPress, handleMenuPress]);
+
+  const listFooter = useMemo(() => (
+    <View>
+      {personalBooks.length === 0 && (
+        <View
+          style={{
+            alignItems: "center",
+            paddingVertical: Spacing["4xl"],
+          }}
+        >
+          <Folder size={48} color={Colors.neutral[300]} />
+          <Text
+            style={{
+              fontSize: Typography.fontSize.md,
+              fontWeight: Typography.fontWeight.semiBold,
+              color: Colors.neutral[500],
+              marginTop: Spacing.base,
+            }}
+          >
+            레시피북이 없어요
+          </Text>
+          <Text
+            style={{
+              fontSize: Typography.fontSize.sm,
+              color: Colors.neutral[400],
+              marginTop: Spacing.sm,
+              textAlign: "center",
+            }}
+          >
+            + 버튼을 눌러 새 레시피북을 만들어보세요
+          </Text>
+        </View>
+      )}
+      {mutablePersonalBooks.length > 1 && (
+        <Text
+          style={{
+            marginTop: Spacing.sm,
+            color: Colors.neutral[500],
+            fontSize: Typography.fontSize.xs,
+            textAlign: "center",
+          }}
+        >
+          카드를 길게 눌러 위아래로 이동해 순서를 변경할 수 있어요
+        </Text>
+      )}
+    </View>
+  ), [personalBooks.length, mutablePersonalBooks.length]);
 
   return (
     <View
@@ -504,6 +561,8 @@ export default function RecipeBookScreen() {
           justifyContent: "space-between",
           paddingHorizontal: Spacing.xl,
           paddingVertical: Spacing.md,
+          zIndex: 1,
+          backgroundColor: Colors.neutral[50],
         }}
       >
         <Text
@@ -545,6 +604,8 @@ export default function RecipeBookScreen() {
           paddingHorizontal: Spacing.xl,
           marginBottom: Spacing.base,
           gap: Spacing.sm,
+          zIndex: 1,
+          backgroundColor: Colors.neutral[50],
         }}
       >
         {[
@@ -585,75 +646,16 @@ export default function RecipeBookScreen() {
         ) : (
           <DraggableFlatList
             data={mutablePersonalBooks}
-            keyExtractor={(item) => item.id}
+            keyExtractor={keyExtractor}
             renderItem={renderReorderableBook}
-            onDragEnd={({ data }) => {
-              void handlePersonalBooksReorder(data);
-            }}
+            onDragEnd={handleDragEnd}
             activationDistance={8}
-            dragItemOverflow
             contentContainerStyle={{
               paddingHorizontal: Spacing.xl,
               paddingBottom: listBottomPadding,
             }}
-            ListHeaderComponent={(
-              <View>
-                {fixedPersonalBooks.map((book) => (
-                  <RecipeBookCard
-                    key={book.id}
-                    book={book}
-                    onPress={() => handleRecipeBookPress(book.id, book.name)}
-                    onMenuPress={() => handleMenuPress(book)}
-                  />
-                ))}
-              </View>
-            )}
-            ListFooterComponent={(
-              <View>
-                {personalBooks.length === 0 && (
-                  <View
-                    style={{
-                      alignItems: "center",
-                      paddingVertical: Spacing["4xl"],
-                    }}
-                  >
-                    <Folder size={48} color={Colors.neutral[300]} />
-                    <Text
-                      style={{
-                        fontSize: Typography.fontSize.md,
-                        fontWeight: Typography.fontWeight.semiBold,
-                        color: Colors.neutral[500],
-                        marginTop: Spacing.base,
-                      }}
-                    >
-                      레시피북이 없어요
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: Typography.fontSize.sm,
-                        color: Colors.neutral[400],
-                        marginTop: Spacing.sm,
-                        textAlign: "center",
-                      }}
-                    >
-                      + 버튼을 눌러 새 레시피북을 만들어보세요
-                    </Text>
-                  </View>
-                )}
-                {mutablePersonalBooks.length > 1 && (
-                  <Text
-                    style={{
-                      marginTop: Spacing.sm,
-                      color: Colors.neutral[500],
-                      fontSize: Typography.fontSize.xs,
-                      textAlign: "center",
-                    }}
-                  >
-                    핸들을 길게 누르고 위아래로 이동해 순서를 변경할 수 있어요
-                  </Text>
-                )}
-              </View>
-            )}
+            ListHeaderComponent={listHeader}
+            ListFooterComponent={listFooter}
           />
         )
       ) : (
@@ -858,8 +860,8 @@ export default function RecipeBookScreen() {
                       <RecipeBookCard
                         key={book.id}
                         book={book}
-                        onPress={() => handleRecipeBookPress(book.id, book.name)}
-                        onMenuPress={() => handleMenuPress(book)}
+                        onPress={handleRecipeBookPress}
+                        onMenuPress={handleMenuPress}
                         onGroupPress={() => {
                           if (book.groupId) {
                             router.push({

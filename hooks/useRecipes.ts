@@ -226,17 +226,6 @@ export function usePersonalRecipeBooks() {
       await api.patch('/api/v1/recipebooks/order', {
         recipeBookIds: orderedBookIds.map((id) => Number(id)),
       });
-
-      setRecipeBooks((prev) => {
-        const fixedBooks = prev.filter((book) => book.isDefault);
-        const mutableMap = new Map(
-          prev.filter((book) => !book.isDefault).map((book) => [book.id, book] as const)
-        );
-        const reorderedMutableBooks = orderedBookIds
-          .map((id) => mutableMap.get(id))
-          .filter((book): book is RecipeBook => !!book);
-        return [...fixedBooks, ...reorderedMutableBooks];
-      });
       return true;
     } catch (err) {
       console.error('레시피북 순서 변경 실패:', err);
