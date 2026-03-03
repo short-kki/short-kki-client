@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Tabs, useLocalSearchParams, useRouter, useSegments } from "expo-router";
-import { View, Pressable, Text, TouchableOpacity, Animated, Easing } from "react-native";
+import { View, Pressable, Text, TouchableOpacity, Animated, Easing, LayoutChangeEvent } from "react-native";
 import { Home, CalendarDays, Plus, Book, Users, Globe, PenLine, ChevronRight } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors, Spacing, BorderRadius } from "@/constants/design-system";
@@ -15,7 +15,8 @@ export default function TabLayout() {
   const currentTab = typeof segments[1] === "string" ? segments[1] : "index";
 
   const overlayOpacity = useRef(new Animated.Value(0)).current;
-  const sheetTranslateY = useRef(new Animated.Value(300)).current;
+  const sheetTranslateY = useRef(new Animated.Value(500)).current;
+  const sheetHeightRef = useRef(500);
 
   const openMenu = useCallback(() => {
     setMenuOpen(true);
@@ -42,7 +43,7 @@ export default function TabLayout() {
         useNativeDriver: true,
       }),
       Animated.timing(sheetTranslateY, {
-        toValue: 300,
+        toValue: sheetHeightRef.current,
         duration: 200,
         useNativeDriver: true,
       }),
@@ -51,6 +52,11 @@ export default function TabLayout() {
       onDone?.();
     });
   }, [overlayOpacity, sheetTranslateY]);
+
+  const handleSheetLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    sheetHeightRef.current = height;
+  }, []);
 
   const handleUrlImport = useCallback(() => {
     const returnTab = currentTab;
@@ -86,9 +92,9 @@ export default function TabLayout() {
             backgroundColor: "#FFFFFF",
             borderTopWidth: 1,
             borderTopColor: Colors.neutral[100],
-            height: 85,
+            height: 85 + insets.bottom,
             paddingTop: 10,
-            paddingBottom: 20,
+            paddingBottom: 20 + insets.bottom,
           },
           tabBarLabelStyle: {
             fontSize: 11,
@@ -254,6 +260,7 @@ export default function TabLayout() {
 
         {/* 시트 */}
         <Animated.View
+          onLayout={handleSheetLayout}
           style={{
             transform: [{ translateY: sheetTranslateY }],
             backgroundColor: "#FFFFFF",

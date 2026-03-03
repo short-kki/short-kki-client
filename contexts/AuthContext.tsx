@@ -12,6 +12,7 @@ import React, {
   useState,
   useCallback,
   useMemo,
+  useRef,
 } from 'react';
 import { useRouter, useSegments } from 'expo-router';
 import {
@@ -69,6 +70,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const router = useRouter();
   const segments = useSegments();
+  const hasPerformedInitialRedirect = useRef(false);
 
   // 초기 인증 상태 로드
   useEffect(() => {
@@ -89,8 +91,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // 로그인 안 됨 + 보호된 영역 접근 시 → 로그인 화면으로
       router.replace('/login');
     } else if (isLoggedIn && !inAuthGroup && !allowedRoutes.includes(segments[0])) {
-      // 로그인 됨 + 로그인/인덱스 화면 → 메인으로
-      router.replace('/(tabs)');
+      // 초기 리다이렉트: 딥링크로 진입한 경로가 아닌 경우에만 메인으로 이동
+      if (!hasPerformedInitialRedirect.current) {
+        hasPerformedInitialRedirect.current = true;
+        // index 또는 login 화면일 때만 메인으로 리다이렉트
+        // 그 외(딥링크 목적지)는 그대로 유지
+        if (segments[0] === 'index' || segments[0] === 'login' || segments.length === 0) {
+          router.replace('/(tabs)');
+        }
+      } else {
+        // 이후 실행은 기존 로직 그대로
+        router.replace('/(tabs)');
+      }
     }
   }, [user, segments, isLoading]);
 
@@ -172,6 +184,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     await clearAuthData();
+    hasPerformedInitialRedirect.current = false;
     setUser(null);
     setTokens(null);
     router.replace('/login');

@@ -3,17 +3,22 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View, ActivityIndicator, LogBox } from "react-native";
+import { LogBox } from "react-native";
 import { useEffect } from "react";
+import * as SplashScreen from "expo-splash-screen";
 import "react-native-reanimated";
 import { useShareIntent } from "expo-share-intent";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { MuteProvider } from "@/contexts/MuteContext";
 import { Colors } from "@/constants/design-system";
 import { pushNotificationService } from "@/services/pushNotification";
 import { remoteConfigService } from "@/services/remoteConfig";
 import { useUpdateCheck } from "@/hooks/useUpdateCheck";
 import UpdateModal from "@/components/ui/UpdateModal";
+
+// 네이티브 스플래시를 인증 로딩 완료까지 유지
+SplashScreen.preventAutoHideAsync();
 
 // 특정 에러 메시지 LogBox에서 무시
 LogBox.ignoreLogs([
@@ -34,6 +39,13 @@ function RootLayoutNav() {
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
   const { needsUpdate, updateMessage } = useUpdateCheck();
 
+  // 인증 로딩 완료 후 네이티브 스플래시 숨김
+  useEffect(() => {
+    if (!isLoading) {
+      SplashScreen.hideAsync();
+    }
+  }, [isLoading]);
+
   // 푸시 알림 + Remote Config 초기화
   useEffect(() => {
     pushNotificationService.initialize();
@@ -51,24 +63,23 @@ function RootLayoutNav() {
     const sharedText = shareIntent.text || "";
     const sharedUrl = extractUrl(sharedText) || shareIntent.webUrl || null;
 
+    let timerId: ReturnType<typeof setTimeout> | undefined;
     if (sharedUrl) {
-      router.push({
-        pathname: "/(tabs)/add",
-        params: { sharedUrl },
-      });
+      // auth guard 리다이렉트와의 경합 방지를 위해 약간 지연
+      timerId = setTimeout(() => {
+        router.push({
+          pathname: "/(tabs)/add",
+          params: { sharedUrl },
+        });
+      }, 100);
     }
 
     resetShareIntent();
-  }, [hasShareIntent, isLoading]);
 
-  // 인증 상태 로딩 중일 때 스플래시 표시
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: Colors.neutral[0] }}>
-        <ActivityIndicator size="large" color={Colors.primary[500]} />
-      </View>
-    );
-  }
+    return () => {
+      if (timerId) clearTimeout(timerId);
+    };
+  }, [hasShareIntent, isLoading]);
 
   return (
     <>
@@ -122,9 +133,11 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.neutral[50] }}>
       <AuthProvider>
-        <ThemeProvider value={colorScheme === "dark" ? AppDarkTheme : AppLightTheme}>
-          <RootLayoutNav />
-        </ThemeProvider>
+        <MuteProvider>
+          <ThemeProvider value={colorScheme === "dark" ? AppDarkTheme : AppLightTheme}>
+            <RootLayoutNav />
+          </ThemeProvider>
+        </MuteProvider>
       </AuthProvider>
     </GestureHandlerRootView>
   );

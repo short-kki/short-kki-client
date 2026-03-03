@@ -11,6 +11,7 @@ export interface Group {
   lastActivity: string;
   myRole: 'ADMIN' | 'MEMBER';
   lastFeedAt: string | null;
+  groupType: 'COUPLE' | 'FAMILY' | 'FRIENDS' | 'ETC';
 }
 
 export interface FeedRecipeSummary {
@@ -53,6 +54,7 @@ export const MOCK_GROUPS: Group[] = [
     lastActivity: "오늘",
     myRole: "ADMIN",
     lastFeedAt: new Date().toISOString(),
+    groupType: "FAMILY",
   },
   {
     id: "2",
@@ -62,6 +64,7 @@ export const MOCK_GROUPS: Group[] = [
     lastActivity: "어제",
     myRole: "MEMBER",
     lastFeedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    groupType: "FRIENDS",
   },
   {
     id: "3",
@@ -71,6 +74,7 @@ export const MOCK_GROUPS: Group[] = [
     lastActivity: "3일 전",
     myRole: "MEMBER",
     lastFeedAt: null,
+    groupType: "ETC",
   },
 ];
 

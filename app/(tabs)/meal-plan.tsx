@@ -14,11 +14,13 @@ import {
   Animated as RNAnimated,
   Easing,
   ActivityIndicator,
+  LayoutChangeEvent,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   useSharedValue,
@@ -265,6 +267,7 @@ const DraggableQueueItem = React.memo(function DraggableQueueItem({
 export default function MealPlanScreen() {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
+  const tabBarHeight = useBottomTabBarHeight();
   const router = useRouter();
   const params = useLocalSearchParams<{ date?: string; tab?: "personal" | "group" }>();
 
@@ -386,7 +389,8 @@ export default function MealPlanScreen() {
   }, [apiGroupMeals]);
   const [menuModalVisible, setMenuModalVisible] = useState(false);
   const menuOverlayOpacity = useRef(new RNAnimated.Value(0)).current;
-  const menuSheetTranslateY = useRef(new RNAnimated.Value(300)).current;
+  const menuSheetTranslateY = useRef(new RNAnimated.Value(500)).current;
+  const menuSheetHeightRef = useRef(500);
 
   const openMealMenu = useCallback((target: NonNullable<typeof menuTarget>) => {
     setMenuTarget(target);
@@ -414,7 +418,7 @@ export default function MealPlanScreen() {
         useNativeDriver: true,
       }),
       RNAnimated.timing(menuSheetTranslateY, {
-        toValue: 300,
+        toValue: menuSheetHeightRef.current,
         duration: 200,
         useNativeDriver: true,
       }),
@@ -422,6 +426,11 @@ export default function MealPlanScreen() {
       setMenuModalVisible(false);
     });
   }, [menuOverlayOpacity, menuSheetTranslateY]);
+
+  const handleMenuSheetLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    menuSheetHeightRef.current = height;
+  }, []);
 
   // ========== 드래그 앤 드랍 ==========
   const [draggedRecipe, setDraggedRecipe] = useState<{ id: string; recipeId: string; title: string; thumbnail: string } | null>(null);
@@ -550,11 +559,9 @@ export default function MealPlanScreen() {
     }, 16);
   }, [stopAutoScroll, measureDropZones]);
 
-  const TAB_BAR_HEIGHT = 85;
-
   const handleDragMove = useCallback((y: number) => {
     const topEdge = insets.top;
-    const bottomEdge = windowHeight - TAB_BAR_HEIGHT - insets.bottom;
+    const bottomEdge = windowHeight - tabBarHeight;
 
     if (y < topEdge + EDGE_THRESHOLD) {
       const distFromEdge = Math.max(0, y - topEdge);
@@ -588,7 +595,7 @@ export default function MealPlanScreen() {
     }
 
     setDropTarget(prev => prev === null ? prev : null);
-  }, [startAutoScroll, stopAutoScroll, insets.top, insets.bottom, windowHeight, mealPlanTab]);
+  }, [startAutoScroll, stopAutoScroll, insets.top, windowHeight, tabBarHeight, mealPlanTab]);
 
   const dropTargetRef = useRef(dropTarget);
   dropTargetRef.current = dropTarget;
@@ -1602,6 +1609,7 @@ export default function MealPlanScreen() {
 
           {/* 시트 - 슬라이드업 */}
           <RNAnimated.View
+            onLayout={handleMenuSheetLayout}
             style={{
               transform: [{ translateY: menuSheetTranslateY }],
               backgroundColor: "#FFFFFF",

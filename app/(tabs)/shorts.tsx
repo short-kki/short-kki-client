@@ -60,6 +60,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PlayerState, YoutubeView, useYouTubeEvent, useYouTubePlayer } from "react-native-youtube-bridge";
+import { useMute } from "@/contexts/MuteContext";
 
 const FEEDBACK_TYPES = [
   { id: "INACCURATE", label: "잘못된 정보", icon: AlertTriangle, description: "레시피 내용이 부정확하거나 오류가 있어요" },
@@ -93,9 +94,9 @@ interface VideoItemProps {
   screenWidth: number;
   onMuteToggle: () => void;
   isMuted: boolean;
-  onViewRecipe: () => void;
-  onAddToMealPlan: () => void;
-  onBookmarkPress: () => void;
+  onViewRecipe: (id: string) => void;
+  onAddToMealPlan: (id: string) => void;
+  onBookmarkPress: (id: string) => void;
   isBookmarked: boolean;
   bookmarkCount: number;
   isScreenFocused: boolean;
@@ -104,7 +105,7 @@ interface VideoItemProps {
 }
 
 // 개별 비디오 아이템 컴포넌트 (YouTube 플레이어 - react-native-youtube-bridge)
-function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onBookmarkPress, isBookmarked, bookmarkCount, isScreenFocused, focusEpoch, appResumeKey }: VideoItemProps) {
+const VideoItem = React.memo(function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMuted, onViewRecipe, onAddToMealPlan, onBookmarkPress, isBookmarked, bookmarkCount, isScreenFocused, focusEpoch, appResumeKey }: VideoItemProps) {
   const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -184,6 +185,19 @@ function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMu
     }
     return count.toString();
   };
+
+  // id 기반 콜백 → 로컬 핸들러
+  const handleViewRecipeLocal = useCallback(() => {
+    onViewRecipe(item.id);
+  }, [onViewRecipe, item.id]);
+
+  const handleAddToMealPlanLocal = useCallback(() => {
+    onAddToMealPlan(item.id);
+  }, [onAddToMealPlan, item.id]);
+
+  const handleBookmarkPressLocal = useCallback(() => {
+    onBookmarkPress(item.id);
+  }, [onBookmarkPress, item.id]);
 
   // YouTube 앱으로 직접 열기 (Android에서 브라우저 경유 시 화면 2개 쌓이는 문제 방지)
   const openSourceVideo = useCallback(async () => {
@@ -427,7 +441,7 @@ function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMu
         }}
       >
         {/* 레시피 확인 */}
-        <TouchableOpacity onPress={onViewRecipe} activeOpacity={0.8} style={{ alignItems: "center" }}>
+        <TouchableOpacity onPress={handleViewRecipeLocal} activeOpacity={0.8} style={{ alignItems: "center" }}>
           <View
             style={{
               width: 48,
@@ -456,7 +470,7 @@ function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMu
         </TouchableOpacity>
 
         {/* 북마크 */}
-        <Pressable onPress={onBookmarkPress} style={{ alignItems: "center" }}>
+        <Pressable onPress={handleBookmarkPressLocal} style={{ alignItems: "center" }}>
           <View
             style={{
               width: 48,
@@ -479,7 +493,7 @@ function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMu
         </Pressable>
 
         {/* 대기열 추가 */}
-        <TouchableOpacity onPress={onAddToMealPlan} activeOpacity={0.8} style={{ alignItems: "center" }}>
+        <TouchableOpacity onPress={handleAddToMealPlanLocal} activeOpacity={0.8} style={{ alignItems: "center" }}>
           <View
             style={{
               width: 48,
@@ -518,7 +532,20 @@ function VideoItem({ item, isActive, itemHeight, screenWidth, onMuteToggle, isMu
       </View>
     </View>
   );
-}
+}, (prev, next) => {
+  return (
+    prev.item.id === next.item.id &&
+    prev.isActive === next.isActive &&
+    prev.itemHeight === next.itemHeight &&
+    prev.screenWidth === next.screenWidth &&
+    prev.isMuted === next.isMuted &&
+    prev.isBookmarked === next.isBookmarked &&
+    prev.bookmarkCount === next.bookmarkCount &&
+    prev.isScreenFocused === next.isScreenFocused &&
+    prev.focusEpoch === next.focusEpoch &&
+    prev.appResumeKey === next.appResumeKey
+  );
+});
 
 export default function ShortsScreen() {
   const insets = useSafeAreaInsets();
@@ -529,8 +556,7 @@ export default function ShortsScreen() {
   const flatListRef = useRef<FlatList>(null);
   // 실제 컨테이너 높이 측정 (Android에서 정확한 높이 사용)
   const [containerHeight, setContainerHeight] = useState(0);
-  // Android에서는 insets.bottom도 고려 (소프트 네비게이션 바)
-  const calculatedHeight = screenHeight - tabBarHeight + (Platform.OS === 'android' ? insets.bottom : 0);
+  const calculatedHeight = screenHeight - tabBarHeight;
   const itemHeight = containerHeight > 0 ? containerHeight : calculatedHeight;
   const { shorts } = useShorts();
   const { sections } = useRecommendedCurations();
@@ -583,7 +609,9 @@ export default function ShortsScreen() {
   }, [curationShortsData, isCurationMode, shorts, curationShorts]);
 
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isMuted, setIsMuted] = useState(true);
+  const activeIndexRef = useRef(activeIndex);
+  activeIndexRef.current = activeIndex;
+  const { isMuted, toggleMute } = useMute();
   const [isScreenFocused, setIsScreenFocused] = useState(true);
   const [focusEpoch, setFocusEpoch] = useState(0);
   const [appResumeKey, setAppResumeKey] = useState(0);
@@ -707,9 +735,7 @@ export default function ShortsScreen() {
     }
   }, [activeIndex, fetchNextCurationPage, hasNextCurationPage, isCurationMode, loadingMoreCuration, SHORTS_DATA.length]);
 
-  const toggleMute = useCallback(() => {
-    setIsMuted((prev) => !prev);
-  }, []);
+  // toggleMute는 useMute()에서 제공
 
   const handleViewRecipe = useCallback((recipeId: string) => {
     router.push(`/recipe/${recipeId}`);
@@ -717,14 +743,15 @@ export default function ShortsScreen() {
 
   const { addQueue } = useRecipeQueue();
 
-  const handleAddToMealPlan = useCallback(async (recipeId: string, title: string) => {
+  const handleAddToMealPlan = useCallback(async (recipeId: string) => {
+    const item = SHORTS_DATA.find((s) => s.id === recipeId);
     try {
       await addQueue(parseInt(recipeId));
-      showToast(`"${title}" 레시피가 대기열에 추가됐어요!`, "success");
+      showToast(`"${item?.title ?? "레시피"}" 레시피가 대기열에 추가됐어요!`, "success");
     } catch {
       showToast("대기열에 추가하지 못했어요", "danger");
     }
-  }, [addQueue, showToast]);
+  }, [addQueue, showToast, SHORTS_DATA]);
 
   const openMoreSheet = useCallback(() => {
     setShowMoreSheet(true);
@@ -953,14 +980,14 @@ export default function ShortsScreen() {
     ({ item, index }: { item: ShortsItem; index: number }) => (
       <VideoItem
         item={item}
-        isActive={index === activeIndex}
+        isActive={index === activeIndexRef.current}
         itemHeight={itemHeight}
         screenWidth={screenWidth}
         onMuteToggle={toggleMute}
         isMuted={isMuted}
-        onViewRecipe={() => handleViewRecipe(item.id)}
-        onAddToMealPlan={() => handleAddToMealPlan(item.id, item.title)}
-        onBookmarkPress={() => openBookmarkSheet(item.id)}
+        onViewRecipe={handleViewRecipe}
+        onAddToMealPlan={handleAddToMealPlan}
+        onBookmarkPress={openBookmarkSheet}
         isBookmarked={(ownedBookIdsByVideo[item.id] || []).length > 0}
         bookmarkCount={bookmarkCounts[item.id] ?? item.bookmarks ?? 0}
         isScreenFocused={isScreenFocused}
@@ -968,7 +995,7 @@ export default function ShortsScreen() {
         appResumeKey={appResumeKey}
       />
     ),
-    [activeIndex, itemHeight, screenWidth, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, ownedBookIdsByVideo, bookmarkCounts, isScreenFocused, focusEpoch, appResumeKey]
+    [itemHeight, screenWidth, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, ownedBookIdsByVideo, bookmarkCounts, isScreenFocused, focusEpoch, appResumeKey]
   );
 
   const keyExtractor = useCallback((item: ShortsItem) => item.id, []);
@@ -1040,6 +1067,7 @@ export default function ShortsScreen() {
         data={SHORTS_DATA}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
+        extraData={activeIndex}
         style={{ flex: 1 }}
         onLayout={handleContainerLayout}
         pagingEnabled={false}
@@ -1051,9 +1079,9 @@ export default function ShortsScreen() {
         getItemLayout={getItemLayout}
         initialNumToRender={2}
         maxToRenderPerBatch={3}
-        windowSize={5}
+        windowSize={3}
         updateCellsBatchingPeriod={50}
-        removeClippedSubviews={false}
+        removeClippedSubviews={Platform.OS === 'android'}
         snapToInterval={itemHeight}
         snapToAlignment="start"
         onScrollToIndexFailed={(info) => {

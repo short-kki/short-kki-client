@@ -301,7 +301,8 @@ const ShortsCard = React.memo(function ShortsCard({ item, onPress, cardWidth }: 
 });
 
 // 레시피 카드 컴포넌트 (가로 스크롤용)
-const RecipeCard = React.memo(function RecipeCard({ item, onPress, cardWidth }: { item: any; onPress: () => void; cardWidth: number }) {
+const RecipeCard = React.memo(function RecipeCard({ item, onPress, cardWidth }: { item: any; onPress: (id: string) => void; cardWidth: number }) {
+  const handlePress = useCallback(() => onPress(item.id), [onPress, item.id]);
   return (
     <ShortsCard
       item={{
@@ -314,7 +315,7 @@ const RecipeCard = React.memo(function RecipeCard({ item, onPress, cardWidth }: 
         bookmarks: item.bookmarks,
         creatorName: item.creatorName,
       }}
-      onPress={onPress}
+      onPress={handlePress}
       cardWidth={cardWidth}
     />
   );
@@ -399,6 +400,16 @@ const CurationSectionRow = React.memo(function CurationSectionRow({
   onRecipePress: (recipeId: string, section: CurationSection) => void;
   onSeeAll: (sectionId: string, sectionTitle: string) => void;
 }) {
+  const scrollViewRef = useRef<ScrollView>(null);
+  const handleRecipePress = useCallback(
+    (recipeId: string) => onRecipePress(recipeId, section),
+    [onRecipePress, section]
+  );
+
+  useEffect(() => {
+    scrollViewRef.current?.scrollTo({ x: 0, animated: false });
+  }, [section]);
+
   return (
     <View style={{ marginBottom: Spacing.base }}>
       <SectionHeader
@@ -407,6 +418,7 @@ const CurationSectionRow = React.memo(function CurationSectionRow({
         onSeeAll={() => onSeeAll(section.id, section.title)}
       />
       <ScrollView
+        ref={scrollViewRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}
@@ -415,7 +427,7 @@ const CurationSectionRow = React.memo(function CurationSectionRow({
           <RecipeCard
             key={recipe.id}
             item={recipe}
-            onPress={() => onRecipePress(recipe.id, section)}
+            onPress={handleRecipePress}
             cardWidth={cardWidth}
           />
         ))}
@@ -443,9 +455,11 @@ export default function HomeScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const [selectedFilter, setSelectedFilter] = useState("전체");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [diffClampEpoch, setDiffClampEpoch] = useState(0);
   const logoSize = Math.min(52, Math.max(40, Math.round(screenWidth * 0.12)));
   const topCardWidth = Math.min(220, Math.max(170, Math.round(screenWidth * 0.55)));
   const shortsCardWidth = Math.min(190, Math.max(150, Math.round(screenWidth * 0.48)));
+
   const FILTER_BAR_HEIGHT = 44;
   const HEADER_BAR_HEIGHT = logoSize + Spacing.sm * 2; // logo + paddingVertical
   const SEPARATOR_HEIGHT = 1;
@@ -479,12 +493,16 @@ export default function HomeScreen() {
   });
 
   // iOS 바운스 시 scrollY가 음수가 되면 diffClamp가 오동작하므로 0 이하를 클램프
-  const clampedScrollY = scrollY.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-    extrapolateLeft: 'clamp',
-  });
-  const headerTranslate = Animated.diffClamp(clampedScrollY, 0, headerHeight);
+  // diffClampEpoch 변경 시 diffClamp 네이티브 노드를 재생성하여 내부 상태 초기화
+  const { clampedScrollY, headerTranslate } = useMemo(() => {
+    const clamped = scrollY.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 1],
+      extrapolateLeft: 'clamp',
+    });
+    const translate = Animated.diffClamp(clamped, 0, headerHeight);
+    return { clampedScrollY: clamped, headerTranslate: translate };
+  }, [scrollY, headerHeight, diffClampEpoch]);
 
   // hooks에서 데이터 가져오기
   const {
@@ -506,6 +524,13 @@ export default function HomeScreen() {
       refetchUnreadCount();
     }, [refetchUnreadCount])
   );
+
+  // TOP 레시피 가로 스크롤 리셋용 ref
+  const topScrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    topScrollRef.current?.scrollTo({ x: 0, animated: false });
+  }, [topRecipes]);
 
   // 현재 사용자 정보
   const user = useUser();
@@ -616,8 +641,10 @@ export default function HomeScreen() {
       await refetch();
     } finally {
       setIsRefreshing(false);
+      scrollY.setValue(0);
+      setDiffClampEpoch(k => k + 1);
     }
-  }, [refetch]);
+  }, [refetch, scrollY]);
 
   const onScrollEvent = useMemo(
     () => Animated.event(
@@ -668,6 +695,7 @@ export default function HomeScreen() {
             </Text>
           </View>
           <ScrollView
+            ref={topScrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}

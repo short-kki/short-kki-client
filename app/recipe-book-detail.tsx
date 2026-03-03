@@ -11,6 +11,7 @@ import {
   FlatList,
   Dimensions,
   ScrollView,
+  LayoutChangeEvent,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -226,13 +227,16 @@ export default function RecipeBookDetailScreen() {
     useFeedbackToast(1600);
 
   const sortOverlayOpacity = useRef(new Animated.Value(0)).current;
-  const sortSheetTranslateY = useRef(new Animated.Value(300)).current;
+  const sortSheetTranslateY = useRef(new Animated.Value(500)).current;
+  const sortSheetHeightRef = useRef(500);
 
   const menuOverlayOpacity = useRef(new Animated.Value(0)).current;
-  const menuSheetTranslateY = useRef(new Animated.Value(300)).current;
+  const menuSheetTranslateY = useRef(new Animated.Value(500)).current;
+  const menuSheetHeightRef = useRef(500);
 
   const bookSelectOverlayOpacity = useRef(new Animated.Value(0)).current;
   const bookSelectSheetTranslateY = useRef(new Animated.Value(500)).current;
+  const bookSelectSheetHeightRef = useRef(500);
 
   const openSortSheet = useCallback(() => {
     setShowSortModal(true);
@@ -259,7 +263,7 @@ export default function RecipeBookDetailScreen() {
         useNativeDriver: true,
       }),
       Animated.timing(sortSheetTranslateY, {
-        toValue: 300,
+        toValue: sortSheetHeightRef.current,
         duration: 200,
         useNativeDriver: true,
       }),
@@ -267,6 +271,11 @@ export default function RecipeBookDetailScreen() {
       setShowSortModal(false);
     });
   }, [sortOverlayOpacity, sortSheetTranslateY]);
+
+  const handleSortSheetLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    sortSheetHeightRef.current = height;
+  }, []);
 
   const openMenuSheet = useCallback(() => {
     setShowRecipeMenuModal(true);
@@ -293,7 +302,7 @@ export default function RecipeBookDetailScreen() {
         useNativeDriver: true,
       }),
       Animated.timing(menuSheetTranslateY, {
-        toValue: 300,
+        toValue: menuSheetHeightRef.current,
         duration: 200,
         useNativeDriver: true,
       }),
@@ -302,6 +311,11 @@ export default function RecipeBookDetailScreen() {
       onDone?.();
     });
   }, [menuOverlayOpacity, menuSheetTranslateY]);
+
+  const handleMenuSheetLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    menuSheetHeightRef.current = height;
+  }, []);
 
   const openBookSelectSheet = useCallback(() => {
     setBookSelectTab("personal");
@@ -329,7 +343,7 @@ export default function RecipeBookDetailScreen() {
         useNativeDriver: true,
       }),
       Animated.timing(bookSelectSheetTranslateY, {
-        toValue: 500,
+        toValue: bookSelectSheetHeightRef.current,
         duration: 200,
         useNativeDriver: true,
       }),
@@ -338,6 +352,11 @@ export default function RecipeBookDetailScreen() {
       onDone?.();
     });
   }, [bookSelectOverlayOpacity, bookSelectSheetTranslateY]);
+
+  const handleBookSelectSheetLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    bookSelectSheetHeightRef.current = height;
+  }, []);
 
   const handleRecipePress = (recipeId: string) => {
     router.push(`/recipe/${recipeId}`);
@@ -583,6 +602,7 @@ export default function RecipeBookDetailScreen() {
 
           {/* 시트 */}
           <Animated.View
+            onLayout={handleSortSheetLayout}
             style={{
               transform: [{ translateY: sortSheetTranslateY }],
               backgroundColor: "#FFFFFF",
@@ -677,6 +697,7 @@ export default function RecipeBookDetailScreen() {
 
           {/* 시트 */}
           <Animated.View
+            onLayout={handleMenuSheetLayout}
             style={{
               transform: [{ translateY: menuSheetTranslateY }],
               backgroundColor: "#FFFFFF",
@@ -798,6 +819,7 @@ export default function RecipeBookDetailScreen() {
 
           {/* 시트 */}
           <Animated.View
+            onLayout={handleBookSelectSheetLayout}
             style={{
               transform: [{ translateY: bookSelectSheetTranslateY }],
               backgroundColor: Colors.neutral[0],

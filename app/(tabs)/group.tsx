@@ -17,6 +17,7 @@ import {
   Platform,
   ActivityIndicator,
   KeyboardAvoidingView,
+  LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
 } from "react-native";
@@ -27,6 +28,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import {
   Plus,
   MoreHorizontal,
+  MoreVertical,
   Users,
   ChevronLeft,
   ChevronRight,
@@ -52,7 +54,7 @@ import {
   Megaphone,
   HelpCircle,
 } from "lucide-react-native";
-import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/design-system";
 import { API_BASE_URL } from "@/constants/env";
 import { useGroups, useGroupFeeds, useGroupMembers, getGroupInviteCode } from "@/hooks";
 import { api } from "@/services/api";
@@ -166,6 +168,12 @@ export default function GroupScreen() {
     }, [selectedGroup, refetchGroups, refetchFeeds])
   );
 
+  // 그룹 유형 필터
+  const [selectedFilter, setSelectedFilter] = useState<GroupTypeValue | null>(null);
+  const filteredGroups = selectedFilter
+    ? groups.filter((g) => g.groupType === selectedFilter)
+    : groups;
+
   // UI 상태
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -192,7 +200,8 @@ export default function GroupScreen() {
 
   // 그룹 메뉴 바텀시트 애니메이션
   const groupMenuOverlayOpacity = useRef(new Animated.Value(0)).current;
-  const groupMenuSheetTranslateY = useRef(new Animated.Value(300)).current;
+  const groupMenuSheetTranslateY = useRef(new Animated.Value(500)).current;
+  const groupMenuHeightRef = useRef(500);
 
   const openGroupMenu = useCallback(() => {
     setShowGroupMenuModal(true);
@@ -219,7 +228,7 @@ export default function GroupScreen() {
         useNativeDriver: true,
       }),
       Animated.timing(groupMenuSheetTranslateY, {
-        toValue: 300,
+        toValue: groupMenuHeightRef.current,
         duration: 200,
         useNativeDriver: true,
       }),
@@ -229,9 +238,15 @@ export default function GroupScreen() {
     });
   }, [groupMenuOverlayOpacity, groupMenuSheetTranslateY]);
 
+  const handleGroupMenuLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    groupMenuHeightRef.current = height;
+  }, []);
+
   // 피드 메뉴 바텀시트 애니메이션
   const feedMenuOverlayOpacity = useRef(new Animated.Value(0)).current;
-  const feedMenuSheetTranslateY = useRef(new Animated.Value(300)).current;
+  const feedMenuSheetTranslateY = useRef(new Animated.Value(500)).current;
+  const feedMenuHeightRef = useRef(500);
 
   const openFeedMenu = useCallback(() => {
     setShowFeedMenuModal(true);
@@ -258,7 +273,7 @@ export default function GroupScreen() {
         useNativeDriver: true,
       }),
       Animated.timing(feedMenuSheetTranslateY, {
-        toValue: 300,
+        toValue: feedMenuHeightRef.current,
         duration: 200,
         useNativeDriver: true,
       }),
@@ -267,6 +282,11 @@ export default function GroupScreen() {
       onDone?.();
     });
   }, [feedMenuOverlayOpacity, feedMenuSheetTranslateY]);
+
+  const handleFeedMenuLayout = useCallback((event: LayoutChangeEvent) => {
+    const { height } = event.nativeEvent.layout;
+    feedMenuHeightRef.current = height;
+  }, []);
 
   // 피드백(신고) 관련 상태
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -1560,289 +1580,284 @@ export default function GroupScreen() {
             style={{
               flexDirection: "row",
               alignItems: "center",
-              backgroundColor: Colors.primary[500],
-              paddingHorizontal: Spacing.md,
+              backgroundColor: Colors.neutral[100],
+              paddingHorizontal: Spacing.base,
               paddingVertical: Spacing.sm,
               borderRadius: BorderRadius.full,
               gap: 4,
             }}
           >
-            <Plus size={18} color="#FFF" />
-            <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 14 }}>
-              추가
+            <Plus size={16} color={Colors.primary[500]} />
+            <Text style={{ color: Colors.primary[500], fontWeight: "600", fontSize: Typography.fontSize.sm }}>
+              생성
             </Text>
           </TouchableOpacity>
         </View>
 
+        {/* 그룹 유형 필터 */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}
+          style={{ flexGrow: 0, marginBottom: Spacing.xs }}
+        >
+          {[{ value: null as GroupTypeValue | null, label: '전체' }, ...GROUP_TYPES].map((type) => {
+            const isSelected = selectedFilter === type.value;
+            return (
+              <TouchableOpacity
+                key={type.value ?? 'all'}
+                onPress={() => setSelectedFilter(type.value)}
+                activeOpacity={0.8}
+                style={{
+                  paddingHorizontal: Spacing.base,
+                  paddingVertical: Spacing.sm,
+                  borderRadius: BorderRadius.full,
+                  backgroundColor: isSelected ? Colors.primary[500] : Colors.neutral[100],
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.sm,
+                    fontWeight: '600',
+                    color: isSelected ? Colors.neutral[0] : Colors.neutral[600],
+                  }}
+                >
+                  {type.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
         {/* Group List */}
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.md }}
+          contentContainerStyle={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm }}
           showsVerticalScrollIndicator={false}
         >
-          {groups.length > 0 ? (
-            groups.map((group) => (
-              <Pressable
+          {filteredGroups.length > 0 ? (
+            filteredGroups.map((group) => (
+              <TouchableOpacity
                 key={group.id}
                 onPress={() => handleGroupPress(group)}
-                style={({ pressed }) => ({
-                  backgroundColor: pressed ? '#F5F5F5' : '#FFFFFF',
-                  borderRadius: 16,
-                  borderWidth: 2,
-                  borderColor: pressed ? Colors.primary[400] : '#D4D4D4',
-                  padding: 16,
-                  marginBottom: 20,
-                })}
+                activeOpacity={0.8}
+                style={{
+                  backgroundColor: Colors.neutral[0],
+                  borderRadius: BorderRadius.xl,
+                  marginBottom: Spacing.base,
+                  overflow: "hidden",
+                  borderWidth: 1,
+                  borderColor: Colors.neutral[100],
+                  ...Shadows.sm,
+                }}
               >
-                {/* 상단: 아바타 + 그룹명 + 뱃지 */}
-                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
-                  {/* Group Avatar */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: Spacing.md,
+                    paddingHorizontal: Spacing.base,
+                  }}
+                >
+                  {/* 아바타 */}
                   {group.thumbnail ? (
-                    <View
+                    <Image
+                      source={{ uri: group.thumbnail }}
                       style={{
-                        width: 72,
-                        height: 72,
-                        borderRadius: 22,
-                        overflow: 'hidden',
-                        borderWidth: 2,
-                        borderColor: '#F1F5F9',
+                        width: 48,
+                        height: 48,
+                        borderRadius: 24,
+                        borderWidth: 1.5,
+                        borderColor: Colors.primary[100],
                       }}
-                    >
-                      <Image
-                        source={{ uri: group.thumbnail }}
-                        style={{ width: '100%', height: '100%' }}
-                        contentFit="cover"
-                      />
-                    </View>
+                      contentFit="cover"
+                    />
                   ) : (
                     <View
                       style={{
-                        width: 72,
-                        height: 72,
-                        borderRadius: 22,
-                        backgroundColor: Colors.primary[50],
+                        width: 48,
+                        height: 48,
+                        borderRadius: 24,
+                        backgroundColor: Colors.primary[100],
                         justifyContent: "center",
                         alignItems: "center",
                       }}
                     >
-                      <Users size={34} color={Colors.primary[500]} strokeWidth={1.8} />
+                      <Users size={22} color={Colors.primary[400]} strokeWidth={2} />
                     </View>
                   )}
 
-                  {/* Group Name + Badge */}
-                  <View style={{ flex: 1, marginLeft: 16 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                  {/* 텍스트 영역 */}
+                  <View style={{ flex: 1, marginLeft: Spacing.md }}>
+                    {/* 1행: 그룹명 + 방장 뱃지 */}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <Text
                         style={{
-                          fontSize: 20,
-                          fontWeight: "800",
+                          fontSize: Typography.fontSize.md,
+                          fontWeight: "700",
                           color: Colors.neutral[900],
-                          letterSpacing: -0.5,
-                          flex: 1,
+                          flexShrink: 1,
                         }}
                         numberOfLines={1}
                       >
                         {group.name}
                       </Text>
-                      {group.myRole === 'ADMIN' && (
-                        <View
-                          style={{
-                            backgroundColor: Colors.primary[500],
-                            paddingHorizontal: 10,
-                            paddingVertical: 4,
-                            borderRadius: 8,
-                          }}
-                        >
-                          <Text style={{ fontSize: 11, fontWeight: "700", color: "#FFF" }}>
-                            방장
-                          </Text>
-                        </View>
-                      )}
                     </View>
-                    {group.description && (
+                    {/* 2행: 설명 또는 마지막 활동 */}
+                    {group.description ? (
                       <Text
                         style={{
-                          fontSize: 14,
+                          fontSize: Typography.fontSize.sm,
                           color: Colors.neutral[500],
-                          lineHeight: 20,
+                          marginTop: 2,
                         }}
                         numberOfLines={1}
                       >
                         {group.description}
                       </Text>
-                    )}
-                  </View>
-                </View>
-
-                {/* 하단: 메타 정보 + 화살표 */}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    backgroundColor: '#F8FAFC',
-                    borderRadius: 14,
-                    paddingVertical: 12,
-                    paddingHorizontal: 16,
-                  }}
-                >
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 20 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <View
+                    ) : group.lastFeedAt ? (
+                      <Text
                         style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: 14,
-                          backgroundColor: '#FFFFFF',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          shadowColor: "#000",
-                          shadowOffset: { width: 0, height: 1 },
-                          shadowOpacity: 0.05,
-                          shadowRadius: 2,
-                          elevation: 1,
+                          fontSize: Typography.fontSize.sm,
+                          color: Colors.neutral[500],
+                          marginTop: 2,
                         }}
+                        numberOfLines={1}
                       >
-                        <Users size={14} color={Colors.primary[500]} strokeWidth={2.5} />
-                      </View>
-                      <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.neutral[700] }}>
+                        마지막 활동 {formatRelativeTime(group.lastFeedAt)}
+                      </Text>
+                    ) : null}
+                    {/* 3행: 멤버수 + 마지막활동 메타 */}
+                    <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4, gap: 4 }}>
+                      <Users size={12} color={Colors.neutral[400]} strokeWidth={2} />
+                      <Text style={{ fontSize: Typography.fontSize.xs, color: Colors.neutral[400] }}>
                         {group.memberCount}명
                       </Text>
+                      {group.lastFeedAt && (
+                        <>
+                          <Text style={{ fontSize: Typography.fontSize.xs, color: Colors.neutral[300] }}>·</Text>
+                          <Clock size={12} color={Colors.neutral[400]} strokeWidth={2} />
+                          <Text style={{ fontSize: Typography.fontSize.xs, color: Colors.neutral[400] }}>
+                            {formatRelativeTime(group.lastFeedAt)}
+                          </Text>
+                        </>
+                      )}
+                      {group.myRole === 'ADMIN' && (
+                        <>
+                          <Text style={{ fontSize: Typography.fontSize.xs, color: Colors.neutral[300] }}>·</Text>
+                          <View
+                            style={{
+                              backgroundColor: Colors.primary[50],
+                              paddingHorizontal: Spacing.sm,
+                              paddingVertical: 2,
+                              borderRadius: BorderRadius.xs,
+                            }}
+                          >
+                            <Text style={{ fontSize: Typography.fontSize.xs, fontWeight: "600", color: Colors.primary[500] }}>
+                              방장
+                            </Text>
+                          </View>
+                        </>
+                      )}
                     </View>
-                    {group.lastFeedAt && (
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                        <View
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 14,
-                            backgroundColor: '#FFFFFF',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            shadowColor: "#000",
-                            shadowOffset: { width: 0, height: 1 },
-                            shadowOpacity: 0.05,
-                            shadowRadius: 2,
-                            elevation: 1,
-                          }}
-                        >
-                          <Clock size={14} color={Colors.neutral[500]} strokeWidth={2.5} />
-                        </View>
-                        <Text style={{ fontSize: 15, fontWeight: '600', color: Colors.neutral[600] }}>
-                          {formatRelativeTime(group.lastFeedAt)}
-                        </Text>
-                      </View>
-                    )}
                   </View>
 
+                  {/* 메뉴 버튼 */}
                   <Pressable
                     onPress={(e) => {
                       e.stopPropagation();
                       handleShowGroupMenu(group);
                     }}
                     style={({ pressed }) => ({
-                      width: 36,
-                      height: 36,
-                      borderRadius: 18,
-                      backgroundColor: pressed ? '#EEEEEE' : '#FFFFFF',
+                      width: 32,
+                      height: 32,
+                      borderRadius: BorderRadius.full,
+                      backgroundColor: pressed ? Colors.neutral[100] : 'transparent',
                       justifyContent: 'center',
                       alignItems: 'center',
-                      shadowColor: "#000",
-                      shadowOffset: { width: 0, height: 1 },
-                      shadowOpacity: 0.05,
-                      shadowRadius: 2,
-                      elevation: 1,
                     })}
                     hitSlop={8}
                   >
-                    <MoreHorizontal size={18} color={Colors.neutral[500]} />
+                    <MoreVertical size={18} color={Colors.neutral[400]} />
                   </Pressable>
                 </View>
-              </Pressable>
+              </TouchableOpacity>
             ))
+          ) : selectedFilter && groups.length > 0 ? (
+            <View
+              style={{
+                flex: 1,
+                justifyContent: "center",
+                alignItems: "center",
+                paddingVertical: 80,
+                paddingHorizontal: Spacing.xl,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: Typography.fontSize.base,
+                  color: Colors.neutral[500],
+                  textAlign: "center",
+                }}
+              >
+                {GROUP_TYPES.find((t) => t.value === selectedFilter)?.label} 유형의 그룹이 없어요
+              </Text>
+            </View>
           ) : (
             <View
               style={{
                 flex: 1,
                 justifyContent: "center",
                 alignItems: "center",
-                paddingVertical: 100,
-                paddingHorizontal: 32,
+                paddingVertical: 80,
+                paddingHorizontal: Spacing.xl,
               }}
             >
               {/* 일러스트 스타일 아이콘 */}
-              <View style={{ marginBottom: 24 }}>
+              <View style={{ marginBottom: Spacing.xl }}>
                 <View
                   style={{
-                    width: 120,
-                    height: 120,
-                    borderRadius: 60,
-                    backgroundColor: '#FFF7ED',
+                    width: 100,
+                    height: 100,
+                    borderRadius: 50,
+                    backgroundColor: Colors.primary[50],
                     justifyContent: "center",
                     alignItems: "center",
-                    position: 'relative',
                   }}
                 >
                   <View
                     style={{
-                      width: 80,
-                      height: 80,
-                      borderRadius: 40,
-                      backgroundColor: '#FFEDD5',
+                      width: 64,
+                      height: 64,
+                      borderRadius: 32,
+                      backgroundColor: Colors.primary[100],
                       justifyContent: "center",
                       alignItems: "center",
                     }}
                   >
-                    <Users size={40} color={Colors.primary[500]} strokeWidth={1.5} />
+                    <Users size={32} color={Colors.primary[400]} strokeWidth={1.5} />
                   </View>
-                  {/* 데코레이션 */}
-                  <View
-                    style={{
-                      position: 'absolute',
-                      top: 8,
-                      right: 12,
-                      width: 24,
-                      height: 24,
-                      borderRadius: 12,
-                      backgroundColor: '#FEF3C7',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Text style={{ fontSize: 12 }}>✨</Text>
-                  </View>
-                  <View
-                    style={{
-                      position: 'absolute',
-                      bottom: 16,
-                      left: 8,
-                      width: 20,
-                      height: 20,
-                      borderRadius: 10,
-                      backgroundColor: '#E0F2FE',
-                    }}
-                  />
                 </View>
               </View>
 
               <Text
                 style={{
-                  fontSize: 22,
-                  fontWeight: "800",
+                  fontSize: Typography.fontSize.xl,
+                  fontWeight: "700",
                   color: Colors.neutral[900],
-                  marginBottom: 8,
-                  letterSpacing: -0.5,
+                  marginBottom: Spacing.sm,
+                  letterSpacing: -0.3,
                 }}
               >
                 아직 그룹이 없어요
               </Text>
               <Text
                 style={{
-                  fontSize: 15,
+                  fontSize: Typography.fontSize.base,
                   color: Colors.neutral[500],
                   textAlign: "center",
                   lineHeight: 22,
-                  marginBottom: 28,
+                  marginBottom: Spacing.xl,
                 }}
               >
                 그룹을 만들어 가족, 친구들과{"\n"}식단을 함께 관리해보세요
@@ -1852,23 +1867,19 @@ export default function GroupScreen() {
                 style={({ pressed }) => ({
                   flexDirection: "row",
                   alignItems: "center",
-                  backgroundColor: pressed ? '#E65100' : Colors.primary[500],
-                  paddingHorizontal: 28,
-                  paddingVertical: 16,
-                  borderRadius: 16,
-                  gap: 8,
-                  shadowColor: Colors.primary[500],
-                  shadowOffset: { width: 0, height: 6 },
-                  shadowOpacity: 0.35,
-                  shadowRadius: 12,
-                  elevation: 6,
+                  backgroundColor: pressed ? Colors.primary[600] : Colors.primary[500],
+                  paddingHorizontal: Spacing.xl,
+                  paddingVertical: Spacing.md,
+                  borderRadius: BorderRadius.lg,
+                  gap: Spacing.sm,
+                  ...Shadows.primary,
                   transform: [{ scale: pressed ? 0.98 : 1 }],
                 })}
               >
                 <Plus size={20} color="#FFFFFF" strokeWidth={2.5} />
                 <Text
                   style={{
-                    fontSize: 16,
+                    fontSize: Typography.fontSize.base,
                     fontWeight: "700",
                     color: "#FFFFFF",
                   }}
@@ -2055,6 +2066,7 @@ export default function GroupScreen() {
 
           {/* 시트 */}
           <Animated.View
+            onLayout={handleGroupMenuLayout}
             style={{
               transform: [{ translateY: groupMenuSheetTranslateY }],
               backgroundColor: "#FFFFFF",
@@ -2166,6 +2178,7 @@ export default function GroupScreen() {
           </Animated.View>
 
           <Animated.View
+            onLayout={handleFeedMenuLayout}
             style={{
               transform: [{ translateY: feedMenuSheetTranslateY }],
               backgroundColor: "#FFFFFF",

@@ -96,6 +96,7 @@ function mapApiGroupToGroup(apiGroup: ApiGroup): Group {
     lastActivity: formatRelativeTime(apiGroup.createdAt),
     myRole: apiGroup.myRole || 'MEMBER',
     lastFeedAt: apiGroup.lastFeedAt || null,
+    groupType: apiGroup.groupType,
   };
 }
 
@@ -158,9 +159,10 @@ function formatRelativeTime(dateString: string): string {
 /**
  * 그룹 목록 조회
  */
-export function useGroups() {
+export function useGroups(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true;
   const [groups, setGroups] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchGroups = useCallback(async () => {
@@ -185,8 +187,10 @@ export function useGroups() {
   }, []);
 
   useEffect(() => {
-    fetchGroups();
-  }, [fetchGroups]);
+    if (enabled) {
+      fetchGroups();
+    }
+  }, [fetchGroups, enabled]);
 
   const addGroup = useCallback((group: Group) => {
     setGroups((prev) => [group, ...prev]);
@@ -211,6 +215,9 @@ export function useGroups() {
         memberCount: 1,
         thumbnail: null,
         lastActivity: '방금',
+        groupType: data.groupType,
+        myRole: 'ADMIN',
+        lastFeedAt: null,
       };
       addGroup(newGroup);
       return newGroup;
@@ -728,6 +735,9 @@ export async function joinGroupByInviteCode(inviteCode: string): Promise<Group> 
       memberCount: 4,
       thumbnail: null,
       lastActivity: '방금',
+      groupType: 'ETC',
+      myRole: 'MEMBER',
+      lastFeedAt: null,
     };
   }
 

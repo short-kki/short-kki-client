@@ -136,9 +136,10 @@ function mapRecipeFromApi(apiResponse: RecipeSummaryApiResponse, bookId: string)
 /**
  * 개인 레시피북 목록 조회
  */
-export function usePersonalRecipeBooks() {
+export function usePersonalRecipeBooks(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true;
   const [recipeBooks, setRecipeBooks] = useState<RecipeBook[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchRecipeBooks = useCallback(async () => {
@@ -157,8 +158,10 @@ export function usePersonalRecipeBooks() {
   }, []);
 
   useEffect(() => {
-    fetchRecipeBooks();
-  }, [fetchRecipeBooks]);
+    if (enabled) {
+      fetchRecipeBooks();
+    }
+  }, [fetchRecipeBooks, enabled]);
 
   // 레시피북 생성 API 호출
   const createRecipeBook = useCallback(async (name: string): Promise<boolean> => {
@@ -225,17 +228,6 @@ export function usePersonalRecipeBooks() {
     try {
       await api.patch('/api/v1/recipebooks/order', {
         recipeBookIds: orderedBookIds.map((id) => Number(id)),
-      });
-
-      setRecipeBooks((prev) => {
-        const fixedBooks = prev.filter((book) => book.isDefault);
-        const mutableMap = new Map(
-          prev.filter((book) => !book.isDefault).map((book) => [book.id, book] as const)
-        );
-        const reorderedMutableBooks = orderedBookIds
-          .map((id) => mutableMap.get(id))
-          .filter((book): book is RecipeBook => !!book);
-        return [...fixedBooks, ...reorderedMutableBooks];
       });
       return true;
     } catch (err) {
@@ -309,9 +301,10 @@ export function useGroupRecipeBooksById(groupId?: string) {
 /**
  * 그룹 레시피북 목록 조회
  */
-export function useGroupRecipeBooks() {
+export function useGroupRecipeBooks(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true;
   const [recipeBooks, setRecipeBooks] = useState<RecipeBook[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchRecipeBooks = useCallback(async () => {
@@ -364,8 +357,10 @@ export function useGroupRecipeBooks() {
   }, []);
 
   useEffect(() => {
-    fetchRecipeBooks();
-  }, [fetchRecipeBooks]);
+    if (enabled) {
+      fetchRecipeBooks();
+    }
+  }, [fetchRecipeBooks, enabled]);
 
   return {
     recipeBooks,
