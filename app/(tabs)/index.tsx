@@ -394,18 +394,21 @@ const CurationSectionRow = React.memo(function CurationSectionRow({
   cardWidth,
   onRecipePress,
   onSeeAll,
-  scrollResetKey,
 }: {
   section: CurationSection;
   cardWidth: number;
   onRecipePress: (recipeId: string, section: CurationSection) => void;
   onSeeAll: (sectionId: string, sectionTitle: string) => void;
-  scrollResetKey: number;
 }) {
+  const scrollViewRef = useRef<ScrollView>(null);
   const handleRecipePress = useCallback(
     (recipeId: string) => onRecipePress(recipeId, section),
     [onRecipePress, section]
   );
+
+  useEffect(() => {
+    scrollViewRef.current?.scrollTo({ x: 0, animated: false });
+  }, [section]);
 
   return (
     <View style={{ marginBottom: Spacing.base }}>
@@ -415,7 +418,7 @@ const CurationSectionRow = React.memo(function CurationSectionRow({
         onSeeAll={() => onSeeAll(section.id, section.title)}
       />
       <ScrollView
-        key={scrollResetKey}
+        ref={scrollViewRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}
@@ -452,28 +455,10 @@ export default function HomeScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const [selectedFilter, setSelectedFilter] = useState("전체");
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [scrollResetKey, setScrollResetKey] = useState(0);
   const [diffClampEpoch, setDiffClampEpoch] = useState(0);
   const logoSize = Math.min(52, Math.max(40, Math.round(screenWidth * 0.12)));
   const topCardWidth = Math.min(220, Math.max(170, Math.round(screenWidth * 0.55)));
   const shortsCardWidth = Math.min(190, Math.max(150, Math.round(screenWidth * 0.48)));
-
-  // SectionList getItemLayout: 아이템 높이 사전 계산으로 비동기 측정 제거
-  // CurationSectionRow 높이 = SectionHeader(~60) + ScrollView(CARD_HEIGHT + 8) + marginBottom(16)
-  const getItemLayout = useMemo(() => {
-    const cardHeight = Math.round(shortsCardWidth * (16 / 9));
-    const ROW_HEIGHT = cardHeight + 84;
-    return (_data: any, index: number) => {
-      // SectionList flat index: even=section header(0 height), odd=item
-      const sectionIndex = Math.floor(index / 2);
-      const isHeader = index % 2 === 0;
-      return {
-        length: isHeader ? 0 : ROW_HEIGHT,
-        offset: sectionIndex * ROW_HEIGHT,
-        index,
-      };
-    };
-  }, [shortsCardWidth]);
 
   const FILTER_BAR_HEIGHT = 44;
   const HEADER_BAR_HEIGHT = logoSize + Spacing.sm * 2; // logo + paddingVertical
@@ -539,6 +524,13 @@ export default function HomeScreen() {
       refetchUnreadCount();
     }, [refetchUnreadCount])
   );
+
+  // TOP 레시피 가로 스크롤 리셋용 ref
+  const topScrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    topScrollRef.current?.scrollTo({ x: 0, animated: false });
+  }, [topRecipes]);
 
   // 현재 사용자 정보
   const user = useUser();
@@ -635,10 +627,9 @@ export default function HomeScreen() {
         cardWidth={shortsCardWidth}
         onRecipePress={handleRecipePress}
         onSeeAll={handleSeeAllSection}
-        scrollResetKey={scrollResetKey}
       />
     );
-  }, [shortsCardWidth, handleRecipePress, handleSeeAllSection, scrollResetKey]);
+  }, [shortsCardWidth, handleRecipePress, handleSeeAllSection]);
 
   const handleEndReached = useCallback(() => {
     if (hasNext && !loadingMore) fetchNextPage();
@@ -649,7 +640,6 @@ export default function HomeScreen() {
     try {
       await refetch();
     } finally {
-      setScrollResetKey(k => k + 1);
       setIsRefreshing(false);
       scrollY.setValue(0);
       setDiffClampEpoch(k => k + 1);
@@ -705,7 +695,7 @@ export default function HomeScreen() {
             </Text>
           </View>
           <ScrollView
-            key={scrollResetKey}
+            ref={topScrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}
@@ -723,7 +713,7 @@ export default function HomeScreen() {
         </View>
       )}
     </View>
-  ), [loading, isRefreshing, topRecipes, sections.length, topShorts, topCardWidth, handleTopCurationPress, scrollResetKey]);
+  ), [loading, isRefreshing, topRecipes, sections.length, topShorts, topCardWidth, handleTopCurationPress]);
 
   const listFooterComponent = useMemo(() =>
     loadingMore ? (
@@ -760,7 +750,6 @@ export default function HomeScreen() {
         sections={curationSections}
         keyExtractor={keyExtractor}
         renderItem={renderCurationItem}
-        getItemLayout={getItemLayout}
         ListHeaderComponent={listHeaderComponent}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
