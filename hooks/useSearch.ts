@@ -95,15 +95,12 @@ export function useRecipeSearch(params: SearchParams) {
     }
 
     const qs = buildQueryString(currentParams, page, DEFAULT_PAGE_SIZE);
-    console.log('[Search] requesting:', `/api/v2/recipes/search?${qs}`);
     const response = await api.get<ApiResponse<SearchResponse>>(
       `/api/v2/recipes/search?${qs}`
     );
 
-    console.log('[Search] raw response:', JSON.stringify(response));
     const data = response.data;
     const recipes = data?.searchResult ?? [];
-    console.log('[Search] parsed recipes count:', recipes.length);
 
     if (isLoadMore) {
       setResults((prev) => [...prev, ...recipes]);

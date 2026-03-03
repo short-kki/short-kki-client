@@ -216,12 +216,6 @@ export default function GroupFeedCreateScreen() {
         );
         imageFileId = uploadedFile.fileId;
 
-        console.log("[Feed] 이미지 업로드 완료:", {
-          fileId: uploadedFile.fileId,
-          objectKey: uploadedFile.objectKey,
-          url: uploadedFile.url,
-        });
-
         setUploadProgress(isEditMode ? "피드 수정 중..." : "피드 등록 중...");
       }
 
@@ -252,8 +246,6 @@ export default function GroupFeedCreateScreen() {
           updateRequest.imageFileId = finalImageFileId;
         }
 
-        console.log("[Feed] 피드 수정 요청:", updateRequest);
-
         if (!USE_MOCK) {
           await api.patch(`/api/v1/groups/${params.groupId}/feeds/${params.feedId}`, updateRequest);
         }
@@ -264,8 +256,6 @@ export default function GroupFeedCreateScreen() {
           feedType: "USER_CREATED",
           ...(imageFileId && { imageFileId }),
         };
-
-        console.log("[Feed] 피드 생성 요청:", feedRequest);
 
         if (USE_MOCK) {
           await new Promise((resolve) => setTimeout(resolve, 500));

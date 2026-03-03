@@ -64,9 +64,8 @@ export default function SettingsScreen() {
     setToggleStates((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const handleItemPress = (id: string) => {
-    // 프로토타입: 알림 표시
-    console.log(`Setting item pressed: ${id}`);
+  const handleItemPress = (_id: string) => {
+    // 프로토타입: TODO
   };
 
   return (

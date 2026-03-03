@@ -29,6 +29,7 @@ import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
 import { useUser } from "@/contexts/AuthContext";
 import type { CurationSection } from "@/data/mock";
 import Svg, { Path } from "react-native-svg";
+import { LinearGradient } from "expo-linear-gradient";
 
 // YouTube 썸네일 URL 생성 함수
 const getYoutubeThumbnail = (videoId: string) =>
@@ -135,14 +136,14 @@ const TopRankCard = React.memo(function TopRankCard({
           recyclingKey={item.id}
           cachePolicy="memory-disk"
         />
-        <View
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.6)"]}
           style={{
             position: "absolute",
             left: 0,
             right: 0,
             bottom: 0,
-            height: 80,
-            backgroundColor: "rgba(0,0,0,0.35)",
+            height: 100,
           }}
           pointerEvents="none"
         />
@@ -236,14 +237,14 @@ const ShortsCard = React.memo(function ShortsCard({ item, onPress, cardWidth }: 
             recyclingKey={item.id}
             cachePolicy="memory-disk"
           />
-          <View
+          <LinearGradient
+            colors={["rgba(0,0,0,0.4)", "transparent"]}
             style={{
               position: "absolute",
               left: 0,
               right: 0,
               top: 0,
               height: "30%",
-              backgroundColor: "rgba(0,0,0,0.25)",
             }}
             pointerEvents="none"
           />
@@ -260,14 +261,16 @@ const ShortsCard = React.memo(function ShortsCard({ item, onPress, cardWidth }: 
               borderBottomRightRadius: BorderRadius.md,
             }}
           >
-            <View
+            <LinearGradient
+              colors={["transparent", "rgba(0,0,0,0.7)"]}
               style={{
                 position: "absolute",
                 left: 0,
                 right: 0,
                 top: 0,
                 bottom: 0,
-                backgroundColor: "rgba(0,0,0,0.5)",
+                borderBottomLeftRadius: BorderRadius.md,
+                borderBottomRightRadius: BorderRadius.md,
               }}
               pointerEvents="none"
             />
@@ -777,7 +780,6 @@ export default function HomeScreen() {
               gap: Spacing.sm,
             }}
             onPress={() => {
-              console.log("Search pressed");
               router.push("/search");
             }}
           >
@@ -798,7 +800,6 @@ export default function HomeScreen() {
               alignItems: "center",
             }}
             onPress={() => {
-              console.log("Notifications pressed");
               router.push("/notifications");
             }}
           >
@@ -831,7 +832,6 @@ export default function HomeScreen() {
               overflow: "hidden",
             }}
             onPress={() => {
-              console.log("Profile pressed");
               router.push("/profile-edit");
             }}
           >

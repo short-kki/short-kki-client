@@ -165,11 +165,6 @@ export function useGroups() {
       } else {
         // 실제 API 호출: GET /api/v1/groups/my
         const response = await api.get<ApiResponse<ApiGroup[]>>('/api/v1/groups/my');
-        console.log("[Groups] API 응답:", JSON.stringify(response.data.map(g => ({
-          id: g.id,
-          name: g.name,
-          thumbnailImgUrl: g.thumbnailImgUrl,
-        })), null, 2));
         const mappedGroups = response.data.map(mapApiGroupToGroup);
         setGroups(mappedGroups);
       }
@@ -671,10 +666,7 @@ export function useGroupDetail(groupId?: string) {
     }
 
     // 실제 API 호출: PUT /api/v1/groups/{groupId}
-    console.log('[useGroupDetail] PUT 요청:', `/api/v1/groups/${groupId}`);
-    console.log('[useGroupDetail] 요청 데이터:', JSON.stringify(data, null, 2));
-    const response = await api.put<ApiResponse<null>>(`/api/v1/groups/${groupId}`, data);
-    console.log('[useGroupDetail] 응답:', response);
+    await api.put<ApiResponse<null>>(`/api/v1/groups/${groupId}`, data);
     // 상태 업데이트
     setGroup((prev) => prev ? { ...prev, ...data } : null);
   }, [groupId]);
