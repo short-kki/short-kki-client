@@ -62,9 +62,10 @@ function RootLayoutNav() {
     const sharedText = shareIntent.text || "";
     const sharedUrl = extractUrl(sharedText) || shareIntent.webUrl || null;
 
+    let timerId: ReturnType<typeof setTimeout> | undefined;
     if (sharedUrl) {
       // auth guard 리다이렉트와의 경합 방지를 위해 약간 지연
-      setTimeout(() => {
+      timerId = setTimeout(() => {
         router.push({
           pathname: "/(tabs)/add",
           params: { sharedUrl },
@@ -73,6 +74,10 @@ function RootLayoutNav() {
     }
 
     resetShareIntent();
+
+    return () => {
+      if (timerId) clearTimeout(timerId);
+    };
   }, [hasShareIntent, isLoading]);
 
   return (
