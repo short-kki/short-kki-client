@@ -495,15 +495,15 @@ export default function RecipeBookScreen() {
             style={{
               flexDirection: "row",
               alignItems: "center",
-              backgroundColor: Colors.primary[500],
-              paddingHorizontal: Spacing.md,
+              backgroundColor: Colors.neutral[100],
+              paddingHorizontal: Spacing.base,
               paddingVertical: Spacing.sm,
               borderRadius: BorderRadius.full,
               gap: 4,
             }}
           >
-            <Plus size={18} color="#FFF" />
-            <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 14 }}>
+            <Plus size={16} color={Colors.primary[500]} />
+            <Text style={{ color: Colors.primary[500], fontWeight: "600", fontSize: Typography.fontSize.sm }}>
               추가
             </Text>
           </TouchableOpacity>
