@@ -301,7 +301,8 @@ const ShortsCard = React.memo(function ShortsCard({ item, onPress, cardWidth }: 
 });
 
 // 레시피 카드 컴포넌트 (가로 스크롤용)
-const RecipeCard = React.memo(function RecipeCard({ item, onPress, cardWidth }: { item: any; onPress: () => void; cardWidth: number }) {
+const RecipeCard = React.memo(function RecipeCard({ item, onPress, cardWidth }: { item: any; onPress: (id: string) => void; cardWidth: number }) {
+  const handlePress = useCallback(() => onPress(item.id), [onPress, item.id]);
   return (
     <ShortsCard
       item={{
@@ -314,7 +315,7 @@ const RecipeCard = React.memo(function RecipeCard({ item, onPress, cardWidth }: 
         bookmarks: item.bookmarks,
         creatorName: item.creatorName,
       }}
-      onPress={onPress}
+      onPress={handlePress}
       cardWidth={cardWidth}
     />
   );
@@ -393,12 +394,19 @@ const CurationSectionRow = React.memo(function CurationSectionRow({
   cardWidth,
   onRecipePress,
   onSeeAll,
+  scrollResetKey,
 }: {
   section: CurationSection;
   cardWidth: number;
   onRecipePress: (recipeId: string, section: CurationSection) => void;
   onSeeAll: (sectionId: string, sectionTitle: string) => void;
+  scrollResetKey: number;
 }) {
+  const handleRecipePress = useCallback(
+    (recipeId: string) => onRecipePress(recipeId, section),
+    [onRecipePress, section]
+  );
+
   return (
     <View style={{ marginBottom: Spacing.base }}>
       <SectionHeader
@@ -407,6 +415,7 @@ const CurationSectionRow = React.memo(function CurationSectionRow({
         onSeeAll={() => onSeeAll(section.id, section.title)}
       />
       <ScrollView
+        key={scrollResetKey}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}
@@ -415,7 +424,7 @@ const CurationSectionRow = React.memo(function CurationSectionRow({
           <RecipeCard
             key={recipe.id}
             item={recipe}
-            onPress={() => onRecipePress(recipe.id, section)}
+            onPress={handleRecipePress}
             cardWidth={cardWidth}
           />
         ))}
@@ -443,9 +452,29 @@ export default function HomeScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const [selectedFilter, setSelectedFilter] = useState("전체");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [scrollResetKey, setScrollResetKey] = useState(0);
+  const [diffClampEpoch, setDiffClampEpoch] = useState(0);
   const logoSize = Math.min(52, Math.max(40, Math.round(screenWidth * 0.12)));
   const topCardWidth = Math.min(220, Math.max(170, Math.round(screenWidth * 0.55)));
   const shortsCardWidth = Math.min(190, Math.max(150, Math.round(screenWidth * 0.48)));
+
+  // SectionList getItemLayout: 아이템 높이 사전 계산으로 비동기 측정 제거
+  // CurationSectionRow 높이 = SectionHeader(~60) + ScrollView(CARD_HEIGHT + 8) + marginBottom(16)
+  const getItemLayout = useMemo(() => {
+    const cardHeight = Math.round(shortsCardWidth * (16 / 9));
+    const ROW_HEIGHT = cardHeight + 84;
+    return (_data: any, index: number) => {
+      // SectionList flat index: even=section header(0 height), odd=item
+      const sectionIndex = Math.floor(index / 2);
+      const isHeader = index % 2 === 0;
+      return {
+        length: isHeader ? 0 : ROW_HEIGHT,
+        offset: sectionIndex * ROW_HEIGHT,
+        index,
+      };
+    };
+  }, [shortsCardWidth]);
+
   const FILTER_BAR_HEIGHT = 44;
   const HEADER_BAR_HEIGHT = logoSize + Spacing.sm * 2; // logo + paddingVertical
   const SEPARATOR_HEIGHT = 1;
@@ -479,12 +508,16 @@ export default function HomeScreen() {
   });
 
   // iOS 바운스 시 scrollY가 음수가 되면 diffClamp가 오동작하므로 0 이하를 클램프
-  const clampedScrollY = scrollY.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-    extrapolateLeft: 'clamp',
-  });
-  const headerTranslate = Animated.diffClamp(clampedScrollY, 0, headerHeight);
+  // diffClampEpoch 변경 시 diffClamp 네이티브 노드를 재생성하여 내부 상태 초기화
+  const { clampedScrollY, headerTranslate } = useMemo(() => {
+    const clamped = scrollY.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 1],
+      extrapolateLeft: 'clamp',
+    });
+    const translate = Animated.diffClamp(clamped, 0, headerHeight);
+    return { clampedScrollY: clamped, headerTranslate: translate };
+  }, [scrollY, headerHeight, diffClampEpoch]);
 
   // hooks에서 데이터 가져오기
   const {
@@ -602,9 +635,10 @@ export default function HomeScreen() {
         cardWidth={shortsCardWidth}
         onRecipePress={handleRecipePress}
         onSeeAll={handleSeeAllSection}
+        scrollResetKey={scrollResetKey}
       />
     );
-  }, [shortsCardWidth, handleRecipePress, handleSeeAllSection]);
+  }, [shortsCardWidth, handleRecipePress, handleSeeAllSection, scrollResetKey]);
 
   const handleEndReached = useCallback(() => {
     if (hasNext && !loadingMore) fetchNextPage();
@@ -615,9 +649,12 @@ export default function HomeScreen() {
     try {
       await refetch();
     } finally {
+      setScrollResetKey(k => k + 1);
       setIsRefreshing(false);
+      scrollY.setValue(0);
+      setDiffClampEpoch(k => k + 1);
     }
-  }, [refetch]);
+  }, [refetch, scrollY]);
 
   const onScrollEvent = useMemo(
     () => Animated.event(
@@ -668,6 +705,7 @@ export default function HomeScreen() {
             </Text>
           </View>
           <ScrollView
+            key={scrollResetKey}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingLeft: Spacing.xl, paddingRight: Spacing.sm, paddingBottom: Spacing.sm }}
@@ -685,7 +723,7 @@ export default function HomeScreen() {
         </View>
       )}
     </View>
-  ), [loading, isRefreshing, topRecipes, sections.length, topShorts, topCardWidth, handleTopCurationPress]);
+  ), [loading, isRefreshing, topRecipes, sections.length, topShorts, topCardWidth, handleTopCurationPress, scrollResetKey]);
 
   const listFooterComponent = useMemo(() =>
     loadingMore ? (
@@ -722,11 +760,12 @@ export default function HomeScreen() {
         sections={curationSections}
         keyExtractor={keyExtractor}
         renderItem={renderCurationItem}
+        getItemLayout={getItemLayout}
         ListHeaderComponent={listHeaderComponent}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
         ListFooterComponent={listFooterComponent}
-        removeClippedSubviews={Platform.OS === 'android'}
+        removeClippedSubviews
         initialNumToRender={2}
         maxToRenderPerBatch={2}
         windowSize={3}
