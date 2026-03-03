@@ -16,6 +16,7 @@ import {
   KeyboardAvoidingView,
   Linking,
   BackHandler,
+  InteractionManager,
 } from "react-native";
 import RAnimated, {
   useSharedValue,
@@ -94,8 +95,6 @@ const DIFFICULTY_LABELS: Record<string, string> = {
 
 
 export default function RecipeDetailScreen() {
-  'use no memo'; // React Compiler 비활성화
-
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string; toast?: string }>();
@@ -107,8 +106,9 @@ export default function RecipeDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [servings, setServings] = useState(1);
   const [ownedBookIds, setOwnedBookIds] = useState<string[]>([]);
+  const [readyToMount, setReadyToMount] = useState(false);
 
-  // 데이터 로딩 - 가장 먼저 실행되도록 배치
+  // 데이터 로딩 - InteractionManager로 네비게이션 애니메이션 완료 후 실행
   useEffect(() => {
     if (!id || isNaN(id)) {
       setError("잘못된 접근입니다.");
@@ -120,32 +120,36 @@ export default function RecipeDetailScreen() {
     setLoading(true);
     setError(null);
 
-    Promise.all([
-      recipeApi.getById(id),
-      api.get<{ data: number[] | { recipeBookIds?: number[] } }>(
-        `/api/v1/recipebooks/recipes/${id}`
-      ).catch(() => null),
-    ]).then(([data, bookmarkRes]) => {
-      if (cancelled) return;
-      setRecipe(data);
-      setServings(data.servingSize);
-      // 북마크 확인 API 응답이 있으면 그걸 우선 사용
-      if (bookmarkRes?.data) {
-        const payload = bookmarkRes.data;
-        const savedBookIds = Array.isArray(payload) ? payload : (payload?.recipeBookIds ?? []);
-        setOwnedBookIds((savedBookIds || []).map((bookId) => String(bookId)));
-      } else {
-        setOwnedBookIds((data.ownedRecipeBookIds || []).map((bookId) => String(bookId)));
-      }
-      setLoading(false);
-    }).catch((err: any) => {
-      if (cancelled) return;
-      console.error("[RecipeDetail] API Error:", err);
-      setError(err.message || "레시피를 불러오는데 실패했습니다.");
-      setLoading(false);
+    const interaction = InteractionManager.runAfterInteractions(() => {
+      setReadyToMount(true);
+
+      Promise.all([
+        recipeApi.getById(id),
+        api.get<{ data: number[] | { recipeBookIds?: number[] } }>(
+          `/api/v1/recipebooks/recipes/${id}`
+        ).catch(() => null),
+      ]).then(([data, bookmarkRes]) => {
+        if (cancelled) return;
+        setRecipe(data);
+        setServings(data.servingSize);
+        // 북마크 확인 API 응답이 있으면 그걸 우선 사용
+        if (bookmarkRes?.data) {
+          const payload = bookmarkRes.data;
+          const savedBookIds = Array.isArray(payload) ? payload : (payload?.recipeBookIds ?? []);
+          setOwnedBookIds((savedBookIds || []).map((bookId) => String(bookId)));
+        } else {
+          setOwnedBookIds((data.ownedRecipeBookIds || []).map((bookId) => String(bookId)));
+        }
+        setLoading(false);
+      }).catch((err: any) => {
+        if (cancelled) return;
+        console.error("[RecipeDetail] API Error:", err);
+        setError(err.message || "레시피를 불러오는데 실패했습니다.");
+        setLoading(false);
+      });
     });
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; interaction.cancel(); };
   }, [id]);
 
   const [showMoreSheet, setShowMoreSheet] = useState(false);
@@ -163,9 +167,11 @@ export default function RecipeDetailScreen() {
   const [selectedIngredients, setSelectedIngredients] = useState<string[]>([]);
   const [isAddingToShoppingList, setIsAddingToShoppingList] = useState(false);
   const { addQueue } = useRecipeQueue();
-  const { groups, loading: groupsLoading } = useGroups();
-  const { recipeBooks: personalBooks } = usePersonalRecipeBooks();
-  const { recipeBooks: groupRecipeBooks } = useGroupRecipeBooks();
+  const [needsBookmarkData, setNeedsBookmarkData] = useState(false);
+  const [needsGroupData, setNeedsGroupData] = useState(false);
+  const { groups, loading: groupsLoading } = useGroups({ enabled: needsGroupData });
+  const { recipeBooks: personalBooks } = usePersonalRecipeBooks({ enabled: needsBookmarkData });
+  const { recipeBooks: groupRecipeBooks } = useGroupRecipeBooks({ enabled: needsBookmarkData });
 
   // 북마크 시트 관련 상태
   const [showBookmarkSheet, setShowBookmarkSheet] = useState(false);
@@ -317,8 +323,8 @@ export default function RecipeDetailScreen() {
   // YouTube Video ID 추출
   const videoId = recipe?.sourceUrl ? extractYoutubeId(recipe.sourceUrl) : null;
 
-  // YouTube Player 설정
-  const player = useYouTubePlayer(videoId || "", {
+  // YouTube Player 설정 — 네비게이션 애니메이션 완료 후에만 초기화
+  const player = useYouTubePlayer(readyToMount && videoId ? videoId : "", {
     autoplay: false,
     muted: isMuted,
     controls: false,
@@ -419,6 +425,7 @@ export default function RecipeDetailScreen() {
   };
 
   const openBookmarkSheet = useCallback(async () => {
+    setNeedsBookmarkData(true);
     setShowBookmarkSheet(true);
 
     // 서버에서 이미 저장된 레시피북 ID 목록 조회
@@ -518,7 +525,8 @@ export default function RecipeDetailScreen() {
 
   const handleShoppingList = () => {
     if (!recipe) return;
-    if (groups.length === 0) {
+    setNeedsGroupData(true);
+    if (groups.length === 0 && !groupsLoading) {
       setShowNoGroupModal(true);
       return;
     }
@@ -860,18 +868,20 @@ export default function RecipeDetailScreen() {
                     overflow: "hidden",
                   }}
                 >
-                  <YoutubeView
-                    player={player}
-                    width={PLAYER_WIDTH}
-                    height={VIDEO_HEIGHT}
-                    style={{ backgroundColor: "#000" }}
-                    webViewStyle={{ backgroundColor: "#000" }}
-                    webViewProps={{
-                      allowsInlineMediaPlayback: true,
-                      mediaPlaybackRequiresUserAction: false,
-                      scrollEnabled: false,
-                    }}
-                  />
+                  {readyToMount && (
+                    <YoutubeView
+                      player={player}
+                      width={PLAYER_WIDTH}
+                      height={VIDEO_HEIGHT}
+                      style={{ backgroundColor: "#000" }}
+                      webViewStyle={{ backgroundColor: "#000" }}
+                      webViewProps={{
+                        allowsInlineMediaPlayback: true,
+                        mediaPlaybackRequiresUserAction: false,
+                        scrollEnabled: false,
+                      }}
+                    />
+                  )}
                 </View>
 
                 {/* 미재생 시 썸네일 오버레이 (네이티브 플레이어 UI 가리기) */}

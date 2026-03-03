@@ -159,9 +159,10 @@ function formatRelativeTime(dateString: string): string {
 /**
  * 그룹 목록 조회
  */
-export function useGroups() {
+export function useGroups(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true;
   const [groups, setGroups] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchGroups = useCallback(async () => {
@@ -186,8 +187,10 @@ export function useGroups() {
   }, []);
 
   useEffect(() => {
-    fetchGroups();
-  }, [fetchGroups]);
+    if (enabled) {
+      fetchGroups();
+    }
+  }, [fetchGroups, enabled]);
 
   const addGroup = useCallback((group: Group) => {
     setGroups((prev) => [group, ...prev]);
