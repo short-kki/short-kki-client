@@ -212,6 +212,9 @@ export function useGroups() {
         memberCount: 1,
         thumbnail: null,
         lastActivity: '방금',
+        groupType: data.groupType,
+        myRole: 'ADMIN',
+        lastFeedAt: null,
       };
       addGroup(newGroup);
       return newGroup;
@@ -729,6 +732,9 @@ export async function joinGroupByInviteCode(inviteCode: string): Promise<Group> 
       memberCount: 4,
       thumbnail: null,
       lastActivity: '방금',
+      groupType: 'ETC',
+      myRole: 'MEMBER',
+      lastFeedAt: null,
     };
   }
 
