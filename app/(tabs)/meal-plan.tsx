@@ -20,6 +20,7 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   useSharedValue,
@@ -266,6 +267,7 @@ const DraggableQueueItem = React.memo(function DraggableQueueItem({
 export default function MealPlanScreen() {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
+  const tabBarHeight = useBottomTabBarHeight();
   const router = useRouter();
   const params = useLocalSearchParams<{ date?: string; tab?: "personal" | "group" }>();
 
@@ -557,11 +559,9 @@ export default function MealPlanScreen() {
     }, 16);
   }, [stopAutoScroll, measureDropZones]);
 
-  const TAB_BAR_HEIGHT = 85;
-
   const handleDragMove = useCallback((y: number) => {
     const topEdge = insets.top;
-    const bottomEdge = windowHeight - TAB_BAR_HEIGHT - insets.bottom;
+    const bottomEdge = windowHeight - tabBarHeight;
 
     if (y < topEdge + EDGE_THRESHOLD) {
       const distFromEdge = Math.max(0, y - topEdge);
@@ -595,7 +595,7 @@ export default function MealPlanScreen() {
     }
 
     setDropTarget(prev => prev === null ? prev : null);
-  }, [startAutoScroll, stopAutoScroll, insets.top, insets.bottom, windowHeight, mealPlanTab]);
+  }, [startAutoScroll, stopAutoScroll, insets.top, windowHeight, tabBarHeight, mealPlanTab]);
 
   const dropTargetRef = useRef(dropTarget);
   dropTargetRef.current = dropTarget;

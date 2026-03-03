@@ -556,8 +556,7 @@ export default function ShortsScreen() {
   const flatListRef = useRef<FlatList>(null);
   // 실제 컨테이너 높이 측정 (Android에서 정확한 높이 사용)
   const [containerHeight, setContainerHeight] = useState(0);
-  // Android에서는 insets.bottom도 고려 (소프트 네비게이션 바)
-  const calculatedHeight = screenHeight - tabBarHeight + (Platform.OS === 'android' ? insets.bottom : 0);
+  const calculatedHeight = screenHeight - tabBarHeight;
   const itemHeight = containerHeight > 0 ? containerHeight : calculatedHeight;
   const { shorts } = useShorts();
   const { sections } = useRecommendedCurations();
