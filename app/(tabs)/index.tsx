@@ -765,7 +765,7 @@ export default function HomeScreen() {
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
         ListFooterComponent={listFooterComponent}
-        removeClippedSubviews
+        removeClippedSubviews={Platform.OS === 'android'}
         initialNumToRender={2}
         maxToRenderPerBatch={2}
         windowSize={3}
