@@ -308,7 +308,10 @@ export default function RecipeDetailScreen() {
 
   // 비디오 관련 상태
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const isPlayerReady = useRef(false);
+  const pendingPlay = useRef(false);
 
   // YouTube Video ID 추출
   const videoId = recipe?.sourceUrl ? extractYoutubeId(recipe.sourceUrl) : null;
@@ -324,13 +327,23 @@ export default function RecipeDetailScreen() {
   });
 
   // YouTube 이벤트 리스너
-  useYouTubeEvent(player, "ready", () => {});
+  useYouTubeEvent(player, "ready", () => {
+    isPlayerReady.current = true;
+    if (pendingPlay.current) {
+      pendingPlay.current = false;
+      player.play();
+    }
+  });
 
   useYouTubeEvent(player, "stateChange", (state) => {
     if (state === PlayerState.PLAYING) {
       setIsVideoPlaying(true);
+      setIsBuffering(false);
+    } else if (state === PlayerState.BUFFERING) {
+      setIsBuffering(true);
     } else if (state === PlayerState.PAUSED || state === PlayerState.ENDED) {
       setIsVideoPlaying(false);
+      setIsBuffering(false);
     }
     if (state === PlayerState.ENDED) {
       player.seekTo(0);
@@ -343,7 +356,12 @@ export default function RecipeDetailScreen() {
     if (isVideoPlaying) {
       player.pause();
     } else {
-      player.play();
+      if (!isPlayerReady.current) {
+        pendingPlay.current = true;
+        setIsBuffering(true);
+      } else {
+        player.play();
+      }
     }
   }, [isVideoPlaying, player]);
 
@@ -851,7 +869,7 @@ export default function RecipeDetailScreen() {
                 </View>
 
                 {/* 미재생 시 썸네일 오버레이 (네이티브 플레이어 UI 가리기) */}
-                {!isVideoPlaying && (
+                {!isVideoPlaying && !isBuffering && (
                   <View
                     style={{
                       position: "absolute",
@@ -911,8 +929,21 @@ export default function RecipeDetailScreen() {
                 zIndex: 5,
               }}
             >
-              {/* 미재생 시 재생 버튼 */}
-              {!isVideoPlaying && (
+              {/* 미재생 시 재생 버튼 / 버퍼링 시 로딩 */}
+              {isBuffering ? (
+                <View
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 32,
+                    backgroundColor: "rgba(0,0,0,0.6)",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <ActivityIndicator size="large" color="#FFFFFF" />
+                </View>
+              ) : !isVideoPlaying ? (
                 <View
                   style={{
                     width: 64,
@@ -925,7 +956,7 @@ export default function RecipeDetailScreen() {
                 >
                   <Play size={32} color="#FFFFFF" fill="#FFFFFF" />
                 </View>
-              )}
+              ) : null}
             </Pressable>
           )}
 
