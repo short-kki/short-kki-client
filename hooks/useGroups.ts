@@ -87,6 +87,7 @@ function mapApiGroupToGroup(apiGroup: ApiGroup): Group {
     lastActivity: formatRelativeTime(apiGroup.createdAt),
     myRole: apiGroup.myRole || 'MEMBER',
     lastFeedAt: apiGroup.lastFeedAt || null,
+    groupType: apiGroup.groupType,
   };
 }
 

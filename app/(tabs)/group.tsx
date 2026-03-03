@@ -166,6 +166,12 @@ export default function GroupScreen() {
     }, [selectedGroup, refetchGroups, refetchFeeds])
   );
 
+  // 그룹 유형 필터
+  const [selectedFilter, setSelectedFilter] = useState<GroupTypeValue | null>(null);
+  const filteredGroups = selectedFilter
+    ? groups.filter((g) => g.groupType === selectedFilter)
+    : groups;
+
   // UI 상태
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -1573,14 +1579,49 @@ export default function GroupScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* 그룹 유형 필터 */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}
+          style={{ flexGrow: 0, marginBottom: Spacing.xs }}
+        >
+          {[{ value: null as GroupTypeValue | null, label: '전체' }, ...GROUP_TYPES].map((type) => {
+            const isSelected = selectedFilter === type.value;
+            return (
+              <TouchableOpacity
+                key={type.value ?? 'all'}
+                onPress={() => setSelectedFilter(type.value)}
+                activeOpacity={0.8}
+                style={{
+                  paddingHorizontal: Spacing.base,
+                  paddingVertical: Spacing.sm,
+                  borderRadius: BorderRadius.full,
+                  backgroundColor: isSelected ? Colors.primary[500] : Colors.neutral[100],
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.sm,
+                    fontWeight: '600',
+                    color: isSelected ? Colors.neutral[0] : Colors.neutral[600],
+                  }}
+                >
+                  {type.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
         {/* Group List */}
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm }}
           showsVerticalScrollIndicator={false}
         >
-          {groups.length > 0 ? (
-            groups.map((group) => (
+          {filteredGroups.length > 0 ? (
+            filteredGroups.map((group) => (
               <TouchableOpacity
                 key={group.id}
                 onPress={() => handleGroupPress(group)}
@@ -1727,6 +1768,26 @@ export default function GroupScreen() {
                 </View>
               </TouchableOpacity>
             ))
+          ) : selectedFilter && groups.length > 0 ? (
+            <View
+              style={{
+                flex: 1,
+                justifyContent: "center",
+                alignItems: "center",
+                paddingVertical: 80,
+                paddingHorizontal: Spacing.xl,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: Typography.fontSize.base,
+                  color: Colors.neutral[500],
+                  textAlign: "center",
+                }}
+              >
+                {GROUP_TYPES.find((t) => t.value === selectedFilter)?.label} 유형의 그룹이 없어요
+              </Text>
+            </View>
           ) : (
             <View
               style={{
