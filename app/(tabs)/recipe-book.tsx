@@ -334,7 +334,7 @@ export default function RecipeBookScreen() {
   useEffect(() => {
     const incoming = personalBooks.filter((book) => !book.isDefault);
     setMutablePersonalBooks((prev) => {
-      if (prev.length === incoming.length && prev.every((b, i) => b.id === incoming[i].id)) {
+      if (isReorderingRef.current && prev.length === incoming.length && prev.every((b, i) => b.id === incoming[i].id)) {
         return prev;
       }
       return incoming;
