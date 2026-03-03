@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import DraggableFlatList, { ScaleDecorator, type RenderItemParams } from "react-native-draggable-flatlist";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -28,7 +29,6 @@ import {
   Lock,
   Users,
   GripVertical,
-  Book,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows, ComponentSizes } from "@/constants/design-system";
 import { usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
@@ -72,19 +72,17 @@ function RecipeBookCard({
       disabled={dragging}
       activeOpacity={0.8}
       style={{
-        backgroundColor: Colors.neutral[0],
+        backgroundColor: Colors.neutral[900],
         borderRadius: BorderRadius.xl,
         marginBottom: Spacing.base,
         overflow: "hidden",
-        borderWidth: 1,
-        borderColor: Colors.neutral[100],
-        ...Shadows.sm,
+        ...Shadows.md,
       }}
     >
-      {/* 썸네일 그리드 - 높이 증가 */}
+      {/* 썸네일 그리드 + 오버레이 */}
       <View
         style={{
-          height: 140,
+          height: 180,
           flexDirection: "row",
           backgroundColor: Colors.neutral[100],
         }}
@@ -131,90 +129,120 @@ function RecipeBookCard({
           </View>
         )}
 
-        {/* 레시피 개수 뱃지 */}
+        {/* 하단 그라데이션 오버레이 */}
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.7)"]}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: "55%",
+          }}
+          pointerEvents="none"
+        />
+
+        {/* 우상단 버튼 영역 */}
         <View
           style={{
             position: "absolute",
-            bottom: Spacing.sm,
-            left: Spacing.sm,
-            backgroundColor: "rgba(0,0,0,0.65)",
-            paddingHorizontal: Spacing.sm,
-            paddingVertical: Spacing.xs,
-            borderRadius: BorderRadius.sm,
+            top: Spacing.sm,
+            right: Spacing.sm,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
           }}
         >
-          <Text style={{ color: "#FFF", fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.semiBold }}>
-            {book.recipeCount}개
-          </Text>
+          {draggable && (
+            <TouchableOpacity
+              onLongPress={onDrag}
+              delayLongPress={120}
+              activeOpacity={0.8}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: "rgba(0,0,0,0.4)",
+                justifyContent: "center",
+                alignItems: "center",
+                opacity: dragging ? 1 : 0.85,
+              }}
+            >
+              <GripVertical size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation();
+              onMenuPress();
+            }}
+            activeOpacity={0.7}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: "rgba(0,0,0,0.4)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <MoreVertical size={18} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
-      </View>
 
-      {/* 정보 영역 */}
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          paddingHorizontal: Spacing.base,
-          paddingVertical: Spacing.md,
-        }}
-      >
-        <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Book size={18} color={Colors.primary[400]} strokeWidth={2.5} />
+        {/* 좌하단 제목 + 정보 */}
+        <View
+          style={{
+            position: "absolute",
+            bottom: Spacing.md,
+            left: Spacing.md,
+            right: Spacing.md,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: Typography.fontSize.lg,
+              fontWeight: Typography.fontWeight.bold,
+              color: "#FFFFFF",
+              textShadowColor: "rgba(0,0,0,0.7)",
+              textShadowOffset: { width: 0, height: 1 },
+              textShadowRadius: 2,
+            }}
+            numberOfLines={2}
+          >
+            {book.name}
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
             <Text
               style={{
-                fontSize: Typography.fontSize.md,
-                fontWeight: Typography.fontWeight.bold,
-                color: Colors.neutral[900],
-                flexShrink: 1,
+                fontSize: Typography.fontSize.xs,
+                color: "rgba(255,255,255,0.75)",
               }}
-              numberOfLines={1}
             >
-              {book.name}
+              레시피 {book.recipeCount}개
             </Text>
             {book.isDefault && !book.groupId && (
               <View
                 style={{
-                  backgroundColor: Colors.neutral[100],
+                  backgroundColor: "rgba(255,255,255,0.2)",
                   paddingHorizontal: Spacing.sm,
-                  paddingVertical: Spacing.xxs,
+                  paddingVertical: 2,
                   borderRadius: BorderRadius.xs,
                 }}
               >
-                <Text style={{ fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.semiBold, color: Colors.neutral[500] }}>
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.xs,
+                    fontWeight: Typography.fontWeight.semiBold,
+                    color: "rgba(255,255,255,0.85)",
+                  }}
+                >
                   기본
                 </Text>
               </View>
             )}
           </View>
         </View>
-
-        {draggable && (
-          <TouchableOpacity
-            onLongPress={onDrag}
-            delayLongPress={120}
-            style={{
-              padding: Spacing.sm,
-              marginRight: 2,
-              opacity: dragging ? 1 : 0.75,
-            }}
-            activeOpacity={0.8}
-          >
-            <GripVertical size={18} color={Colors.neutral[400]} />
-          </TouchableOpacity>
-        )}
-
-        {/* 메뉴 버튼 */}
-        <TouchableOpacity
-          onPress={(e) => {
-            e.stopPropagation();
-            onMenuPress();
-          }}
-          style={{ padding: Spacing.sm }}
-          activeOpacity={0.7}
-        >
-          <MoreVertical size={20} color={Colors.neutral[400]} />
-        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
