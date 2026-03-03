@@ -5,7 +5,7 @@
  * USE_MOCK을 false로 변경하면 자동으로 API 호출로 전환됩니다.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { USE_MOCK, api } from '@/services/api';
 import { parseServerDate } from '@/utils/date';
 import {
@@ -75,6 +75,15 @@ interface ApiInviteCode {
   inviteCode: string;
   expiresAt: string;
 }
+
+// 피드 커서 기반 페이징 응답
+interface FeedSliceResponse {
+  content: ApiFeed[];
+  nextCursor: number | null;
+  hasNext: boolean;
+}
+
+const FEED_PAGE_SIZE = 10;
 
 // API -> 클라이언트 타입 변환
 function mapApiGroupToGroup(apiGroup: ApiGroup): Group {
@@ -255,35 +264,68 @@ export function useGroups() {
 }
 
 /**
- * 그룹 피드 조회
+ * 그룹 피드 조회 (커서 기반 페이징)
  */
 export function useGroupFeeds(groupId?: string) {
   const [feeds, setFeeds] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [hasNext, setHasNext] = useState(false);
+  const nextCursorRef = useRef<number | null>(null);
+  const loadingMoreRef = useRef(false);
 
+  // 첫 페이지 조회
   const fetchFeeds = useCallback(async () => {
     if (!groupId) return;
 
     try {
       setLoading(true);
       setError(null);
+      nextCursorRef.current = null;
 
       if (USE_MOCK) {
-        // Mock 데이터 사용
         setFeeds(MOCK_FEEDS);
-      } else {
-        // 실제 API 호출: GET /api/v1/groups/{groupId}/feeds
-        const response = await api.get<ApiResponse<ApiFeed[]>>(`/api/v1/groups/${groupId}/feeds`);
-        const mappedFeeds = response.data.map(mapApiFeedToFeedItem);
-        setFeeds(mappedFeeds);
+        setHasNext(false);
+        return;
       }
+
+      const response = await api.get<ApiResponse<FeedSliceResponse>>(
+        `/api/v1/groups/${groupId}/feeds?size=${FEED_PAGE_SIZE}`
+      );
+      const data = response.data;
+      setFeeds(data.content.map(mapApiFeedToFeedItem));
+      nextCursorRef.current = data.nextCursor;
+      setHasNext(data.hasNext);
     } catch (err) {
       setError(err as Error);
     } finally {
       setLoading(false);
     }
   }, [groupId]);
+
+  // 다음 페이지 조회
+  const fetchNextPage = useCallback(async () => {
+    if (!groupId || loadingMoreRef.current || !hasNext || nextCursorRef.current == null) return;
+
+    try {
+      loadingMoreRef.current = true;
+      setLoadingMore(true);
+
+      const response = await api.get<ApiResponse<FeedSliceResponse>>(
+        `/api/v1/groups/${groupId}/feeds?cursor=${nextCursorRef.current}&size=${FEED_PAGE_SIZE}`
+      );
+      const data = response.data;
+      setFeeds((prev) => [...prev, ...data.content.map(mapApiFeedToFeedItem)]);
+      nextCursorRef.current = data.nextCursor;
+      setHasNext(data.hasNext);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [groupId, hasNext]);
 
   useEffect(() => {
     fetchFeeds();
@@ -292,13 +334,12 @@ export function useGroupFeeds(groupId?: string) {
   const toggleLike = useCallback(async (feedId: string) => {
     if (!groupId) return;
 
-    // 현재 피드의 좋아요 상태 확인
     const currentFeed = feeds.find((f) => f.id === feedId && f.type === 'post');
     if (!currentFeed) return;
 
     const isCurrentlyLiked = currentFeed.isLiked;
 
-    // 낙관적 업데이트: 먼저 UI 반영
+    // 낙관적 업데이트
     setFeeds((prev) =>
       prev.map((feed) => {
         if (feed.id === feedId && feed.type === 'post') {
@@ -316,14 +357,11 @@ export function useGroupFeeds(groupId?: string) {
 
     try {
       if (isCurrentlyLiked) {
-        // 좋아요 취소: DELETE /api/v1/groups/{groupId}/feeds/{feedId}/like
         await api.delete(`/api/v1/groups/${groupId}/feeds/${feedId}/like`);
       } else {
-        // 좋아요: POST /api/v1/groups/{groupId}/feeds/{feedId}/like
         await api.post(`/api/v1/groups/${groupId}/feeds/${feedId}/like`, {});
       }
     } catch (err) {
-      // API 실패 시 롤백
       console.error('좋아요 처리 실패:', err);
       setFeeds((prev) =>
         prev.map((feed) => {
@@ -345,7 +383,6 @@ export function useGroupFeeds(groupId?: string) {
     if (!groupId) return;
 
     if (USE_MOCK) {
-      // Mock 모드: 로컬 상태만 업데이트
       const newFeed: FeedItem = {
         id: Date.now().toString(),
         type: 'post',
@@ -362,13 +399,12 @@ export function useGroupFeeds(groupId?: string) {
       return;
     }
 
-    // 실제 API 호출: POST /api/v1/groups/{groupId}/feeds
     await api.post(`/api/v1/groups/${groupId}/feeds`, {
       content,
       feedType: 'USER_CREATED',
       ...(imageId && { imageId }),
     });
-    // 피드 목록 새로고침
+    // 새 피드 작성 후 첫 페이지부터 다시 조회
     fetchFeeds();
   }, [groupId, fetchFeeds]);
 
@@ -377,22 +413,22 @@ export function useGroupFeeds(groupId?: string) {
     if (!groupId) return;
 
     if (USE_MOCK) {
-      // Mock 모드: 로컬 상태만 업데이트
       setFeeds((prev) => prev.filter((feed) => feed.id !== feedId));
       return;
     }
 
-    // 실제 API 호출: DELETE /api/v1/groups/{groupId}/feeds/{feedId}
     await api.delete(`/api/v1/groups/${groupId}/feeds/${feedId}`);
-    // 피드 목록에서 제거
     setFeeds((prev) => prev.filter((feed) => feed.id !== feedId));
   }, [groupId]);
 
   return {
     feeds,
     loading,
+    loadingMore,
     error,
+    hasNext,
     refetch: fetchFeeds,
+    fetchNextPage,
     toggleLike,
     createFeed,
     deleteFeed,
