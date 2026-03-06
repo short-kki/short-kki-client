@@ -37,6 +37,7 @@ export default {
     newArchEnabled: true,
     ios: {
       supportsTablet: true,
+      buildNumber: "41",
       bundleIdentifier: "kr.shortkki.app",
       googleServicesFile: "./GoogleService-Info.plist",
       associatedDomains: ["applinks:shortkki.com"],
