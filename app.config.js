@@ -165,6 +165,8 @@ export default {
             NSExtensionActivationSupportsWebPageWithMaxCount: 1,
             NSExtensionActivationSupportsText: true,
           },
+          iosShareExtensionBundleIdentifier: "kr.shortkki.app.share-extension",
+          iosAppGroupIdentifier: "group.kr.shortkki.app",
           androidIntentFilters: ["text/*"],
         },
       ],
