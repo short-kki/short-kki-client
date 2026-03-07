@@ -96,7 +96,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         hasPerformedInitialRedirect.current = true;
         // index 또는 login 화면일 때만 메인으로 리다이렉트
         // 그 외(딥링크 목적지)는 그대로 유지
-        if (segments[0] === 'index' || segments[0] === 'login' || segments.length === 0) {
+        if (segments[0] === 'index' || segments[0] === 'login' || segments[0] === 'thirdPartyLoginResult' || segments.length === 0) {
           router.replace('/(tabs)');
         }
       } else {
