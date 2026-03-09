@@ -1,5 +1,6 @@
 import { Colors, BorderRadius } from "@/constants/design-system";
 import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
+import CreateRecipeBookModal from "@/components/CreateRecipeBookModal";
 import {
   useCurationShorts,
   useRecommendedCurations,
@@ -560,7 +561,7 @@ export default function ShortsScreen() {
   const itemHeight = containerHeight > 0 ? containerHeight : calculatedHeight;
   const { shorts } = useShorts();
   const { sections } = useRecommendedCurations();
-  const { recipeBooks: personalBooks } = usePersonalRecipeBooks();
+  const { recipeBooks: personalBooks, refetch: refetchPersonalBooks } = usePersonalRecipeBooks();
   const { recipeBooks: groupBooks } = useGroupRecipeBooks();
   const curationId = typeof params.curationId === "string" ? params.curationId : undefined;
   const initialCurationRecipes = useMemo<CurationRecipe[] | null>(() => {
@@ -640,6 +641,7 @@ export default function ShortsScreen() {
 
   // 북마크 관련 상태
   const [showBookmarkSheet, setShowBookmarkSheet] = useState(false);
+  const [showCreateBookModal, setShowCreateBookModal] = useState(false);
   const bookmarkOverlayOpacity = useRef(new Animated.Value(0)).current;
   const bookmarkSheetTranslateY = useRef(new Animated.Value(400)).current;
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
@@ -1610,11 +1612,7 @@ export default function ShortsScreen() {
 
               {/* 새 레시피북 만들기 - 개인 탭에서만 표시 */}
               {bookmarkTab === "personal" && <TouchableOpacity
-                onPress={() => {
-                  closeBookmarkSheet(() => {
-                    router.push("/(tabs)/recipe-book");
-                  });
-                }}
+                onPress={() => setShowCreateBookModal(true)}
                 activeOpacity={0.7}
                 style={{
                   flexDirection: "row",
@@ -1646,6 +1644,16 @@ export default function ShortsScreen() {
           </Animated.View>
         </View>
       </Modal>
+
+      <CreateRecipeBookModal
+        visible={showCreateBookModal}
+        onClose={() => setShowCreateBookModal(false)}
+        onCreated={async (bookId, bookName) => {
+          setShowCreateBookModal(false);
+          await refetchPersonalBooks();
+          await handleSelectFolder(bookId, bookName);
+        }}
+      />
 
       <FeedbackToast
         message={toastMessage}

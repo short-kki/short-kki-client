@@ -164,15 +164,15 @@ export function usePersonalRecipeBooks(options?: { enabled?: boolean }) {
   }, [fetchRecipeBooks, enabled]);
 
   // 레시피북 생성 API 호출
-  const createRecipeBook = useCallback(async (name: string): Promise<boolean> => {
+  const createRecipeBook = useCallback(async (name: string): Promise<string | null> => {
     try {
-      await api.post('/api/v1/recipebooks', { title: name });
+      const res = await api.post<BaseResponse<{ id: number }>>('/api/v1/recipebooks', { title: name });
       // 생성 후 목록 새로고침
       await fetchRecipeBooks();
-      return true;
+      return String(res.data.id);
     } catch (err) {
       console.error('레시피북 생성 실패:', err);
-      return false;
+      return null;
     }
   }, [fetchRecipeBooks]);
 

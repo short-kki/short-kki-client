@@ -640,104 +640,139 @@ export default function GroupScreen() {
             scrollEventThrottle={400}
           >
             {/* 피드 목록 */}
-            {feeds.length === 0 ? (
-              /* 축하 피드 (그룹 생성 시) */
-              <View style={{ borderBottomWidth: 1, borderBottomColor: Colors.neutral[100] }}>
-                <View style={{ padding: Spacing.lg }}>
-                  {/* 헤더 */}
-                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Spacing.md }}>
-                    <View
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 18,
-                        backgroundColor: Colors.primary[500],
-                        justifyContent: "center",
-                        alignItems: "center",
-                      }}
-                    >
-                      <PartyPopper size={18} color="#FFFFFF" />
-                    </View>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "600",
-                        color: Colors.neutral[900],
-                        marginLeft: Spacing.sm,
-                      }}
-                    >
-                      숏끼
-                    </Text>
-                  </View>
+            {feedsLoading && feeds.length === 0 ? (
+              <View style={{ alignItems: "center", paddingVertical: Spacing["4xl"] }}>
+                <ActivityIndicator size="large" color={Colors.primary[500]} />
+                <Text style={{ marginTop: Spacing.md, color: Colors.neutral[500] }}>
+                  피드를 불러오는 중...
+                </Text>
+              </View>
+            ) : feeds.length === 0 ? (
+              <View style={{ paddingTop: 48, paddingBottom: 40, paddingHorizontal: Spacing.lg }}>
+                {/* 헤더 */}
+                <View style={{ alignItems: "center", marginBottom: 32 }}>
+                  <Text style={{ fontSize: 18, fontWeight: "700", color: Colors.neutral[800] }}>
+                    그룹 활동을 시작해보세요!
+                  </Text>
+                  <Text style={{ fontSize: 14, color: Colors.neutral[400], marginTop: 4 }}>
+                    아래 항목들로 그룹을 채워보세요
+                  </Text>
+                </View>
 
-                  {/* 콘텐츠 카드 */}
-                  <View
+                {/* 가이드 카드들 */}
+                <View style={{ gap: 12 }}>
+                  <TouchableOpacity
+                    onPress={handleInviteShare}
+                    disabled={isInviting}
+                    activeOpacity={0.7}
                     style={{
-                      backgroundColor: Colors.primary[50],
-                      borderRadius: BorderRadius.xl,
-                      padding: Spacing.xl,
+                      flexDirection: "row",
                       alignItems: "center",
-                      marginBottom: Spacing.md,
+                      backgroundColor: "#FFFFFF",
+                      padding: Spacing.lg,
+                      borderRadius: BorderRadius.xl,
+                      borderWidth: 1,
+                      borderColor: Colors.neutral[100],
+                      gap: 14,
+                      opacity: isInviting ? 0.6 : 1,
                     }}
                   >
-                    <Text style={{ fontSize: 40, marginBottom: Spacing.sm }}>🎉</Text>
-                    <Text style={{ fontSize: 18, fontWeight: "700", color: Colors.neutral[900], marginBottom: Spacing.xs }}>
-                      그룹이 생성되었어요!
-                    </Text>
-                    <Text style={{ fontSize: 14, color: Colors.neutral[500], textAlign: "center", lineHeight: 20 }}>
-                      멤버를 초대하고 함께 식단을 공유해보세요.
-                    </Text>
-                  </View>
-
-                  {/* 액션 버튼들 */}
-                  <View style={{ flexDirection: "row", gap: Spacing.sm }}>
-                    <TouchableOpacity
-                      onPress={handleInviteShare}
-                      disabled={isInviting}
-                      activeOpacity={0.8}
+                    <View
                       style={{
-                        flex: 1,
-                        flexDirection: "row",
-                        alignItems: "center",
+                        width: 44,
+                        height: 44,
+                        borderRadius: 14,
+                        backgroundColor: "#EEF2FF",
                         justifyContent: "center",
-                        backgroundColor: Colors.neutral[100],
-                        paddingVertical: Spacing.md,
-                        borderRadius: BorderRadius.lg,
-                        gap: 6,
-                        opacity: isInviting ? 0.6 : 1,
+                        alignItems: "center",
                       }}
                     >
-                      {isInviting ? (
-                        <ActivityIndicator size="small" color={Colors.primary[500]} />
-                      ) : (
-                        <>
-                          <UserPlus size={18} color={Colors.primary[500]} />
-                          <Text style={{ fontSize: 14, fontWeight: "600", color: Colors.primary[500] }}>
-                            멤버 초대
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={handleCreateFeed}
-                      activeOpacity={0.8}
-                      style={{
-                        flex: 1,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: Colors.primary[500],
-                        paddingVertical: Spacing.md,
-                        borderRadius: BorderRadius.lg,
-                        gap: 6,
-                      }}
-                    >
-                      <PenSquare size={18} color="#FFFFFF" />
-                      <Text style={{ fontSize: 14, fontWeight: "600", color: "#FFFFFF" }}>
-                        피드 작성
+                      <UserPlus size={20} color="#6366F1" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.neutral[800] }}>
+                        멤버 초대하기
                       </Text>
-                    </TouchableOpacity>
-                  </View>
+                      <Text style={{ fontSize: 13, color: Colors.neutral[400], marginTop: 2 }}>
+                        함께 식단을 관리할 친구를 초대해보세요
+                      </Text>
+                    </View>
+                    <ChevronRight size={18} color={Colors.neutral[300]} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => router.replace("/(tabs)")}
+                    activeOpacity={0.7}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      backgroundColor: "#FFFFFF",
+                      padding: Spacing.lg,
+                      borderRadius: BorderRadius.xl,
+                      borderWidth: 1,
+                      borderColor: Colors.neutral[100],
+                      gap: 14,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 14,
+                        backgroundColor: "#FEF3C7",
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Book size={20} color="#D97706" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.neutral[800] }}>
+                        레시피 추가하기
+                      </Text>
+                      <Text style={{ fontSize: 13, color: Colors.neutral[400], marginTop: 2 }}>
+                        레시피북에 좋아하는 레시피를 모아보세요
+                      </Text>
+                    </View>
+                    <ChevronRight size={18} color={Colors.neutral[300]} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleCreateFeed}
+                    activeOpacity={0.7}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      backgroundColor: "#FFFFFF",
+                      padding: Spacing.lg,
+                      borderRadius: BorderRadius.xl,
+                      borderWidth: 1,
+                      borderColor: Colors.neutral[100],
+                      gap: 14,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 14,
+                        backgroundColor: Colors.primary[50],
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <PenSquare size={20} color={Colors.primary[500]} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.neutral[800] }}>
+                        첫 피드 작성하기
+                      </Text>
+                      <Text style={{ fontSize: 13, color: Colors.neutral[400], marginTop: 2 }}>
+                        오늘의 식단이나 요리를 공유해보세요
+                      </Text>
+                    </View>
+                    <ChevronRight size={18} color={Colors.neutral[300]} />
+                  </TouchableOpacity>
                 </View>
               </View>
             ) : (
@@ -1019,7 +1054,7 @@ export default function GroupScreen() {
               <View style={{ alignItems: "center", paddingVertical: 40 }}>
                 <ActivityIndicator size="small" color={Colors.neutral[400]} />
               </View>
-            ) : !hasNext ? (
+            ) : !hasNext && feeds.length > 0 ? (
               <View style={{ alignItems: "center", paddingVertical: 40 }}>
                 <View
                   style={{
@@ -1599,7 +1634,7 @@ export default function GroupScreen() {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}
-          style={{ flexGrow: 0, marginBottom: Spacing.xs }}
+          style={{ flexGrow: 0, marginBottom: Spacing.base }}
         >
           {[{ value: null as GroupTypeValue | null, label: '전체' }, ...GROUP_TYPES].map((type) => {
             const isSelected = selectedFilter === type.value;
@@ -1632,7 +1667,7 @@ export default function GroupScreen() {
         {/* Group List */}
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm }}
+          contentContainerStyle={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.xs }}
           showsVerticalScrollIndicator={false}
         >
           {filteredGroups.length > 0 ? (
@@ -1644,7 +1679,7 @@ export default function GroupScreen() {
                 style={{
                   backgroundColor: Colors.neutral[0],
                   borderRadius: BorderRadius.xl,
-                  marginBottom: Spacing.base,
+                  marginBottom: Spacing.md,
                   overflow: "hidden",
                   borderWidth: 1,
                   borderColor: Colors.neutral[100],
