@@ -87,6 +87,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // 로그인 후에도 접근 가능한 페이지들
     const allowedRoutes = ['design-showcase', 'search', 'search-results', 'notifications', 'settings', 'profile-edit', 'recipe', 'recipe-create-manual', 'shopping-list', 'recipe-book-detail', 'group-recipe-books', 'group-members', 'group-edit', 'group-feed-create', 'group-calendar', 'group'];
 
+    // index(스플래시) 화면은 자체 라우팅 로직이 있으므로 여기서 건드리지 않음
+    if (segments[0] === 'index' || segments.length === 0) return;
+
     if (!isLoggedIn && inAuthGroup) {
       // 로그인 안 됨 + 보호된 영역 접근 시 → 로그인 화면으로
       router.replace('/login');
@@ -94,13 +97,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // 초기 리다이렉트: 딥링크로 진입한 경로가 아닌 경우에만 메인으로 이동
       if (!hasPerformedInitialRedirect.current) {
         hasPerformedInitialRedirect.current = true;
-        // index 또는 login 화면일 때만 메인으로 리다이렉트
-        // 그 외(딥링크 목적지)는 그대로 유지
-        if (segments[0] === 'index' || segments[0] === 'login' || segments[0] === 'thirdPartyLoginResult' || segments.length === 0) {
+        if (segments[0] === 'login' || segments[0] === 'thirdPartyLoginResult') {
           router.replace('/(tabs)');
         }
       } else {
-        // 이후 실행은 기존 로직 그대로
         router.replace('/(tabs)');
       }
     }
