@@ -182,7 +182,7 @@ export default {
           consumerKey: NAVER_CONSUMER_KEY,
           consumerSecret: NAVER_CONSUMER_SECRET,
           appName: "숏끼",
-          serviceUrlScheme: "shortkki",
+          urlScheme: "shortkki",
         },
       ],
     ],
