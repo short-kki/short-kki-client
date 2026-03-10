@@ -14,6 +14,8 @@ import { USE_MOCK, api } from "@/services/api";
 import { extractYoutubeId } from "@/utils/youtube";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
+import { bookmarkState } from "@/utils/bookmarkState";
+
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -616,10 +618,28 @@ export default function ShortsScreen() {
   const [isScreenFocused, setIsScreenFocused] = useState(true);
   const [focusEpoch, setFocusEpoch] = useState(0);
   const [appResumeKey, setAppResumeKey] = useState(0);
+  const hasMountedRef = useRef(false);
 
   // 탭 포커스/블러 관리
   useFocusEffect(
     useCallback(() => {
+      if (!hasMountedRef.current) {
+        hasMountedRef.current = true;
+      } else {
+        // 포커스 복귀 시: 저장소에 변경된 북마크 상태가 있으면 로컬 반영
+        setIsBookmarkedByVideo((prev) => {
+          const next = { ...prev };
+          let changed = false;
+          Object.keys(next).forEach((id) => {
+            const override = bookmarkState.get(id);
+            if (override !== undefined && next[id] !== override) {
+              next[id] = override;
+              changed = true;
+            }
+          });
+          return changed ? next : prev;
+        });
+      }
       setIsScreenFocused(true);
       setFocusEpoch((prev) => prev + 1);
       return () => {
@@ -647,6 +667,8 @@ export default function ShortsScreen() {
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [bookmarkTab, setBookmarkTab] = useState<"personal" | "group">("personal");
   const [ownedBookIdsByVideo, setOwnedBookIdsByVideo] = useState<Record<string, string[]>>({});
+  const ownedBookIdsByVideoRef = useRef<Record<string, string[]>>({});
+  const [isBookmarkedByVideo, setIsBookmarkedByVideo] = useState<Record<string, boolean>>({});
   const [bookmarkCounts, setBookmarkCounts] = useState<Record<string, number>>({});
   const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } =
     useFeedbackToast(1400);
@@ -672,13 +694,13 @@ export default function ShortsScreen() {
     });
   }, [SHORTS_DATA]);
 
-  // isBookmarked 필드로 초기 북마크 상태 세팅 (스크롤 시 별도 API 호출 방지)
+  // isBookmarked 필드로 초기 북마크 카드 아이콘 상태 세팅
   useEffect(() => {
-    setOwnedBookIdsByVideo((prev) => {
+    setIsBookmarkedByVideo((prev) => {
       const next = { ...prev };
       SHORTS_DATA.forEach((item) => {
         if (next[item.id] === undefined) {
-          next[item.id] = item.isBookmarked ? ["unknown"] : [];
+          next[item.id] = item.isBookmarked ?? false;
         }
       });
       return next;
@@ -862,9 +884,27 @@ export default function ShortsScreen() {
   // 북마크 시트 열기 (페이드 오버레이 + 슬라이드업)
   const openBookmarkSheet = useCallback(async (videoId: string) => {
     setSelectedVideoId(videoId);
+    setBookmarkTab("personal");
     setShowBookmarkSheet(true);
 
     await syncVideoBookmarkState(videoId);
+
+    // 시트 열 때 서버에서 실제 보유 레시피북 ID 조회
+    if (!USE_MOCK) {
+      const recipeId = Number(videoId);
+      if (Number.isFinite(recipeId)) {
+        try {
+          const res = await api.get<{ data: number[] | { recipeBookIds?: number[] } }>(`/api/v1/recipebooks/recipes/${recipeId}`);
+          const payload = res.data;
+          const rawIds = Array.isArray(payload) ? payload : (payload?.recipeBookIds ?? []);
+          const ids = (rawIds || []).map((id) => String(id));
+          ownedBookIdsByVideoRef.current = { ...ownedBookIdsByVideoRef.current, [videoId]: ids };
+          setOwnedBookIdsByVideo((prev) => ({ ...prev, [videoId]: ids }));
+        } catch {
+          // 실패 시 기존 상태 유지
+        }
+      }
+    }
 
     Animated.parallel([
       Animated.timing(bookmarkOverlayOpacity, {
@@ -932,10 +972,11 @@ export default function ShortsScreen() {
         }
       }
 
-      setOwnedBookIdsByVideo((prev) => ({
-        ...prev,
-        [selectedVideoId]: (prev[selectedVideoId] || []).filter((id) => id !== bookId),
-      }));
+      const newIds = (ownedBookIdsByVideo[selectedVideoId] || []).filter((id) => id !== bookId);
+      ownedBookIdsByVideoRef.current = { ...ownedBookIdsByVideoRef.current, [selectedVideoId]: newIds };
+      setOwnedBookIdsByVideo((prev) => ({ ...prev, [selectedVideoId]: newIds }));
+      setIsBookmarkedByVideo((prev) => ({ ...prev, [selectedVideoId]: newIds.length > 0 }));
+      bookmarkState.set(selectedVideoId, newIds.length > 0);
       if (USE_MOCK) {
         setBookmarkCounts((prev) => ({
           ...prev,
@@ -959,12 +1000,13 @@ export default function ShortsScreen() {
         }
       }
 
-      setOwnedBookIdsByVideo((prev) => ({
-        ...prev,
-        [selectedVideoId]: (prev[selectedVideoId] || []).includes(bookId)
-          ? (prev[selectedVideoId] || [])
-          : [...(prev[selectedVideoId] || []), bookId],
-      }));
+      const newIds = (ownedBookIdsByVideo[selectedVideoId] || []).includes(bookId)
+        ? (ownedBookIdsByVideo[selectedVideoId] || [])
+        : [...(ownedBookIdsByVideo[selectedVideoId] || []), bookId];
+      ownedBookIdsByVideoRef.current = { ...ownedBookIdsByVideoRef.current, [selectedVideoId]: newIds };
+      setOwnedBookIdsByVideo((prev) => ({ ...prev, [selectedVideoId]: newIds }));
+      setIsBookmarkedByVideo((prev) => ({ ...prev, [selectedVideoId]: true }));
+      bookmarkState.set(selectedVideoId, true);
       if (USE_MOCK && !wasOwned) {
         setBookmarkCounts((prev) => ({
           ...prev,
@@ -976,7 +1018,7 @@ export default function ShortsScreen() {
     }
 
     closeBookmarkSheet();
-  }, [selectedVideoId, ownedBookIdsByVideo, closeBookmarkSheet, showToast, syncVideoBookmarkState]);
+  }, [selectedVideoId, ownedBookIdsByVideo, setIsBookmarkedByVideo, closeBookmarkSheet, showToast, syncVideoBookmarkState]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: ShortsItem; index: number }) => (
@@ -990,14 +1032,14 @@ export default function ShortsScreen() {
         onViewRecipe={handleViewRecipe}
         onAddToMealPlan={handleAddToMealPlan}
         onBookmarkPress={openBookmarkSheet}
-        isBookmarked={(ownedBookIdsByVideo[item.id] || []).length > 0}
+        isBookmarked={isBookmarkedByVideo[item.id] ?? false}
         bookmarkCount={bookmarkCounts[item.id] ?? item.bookmarks ?? 0}
         isScreenFocused={isScreenFocused}
         focusEpoch={focusEpoch}
         appResumeKey={appResumeKey}
       />
     ),
-    [itemHeight, screenWidth, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, ownedBookIdsByVideo, bookmarkCounts, isScreenFocused, focusEpoch, appResumeKey]
+    [itemHeight, screenWidth, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, isBookmarkedByVideo, bookmarkCounts, isScreenFocused, focusEpoch, appResumeKey]
   );
 
   const keyExtractor = useCallback((item: ShortsItem) => item.id, []);
@@ -1534,8 +1576,15 @@ export default function ShortsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* 폴더 목록 — 2개 항목 높이 고정 (73px * 2) */}
-            <ScrollView style={{ height: 146 }} contentContainerStyle={{ paddingHorizontal: 20 }}>
+            {/* 폴더 목록 — 두 탭 중 더 많은 쪽 기준으로 높이 고정, 초과 시 peek */}
+            {(() => {
+              const ITEM_HEIGHT = 73;
+              const VISIBLE_COUNT = 3;
+              const maxCount = Math.max(recipeBooks.personal.length, recipeBooks.group.length);
+              const peekRatio = maxCount > VISIBLE_COUNT ? 0.4 : 0;
+              const scrollHeight = ITEM_HEIGHT * (VISIBLE_COUNT + peekRatio);
+              return (
+            <ScrollView style={{ height: scrollHeight }} contentContainerStyle={{ paddingHorizontal: 20 }}>
               {bookmarkTab === "group" && recipeBooks.group.length === 0 && (
                 <View style={{ justifyContent: "center", alignItems: "center", height: 146 }}>
                   <Users size={32} color={Colors.neutral[300]} />
@@ -1641,6 +1690,8 @@ export default function ShortsScreen() {
                 </Text>
               </TouchableOpacity>}
             </ScrollView>
+              );
+            })()}
           </Animated.View>
         </View>
       </Modal>

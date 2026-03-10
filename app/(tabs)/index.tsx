@@ -25,6 +25,7 @@ import {
   User,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows, SemanticColors } from "@/constants/design-system";
+import { bookmarkState } from "@/utils/bookmarkState";
 import { useRecommendedCurations, useUnreadNotificationCount } from "@/hooks";
 import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
 import { useUser } from "@/contexts/AuthContext";
@@ -472,6 +473,8 @@ export default function HomeScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const [selectedFilter, setSelectedFilter] = useState("전체");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [bookmarkOverrides, setBookmarkOverrides] = useState<Record<string, boolean>>({});
+  const hasMountedRef = useRef(false);
   const [diffClampEpoch, setDiffClampEpoch] = useState(0);
   const logoSize = Math.min(52, Math.max(40, Math.round(screenWidth * 0.12)));
   const topCardWidth = Math.min(220, Math.max(170, Math.round(screenWidth * 0.55)));
@@ -539,7 +542,24 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       refetchUnreadCount();
-    }, [refetchUnreadCount])
+      if (!hasMountedRef.current) {
+        hasMountedRef.current = true;
+      } else {
+        // 포커스 복귀 시: sections 내 모든 레시피 id에 대해 bookmarkState 오버라이드 적용
+        const updates: Record<string, boolean> = {};
+        sections.forEach((section) => {
+          section.recipes?.forEach((recipe) => {
+            const override = bookmarkState.get(recipe.id);
+            if (override !== undefined) {
+              updates[recipe.id] = override;
+            }
+          });
+        });
+        if (Object.keys(updates).length > 0) {
+          setBookmarkOverrides((prev) => ({ ...prev, ...updates }));
+        }
+      }
+    }, [refetchUnreadCount, sections])
   );
 
   // TOP 레시피 가로 스크롤 리셋용 ref
@@ -607,12 +627,22 @@ export default function HomeScreen() {
   }, [sections, selectedFilter]);
 
   const AnimatedSectionList = useRef(Animated.createAnimatedComponent(SectionList)).current;
+  const overriddenSections = useMemo(() => {
+    if (Object.keys(bookmarkOverrides).length === 0) return filteredSections;
+    return filteredSections.map((section) => ({
+      ...section,
+      recipes: section.recipes?.map((recipe) => ({
+        ...recipe,
+        isBookmarked: bookmarkOverrides[recipe.id] ?? recipe.isBookmarked,
+      })),
+    }));
+  }, [filteredSections, bookmarkOverrides]);
   const curationSections = useMemo(
-    () => filteredSections.map((section) => ({
+    () => overriddenSections.map((section) => ({
       ...section,
       data: [section],
     })),
-    [filteredSections]
+    [overriddenSections]
   );
   const topShorts = useMemo(
     () =>
