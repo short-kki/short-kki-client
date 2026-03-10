@@ -70,6 +70,7 @@ import { useRecipeQueue, useGroups, usePersonalRecipeBooks, useGroupRecipeBooks 
 import { FeedbackToast, useFeedbackToast, truncateTitle } from "@/components/ui/FeedbackToast";
 import { GroupSelectBottomSheet } from "@/components/ui";
 import CreateRecipeBookModal from "@/components/CreateRecipeBookModal";
+import { bookmarkState } from "@/utils/bookmarkState";
 import { YoutubeView, useYouTubePlayer, useYouTubeEvent, PlayerState } from "react-native-youtube-bridge";
 import { extractYoutubeId } from "@/utils/youtube";
 import { useMute } from "@/contexts/MuteContext";
@@ -433,6 +434,7 @@ export default function RecipeDetailScreen() {
 
   const openBookmarkSheet = useCallback(async () => {
     setNeedsBookmarkData(true);
+    setBookmarkTab("personal");
     setShowBookmarkSheet(true);
 
     // 서버에서 이미 저장된 레시피북 ID 목록 조회
@@ -492,7 +494,9 @@ export default function RecipeDetailScreen() {
       // 이미 저장된 북이면 해제
       try {
         await api.delete(`/api/v1/recipebooks/${recipeBookId}/recipes/${recipe.id}`);
-        setOwnedBookIds((prev) => prev.filter((id) => id !== bookId));
+        const newIds = ownedBookIds.filter((id) => id !== bookId);
+        setOwnedBookIds(newIds);
+        bookmarkState.set(recipe.id, newIds.length > 0);
         await refreshRecipeState();
         showToast(`"${truncateTitle(bookName)}"에서 삭제됐어요!`, "danger");
       } catch {
@@ -502,6 +506,7 @@ export default function RecipeDetailScreen() {
       try {
         await api.post(`/api/v1/recipebooks/${recipeBookId}/recipes`, { recipeId: recipe.id });
         setOwnedBookIds((prev) => (prev.includes(bookId) ? prev : [...prev, bookId]));
+        bookmarkState.set(recipe.id, true);
         await refreshRecipeState();
         showToast(`"${truncateTitle(bookName)}"에 저장됐어요!`, "success");
       } catch (e: any) {
@@ -1421,7 +1426,7 @@ export default function RecipeDetailScreen() {
                 <Text
                   style={{
                     fontSize: Typography.fontSize.sm,
-                    fontWeight: Typography.fontWeight.semibold,
+                    fontWeight: Typography.fontWeight.semiBold,
                     color: Colors.primary[600],
                   }}
                 >
@@ -1676,8 +1681,13 @@ export default function RecipeDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* 폴더 목록 */}
-            <ScrollView style={{ height: BOOK_LIST_ITEM_HEIGHT * BOOK_LIST_VISIBLE_COUNT }} contentContainerStyle={{ paddingHorizontal: 20 }}>
+            {/* 폴더 목록 — 두 탭 중 더 많은 쪽 기준으로 높이 고정, 초과 시 peek */}
+            {(() => {
+              const maxCount = Math.max(personalBooks.length, groupRecipeBooks.length);
+              const peekRatio = maxCount > BOOK_LIST_VISIBLE_COUNT ? 0.4 : 0;
+              const scrollHeight = BOOK_LIST_ITEM_HEIGHT * (BOOK_LIST_VISIBLE_COUNT + peekRatio);
+              return (
+            <ScrollView style={{ height: scrollHeight }} contentContainerStyle={{ paddingHorizontal: 20 }}>
               {(() => {
                 const books = bookmarkTab === "personal"
                   ? personalBooks.map((book) => ({
@@ -1776,8 +1786,8 @@ export default function RecipeDetailScreen() {
                       );
                     })}
 
-                    {/* 새 레시피북 만들기 */}
-                    <TouchableOpacity
+                    {/* 새 레시피북 만들기 - 개인 탭에서만 표시 */}
+                    {bookmarkTab === "personal" && <TouchableOpacity
                       onPress={() => setShowCreateBookModal(true)}
                       activeOpacity={0.7}
                       style={{
@@ -1805,11 +1815,13 @@ export default function RecipeDetailScreen() {
                       <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.primary[500] }}>
                         새 레시피북 만들기
                       </Text>
-                    </TouchableOpacity>
+                    </TouchableOpacity>}
                   </>
                 );
               })()}
             </ScrollView>
+              );
+            })()}
           </Animated.View>
         </View>
       </Modal>

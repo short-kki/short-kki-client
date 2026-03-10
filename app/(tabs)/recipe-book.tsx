@@ -854,8 +854,9 @@ export default function RecipeBookScreen() {
       <CreateRecipeBookModal
         visible={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onCreated={(_, bookName) => {
+        onCreated={async (_, bookName) => {
           setShowCreateModal(false);
+          await refetchPersonal();
           showToast(`"${truncateTitle(bookName)}" 레시피북이 생성됐어요!`);
         }}
       />
