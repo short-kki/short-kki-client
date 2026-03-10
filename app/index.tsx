@@ -7,9 +7,7 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withDelay,
-  withSequence,
   Easing,
-  runOnJS,
 } from "react-native-reanimated";
 import { Colors, Typography } from "@/constants/design-system";
 import { useAuth } from "@/contexts/AuthContext";
