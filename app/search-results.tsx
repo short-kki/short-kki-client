@@ -144,10 +144,20 @@ const SearchResultCard = React.memo(function SearchResultCard({
           {item.title}
         </Text>
         <View style={cardStyles.bookmarkRow}>
-          <Bookmark size={12} color={Colors.neutral[400]} />
+          <Bookmark
+            size={12}
+            color={Colors.neutral[400]}
+            fill={item.isBookmarked ? Colors.neutral[400] : "none"}
+          />
           <Text style={cardStyles.bookmarkText}>
             {formatBookmarkCount(item.bookmarkCount ?? 0)}
           </Text>
+          {item.cookingTime ? (
+            <>
+              <Clock size={12} color={Colors.neutral[400]} style={{ marginLeft: 8 }} />
+              <Text style={cardStyles.bookmarkText}>{item.cookingTime}분</Text>
+            </>
+          ) : null}
         </View>
       </View>
     </TouchableOpacity>
@@ -196,12 +206,16 @@ function mapShortsToSearchItem(item: ShortsItem): SearchRecipeItem {
     id: Number(item.id) || 0,
     title: item.title,
     mainImgUrl: item.thumbnail || null,
-    platform: item.creatorName ? "YOUTUBE" : "USER",
+    platform: item.creatorName ? "YOUTUBE" : null,
     creatorName: item.creatorName ?? null,
     authorName: item.author || null,
     authorProfileImgUrl: item.authorProfileImgUrl ?? null,
     bookmarkCount: item.bookmarks ?? 0,
     sourceUrl: item.videoUrl || null,
+    recipeSource: item.creatorName ? "IMPORT" : "USER",
+    isBookmarked: item.isBookmarked ?? false,
+    cookingTime: null,
+    creatorProfileImgUrl: null,
   };
 }
 

@@ -107,6 +107,8 @@ interface CurationV2Recipe {
   platform?: string;
   creatorName?: string;
   creatorProfileImgUrl?: string;
+  cookingTime?: number;
+  isBookmarked?: boolean;
 }
 
 interface CurationV2Item {
@@ -163,12 +165,14 @@ const mapRecipeToCurationRecipe = (recipe: CurationV2Recipe): CurationRecipe => 
     id: String(recipe.id),
     title: recipe.title,
     thumbnail: recipe.mainImgUrl || getYoutubeThumbnail(videoId),
-    duration: "0:00",
+    duration: recipe.cookingTime ? `${recipe.cookingTime}분` : "0:00",
     author: recipe.authorName || recipe.creatorName || "작성자",
     authorProfileImgUrl: recipe.authorProfileImgUrl,
     creatorName: recipe.creatorName,
     bookmarks: recipe.bookmarkCount,
     sourceUrl: recipe.sourceUrl,
+    cookingTime: recipe.cookingTime,
+    isBookmarked: recipe.isBookmarked,
   };
 };
 
@@ -187,6 +191,7 @@ const mapRecipeToTopItem = (recipe: CurationV2Recipe): TopRecipeItem => {
     views: undefined,
     tags: [],
     bookmarks: recipe.bookmarkCount,
+    isBookmarked: recipe.isBookmarked,
   };
 };
 
@@ -247,7 +252,7 @@ interface TopCurationResponse {
 }
 
 const mapSearchRecipeToTopItem = (recipe: SearchRecipeItem): TopRecipeItem => {
-  const videoId = extractYoutubeId(recipe.sourceUrl) ?? String(recipe.id);
+  const videoId = extractYoutubeId(recipe.sourceUrl ?? undefined) ?? String(recipe.id);
   return {
     id: String(recipe.id),
     videoId,
@@ -261,21 +266,24 @@ const mapSearchRecipeToTopItem = (recipe: SearchRecipeItem): TopRecipeItem => {
     views: undefined,
     tags: [],
     bookmarks: recipe.bookmarkCount,
+    isBookmarked: recipe.isBookmarked,
   };
 };
 
 const mapSearchRecipeToCurationRecipe = (recipe: SearchRecipeItem): CurationRecipe => {
-  const videoId = extractYoutubeId(recipe.sourceUrl) ?? String(recipe.id);
+  const videoId = extractYoutubeId(recipe.sourceUrl ?? undefined) ?? String(recipe.id);
   return {
     id: String(recipe.id),
     title: recipe.title,
     thumbnail: recipe.mainImgUrl || getYoutubeThumbnail(videoId),
-    duration: '0:00',
+    duration: recipe.cookingTime ? `${recipe.cookingTime}분` : '0:00',
     author: recipe.authorName || recipe.creatorName || '작성자',
     authorProfileImgUrl: recipe.authorProfileImgUrl ?? undefined,
     creatorName: recipe.creatorName ?? undefined,
     bookmarks: recipe.bookmarkCount,
     sourceUrl: recipe.sourceUrl ?? undefined,
+    cookingTime: recipe.cookingTime ?? undefined,
+    isBookmarked: recipe.isBookmarked,
   };
 };
 

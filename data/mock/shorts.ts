@@ -19,6 +19,7 @@ export interface ShortsItem {
   views?: string;
   tags?: string[];
   bookmarks?: number;
+  isBookmarked?: boolean;
 }
 
 export interface CurationRecipe {
@@ -31,6 +32,8 @@ export interface CurationRecipe {
   creatorName?: string;
   bookmarks?: number;
   sourceUrl?: string;
+  cookingTime?: number;
+  isBookmarked?: boolean;
 }
 
 export interface CurationSection {

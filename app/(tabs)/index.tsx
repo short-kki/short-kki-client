@@ -21,6 +21,7 @@ import {
   Bell,
   ChevronRight,
   Bookmark,
+  Clock,
   User,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows, SemanticColors } from "@/constants/design-system";
@@ -45,6 +46,8 @@ interface ShortsCardItem {
   views: string;
   bookmarks?: number;
   creatorName?: string;
+  isBookmarked?: boolean;
+  duration?: string;
 }
 
 function formatBookmarkCount(count?: number) {
@@ -287,10 +290,22 @@ const ShortsCard = React.memo(function ShortsCard({ item, onPress, cardWidth }: 
                 {item.title}
               </Text>
               <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}>
-                <Bookmark size={12} color="#FFFFFF" />
+                <Bookmark
+                  size={12}
+                  color="#FFFFFF"
+                  fill={item.isBookmarked ? "#FFFFFF" : "none"}
+                />
                 <Text style={{ color: "#FFFFFF", fontSize: 12, marginLeft: 4 }}>
                   {formatBookmarkCount(item.bookmarks)}
                 </Text>
+                {item.duration ? (
+                  <>
+                    <Clock size={12} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                    <Text style={{ color: "#FFFFFF", fontSize: 12, marginLeft: 4 }}>
+                      {item.duration}
+                    </Text>
+                  </>
+                ) : null}
               </View>
             </View>
           </View>
@@ -314,6 +329,8 @@ const RecipeCard = React.memo(function RecipeCard({ item, onPress, cardWidth }: 
         views: item.views ?? "0",
         bookmarks: item.bookmarks,
         creatorName: item.creatorName,
+        isBookmarked: item.isBookmarked,
+        duration: item.duration,
       }}
       onPress={handlePress}
       cardWidth={cardWidth}

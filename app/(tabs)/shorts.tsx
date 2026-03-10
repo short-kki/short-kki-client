@@ -672,6 +672,19 @@ export default function ShortsScreen() {
     });
   }, [SHORTS_DATA]);
 
+  // isBookmarked 필드로 초기 북마크 상태 세팅 (스크롤 시 별도 API 호출 방지)
+  useEffect(() => {
+    setOwnedBookIdsByVideo((prev) => {
+      const next = { ...prev };
+      SHORTS_DATA.forEach((item) => {
+        if (next[item.id] === undefined) {
+          next[item.id] = item.isBookmarked ? ["unknown"] : [];
+        }
+      });
+      return next;
+    });
+  }, [SHORTS_DATA]);
+
   const recipeBooks = useMemo(() => {
     if (USE_MOCK) {
       return RECIPE_BOOKS;
@@ -827,20 +840,7 @@ export default function ShortsScreen() {
     }
 
     try {
-      const [ownedRes, recipeRes] = await Promise.all([
-        api.get<{ data: number[] | { recipeBookIds?: number[] } }>(`/api/v1/recipebooks/recipes/${recipeId}`),
-        api.get<{ data: { bookmarkCount: number; ownedRecipeBookIds?: number[] } }>(`/api/v1/recipes/${recipeId}`),
-      ]);
-
-      const ownedPayload = ownedRes.data;
-      const ownedRaw = Array.isArray(ownedPayload)
-        ? ownedPayload
-        : (ownedPayload?.recipeBookIds ?? []);
-      const ownedBookIds = ownedRaw.map((id) => String(id));
-      setOwnedBookIdsByVideo((prev) => ({
-        ...prev,
-        [videoId]: ownedBookIds,
-      }));
+      const recipeRes = await api.get<{ data: { bookmarkCount: number } }>(`/api/v1/recipes/${recipeId}`);
       setBookmarkCounts((prev) => ({
         ...prev,
         [videoId]: recipeRes.data?.bookmarkCount ?? prev[videoId] ?? 0,
