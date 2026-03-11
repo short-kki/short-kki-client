@@ -1831,8 +1831,8 @@ export default function RecipeDetailScreen() {
         onClose={() => setShowCreateBookModal(false)}
         onCreated={async (bookId, bookName) => {
           setShowCreateBookModal(false);
-          await refetchPersonalBooks();
           await handleSelectFolder(bookId, bookName);
+          void refetchPersonalBooks();
         }}
       />
 

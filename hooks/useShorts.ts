@@ -148,7 +148,7 @@ const SEARCH_TOP_ID = 'search-top';
 const getYoutubeThumbnail = (videoId: string) =>
   `https://i.ytimg.com/vi/${videoId}/hq720.jpg`;
 
-const extractYoutubeId = (url?: string): string | null => {
+const extractYoutubeId = (url?: string | null): string | null => {
   if (!url) return null;
   const shortsMatch = url.match(/\/shorts\/([a-zA-Z0-9_-]+)/);
   if (shortsMatch?.[1]) return shortsMatch[1];
@@ -165,7 +165,7 @@ const mapRecipeToCurationRecipe = (recipe: CurationV2Recipe): CurationRecipe => 
     id: String(recipe.id),
     title: recipe.title,
     thumbnail: recipe.mainImgUrl || getYoutubeThumbnail(videoId),
-    duration: recipe.cookingTime ? `${recipe.cookingTime}분` : "",
+    duration: recipe.cookingTime != null ? `${recipe.cookingTime}분` : "",
     author: recipe.authorName || recipe.creatorName || "작성자",
     authorProfileImgUrl: recipe.authorProfileImgUrl,
     creatorName: recipe.creatorName,
@@ -210,6 +210,7 @@ const mapCurationRecipeToShortsItem = (recipe: CurationRecipe): ShortsItem => {
     views: undefined,
     tags: [],
     bookmarks: recipe.bookmarks ?? 0,
+    isBookmarked: recipe.isBookmarked,
   };
 };
 
@@ -252,7 +253,7 @@ interface TopCurationResponse {
 }
 
 const mapSearchRecipeToTopItem = (recipe: SearchRecipeItem): TopRecipeItem => {
-  const videoId = extractYoutubeId(recipe.sourceUrl ?? undefined) ?? String(recipe.id);
+  const videoId = extractYoutubeId(recipe.sourceUrl) ?? String(recipe.id);
   return {
     id: String(recipe.id),
     videoId,
@@ -271,12 +272,12 @@ const mapSearchRecipeToTopItem = (recipe: SearchRecipeItem): TopRecipeItem => {
 };
 
 const mapSearchRecipeToCurationRecipe = (recipe: SearchRecipeItem): CurationRecipe => {
-  const videoId = extractYoutubeId(recipe.sourceUrl ?? undefined) ?? String(recipe.id);
+  const videoId = extractYoutubeId(recipe.sourceUrl) ?? String(recipe.id);
   return {
     id: String(recipe.id),
     title: recipe.title,
     thumbnail: recipe.mainImgUrl || getYoutubeThumbnail(videoId),
-    duration: recipe.cookingTime ? `${recipe.cookingTime}분` : '',
+    duration: recipe.cookingTime != null ? `${recipe.cookingTime}분` : '',
     author: recipe.authorName || recipe.creatorName || '작성자',
     authorProfileImgUrl: recipe.authorProfileImgUrl ?? undefined,
     creatorName: recipe.creatorName ?? undefined,

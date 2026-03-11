@@ -629,13 +629,16 @@ export default function HomeScreen() {
   const AnimatedSectionList = useRef(Animated.createAnimatedComponent(SectionList)).current;
   const overriddenSections = useMemo(() => {
     if (Object.keys(bookmarkOverrides).length === 0) return filteredSections;
-    return filteredSections.map((section) => ({
-      ...section,
-      recipes: section.recipes?.map((recipe) => ({
-        ...recipe,
-        isBookmarked: bookmarkOverrides[recipe.id] ?? recipe.isBookmarked,
-      })),
-    }));
+    return filteredSections.map((section) => {
+      let changed = false;
+      const recipes = section.recipes?.map((recipe) => {
+        const nextIsBookmarked = bookmarkOverrides[recipe.id];
+        if (nextIsBookmarked === undefined || nextIsBookmarked === recipe.isBookmarked) return recipe;
+        changed = true;
+        return { ...recipe, isBookmarked: nextIsBookmarked };
+      });
+      return changed ? { ...section, recipes } : section;
+    });
   }, [filteredSections, bookmarkOverrides]);
   const curationSections = useMemo(
     () => overriddenSections.map((section) => ({

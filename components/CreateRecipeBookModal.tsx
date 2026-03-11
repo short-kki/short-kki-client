@@ -10,7 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { Colors } from "@/constants/design-system";
+import { Colors, BorderRadius } from "@/constants/design-system";
 import { usePersonalRecipeBooks } from "@/hooks";
 
 interface CreateRecipeBookModalProps {
@@ -78,7 +78,7 @@ export default function CreateRecipeBookModal({
           style={{
             width: "85%",
             backgroundColor: "#FFFFFF",
-            borderRadius: 20,
+            borderRadius: BorderRadius.lg,
             paddingTop: 24,
             paddingHorizontal: 22,
             paddingBottom: 20,

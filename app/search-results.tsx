@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -215,7 +215,7 @@ function mapShortsToSearchItem(item: ShortsItem): SearchRecipeItem {
     sourceUrl: item.videoUrl || null,
     recipeSource: item.creatorName ? "IMPORT" : "USER",
     isBookmarked: item.isBookmarked ?? false,
-    cookingTime: null,
+    cookingTime: item.cookingTime ?? null,
     creatorProfileImgUrl: null,
   };
 }
@@ -358,6 +358,8 @@ export default function SearchResultsScreen() {
   const [activeSearchWord, setActiveSearchWord] = useState(params.searchWord?.trim() || "");
   const [inputValue, setInputValue] = useState(params.searchWord?.trim() || "");
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const isInputFocusedRef = useRef(false);
+  useEffect(() => { isInputFocusedRef.current = isInputFocused; }, [isInputFocused]);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
   const [bookmarkOverrides, setBookmarkOverrides] = useState<Record<string, boolean>>({});
   const hasMountedRef = useRef(false);
@@ -416,7 +418,7 @@ export default function SearchResultsScreen() {
       loadSearchHistory();
 
       const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
-        if (isInputFocused) {
+        if (isInputFocusedRef.current) {
           Keyboard.dismiss();
           setIsInputFocused(false);
           return true;
@@ -424,7 +426,7 @@ export default function SearchResultsScreen() {
         return false;
       });
       return () => backHandler.remove();
-    }, [isInputFocused, isCurationMode, curationItems, searchData.results])
+    }, [isCurationMode, curationItems, searchData.results])
   );
 
   const handleSearchResultPress = useCallback(
