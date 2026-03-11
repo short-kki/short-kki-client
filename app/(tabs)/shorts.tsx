@@ -599,6 +599,7 @@ export default function ShortsScreen() {
           views: undefined,
           tags: [],
           bookmarks: recipe.bookmarks ?? 0,
+          isBookmarked: recipe.isBookmarked ?? false,
         };
       })
     );
@@ -733,6 +734,14 @@ export default function ShortsScreen() {
     return Array.isArray(params.startIndex) ? params.startIndex[0] : params.startIndex;
   }, [params.startIndex]);
   const hasScrolledRef = useRef(false);
+  const isFirstMountRef = useRef(true);
+
+  // 첫 렌더에서 FlatList가 initialScrollIndex로 올바른 위치에서 시작하도록 계산
+  const initialScrollIndexNum = useMemo(() => {
+    if (!startId || SHORTS_DATA.length === 0) return 0;
+    const idx = SHORTS_DATA.findIndex((item) => item.id === startId);
+    return idx >= 0 ? idx : 0;
+  }, [startId, SHORTS_DATA]);
 
   useEffect(() => {
     hasScrolledRef.current = false;
@@ -742,13 +751,22 @@ export default function ShortsScreen() {
     if (!startId || hasScrolledRef.current) return;
     const index = SHORTS_DATA.findIndex(item => item.id === startId);
     if (index !== -1 && index < SHORTS_DATA.length) {
+      if (isFirstMountRef.current && initialScrollIndexNum === index) {
+        // 첫 마운트: initialScrollIndex가 이미 FlatList를 해당 위치에 렌더링함 → scrollToOffset 불필요
+        setActiveIndex(index);
+        hasScrolledRef.current = true;
+        isFirstMountRef.current = false;
+        return;
+      }
+      // 재진입 또는 SHORTS_DATA가 비동기 로드된 경우: 직접 스크롤
+      isFirstMountRef.current = false;
       setTimeout(() => {
         flatListRef.current?.scrollToOffset({ offset: index * itemHeight, animated: false });
         setActiveIndex(index);
         hasScrolledRef.current = true;
       }, 100);
     }
-  }, [startId, SHORTS_DATA, itemHeight]);
+  }, [startId, SHORTS_DATA, itemHeight, initialScrollIndexNum]);
 
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 50,
@@ -871,15 +889,6 @@ export default function ShortsScreen() {
       console.error("[Bookmark] 숏츠 북마크 상태 동기화 실패:", err);
     }
   }, []);
-
-  // 현재 활성 비디오의 북마크 상태를 서버에서 가져오기
-  useEffect(() => {
-    const currentItem = SHORTS_DATA[activeIndex];
-    if (!currentItem) return;
-    // 이미 동기화된 비디오는 스킵
-    if (ownedBookIdsByVideo[currentItem.id] !== undefined) return;
-    syncVideoBookmarkState(currentItem.id);
-  }, [activeIndex, SHORTS_DATA, syncVideoBookmarkState, ownedBookIdsByVideo]);
 
   // 북마크 시트 열기 (페이드 오버레이 + 슬라이드업)
   const openBookmarkSheet = useCallback(async (videoId: string) => {
@@ -1032,7 +1041,7 @@ export default function ShortsScreen() {
         onViewRecipe={handleViewRecipe}
         onAddToMealPlan={handleAddToMealPlan}
         onBookmarkPress={openBookmarkSheet}
-        isBookmarked={isBookmarkedByVideo[item.id] ?? false}
+        isBookmarked={isBookmarkedByVideo[item.id] ?? item.isBookmarked ?? false}
         bookmarkCount={bookmarkCounts[item.id] ?? item.bookmarks ?? 0}
         isScreenFocused={isScreenFocused}
         focusEpoch={focusEpoch}
@@ -1114,6 +1123,7 @@ export default function ShortsScreen() {
         extraData={activeIndex}
         style={{ flex: 1 }}
         onLayout={handleContainerLayout}
+        initialScrollIndex={initialScrollIndexNum > 0 ? initialScrollIndexNum : undefined}
         pagingEnabled={false}
         disableIntervalMomentum
         decelerationRate="fast"
@@ -1701,8 +1711,8 @@ export default function ShortsScreen() {
         onClose={() => setShowCreateBookModal(false)}
         onCreated={async (bookId, bookName) => {
           setShowCreateBookModal(false);
-          await refetchPersonalBooks();
           await handleSelectFolder(bookId, bookName);
+          void refetchPersonalBooks();
         }}
       />
 
