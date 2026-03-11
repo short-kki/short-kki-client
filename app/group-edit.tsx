@@ -10,7 +10,6 @@ import {
   Switch,
   ActivityIndicator,
   Modal,
-  Animated,
   KeyboardAvoidingView,
   Platform,
   StatusBar,
@@ -28,8 +27,6 @@ import {
   ChevronRight,
   Check,
   ImagePlus,
-  CheckCircle,
-  Sparkles,
   AlertTriangle,
   Save,
 } from "lucide-react-native";
@@ -65,33 +62,7 @@ export default function GroupEditScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
-  const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
-  const [scaleAnim] = useState(new Animated.Value(0));
-  const [fadeAnim] = useState(new Animated.Value(0));
-
-  // 성공 모달 애니메이션
-  useEffect(() => {
-    if (showSuccessModal) {
-      Animated.parallel([
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          friction: 6,
-          tension: 100,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      scaleAnim.setValue(0);
-      fadeAnim.setValue(0);
-    }
-  }, [showSuccessModal, fadeAnim, scaleAnim]);
 
   // 그룹 데이터 로드 시 상태 초기화 (수정 모드에서만)
   useEffect(() => {
@@ -167,11 +138,17 @@ export default function GroupEditScreen() {
 
       if (isCreateMode) {
         const newGroup = await createGroup(groupData);
-        setCreatedGroupId(newGroup.id);
-      } else {
-        await updateGroup(groupData);
+        router.replace({
+          pathname: "/(tabs)/group",
+          params: { groupId: newGroup.id, _t: Date.now().toString(), toast: "그룹 생성이 완료되었습니다" },
+        });
+        return;
       }
-      setShowSuccessModal(true);
+      await updateGroup(groupData);
+      router.replace({
+        pathname: "/(tabs)/group",
+        params: { _t: Date.now().toString(), toast: "그룹 정보가 수정되었습니다" },
+      });
     } catch (error) {
       console.error(isCreateMode ? "그룹 생성 실패:" : "그룹 수정 실패:", error);
       Alert.alert("오류", isCreateMode ? "그룹 생성에 실패했습니다." : "그룹 정보 수정에 실패했습니다.");
@@ -341,40 +318,11 @@ export default function GroupEditScreen() {
           </Text>
         </View>
 
-        {!isCreateMode && (
-          <TouchableOpacity
-            onPress={handleSave}
-            activeOpacity={0.7}
-            disabled={isSaving || !hasChanges}
-            style={{
-              backgroundColor: hasChanges && !isSaving ? Colors.primary[500] : Colors.neutral[200],
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              borderRadius: BorderRadius.full,
-              flexDirection: "row",
-              alignItems: "center",
-            }}
-          >
-            {isSaving ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : (
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: "600",
-                  color: hasChanges ? "#FFF" : Colors.neutral[400],
-                }}
-              >
-                저장
-              </Text>
-            )}
-          </TouchableOpacity>
-        )}
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: isCreateMode ? 120 : 40 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* 그룹 프로필 사진 */}
         <View
@@ -729,56 +677,56 @@ export default function GroupEditScreen() {
         )}
       </ScrollView>
 
-      {/* 하단 생성 버튼 (생성 모드에서만) */}
-      {isCreateMode && (
-        <View
+      {/* 하단 버튼 */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          paddingHorizontal: Spacing.xl,
+          paddingTop: Spacing.md,
+          paddingBottom: insets.bottom + Spacing.md,
+          backgroundColor: Colors.neutral[0],
+          borderTopWidth: 1,
+          borderTopColor: Colors.neutral[100],
+          ...Shadows.md,
+        }}
+      >
+        <TouchableOpacity
+          onPress={handleSave}
+          disabled={isSaving || (isCreateMode ? !isFormValid : !hasChanges)}
+          activeOpacity={0.8}
           style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            paddingHorizontal: Spacing.xl,
-            paddingTop: Spacing.md,
-            paddingBottom: insets.bottom + Spacing.md,
-            backgroundColor: Colors.neutral[0],
-            borderTopWidth: 1,
-            borderTopColor: Colors.neutral[100],
-            ...Shadows.md,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: (isCreateMode ? isFormValid : hasChanges) && !isSaving
+              ? Colors.primary[500]
+              : Colors.neutral[300],
+            paddingVertical: Spacing.md,
+            borderRadius: BorderRadius.base,
           }}
         >
-          <TouchableOpacity
-            onPress={handleSave}
-            disabled={isSaving || !isFormValid}
-            activeOpacity={0.8}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: isFormValid && !isSaving ? Colors.primary[500] : Colors.neutral[300],
-              paddingVertical: Spacing.md,
-              borderRadius: BorderRadius.base,
-            }}
-          >
-            {isSaving ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : (
-              <>
-                <Check size={20} color="#FFF" />
-                <Text
-                  style={{
-                    color: "#FFF",
-                    fontWeight: "700",
-                    fontSize: Typography.fontSize.base,
-                    marginLeft: Spacing.sm,
-                  }}
-                >
-                  그룹 만들기
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
+          {isSaving ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <>
+              <Check size={20} color="#FFF" />
+              <Text
+                style={{
+                  color: "#FFF",
+                  fontWeight: "700",
+                  fontSize: Typography.fontSize.base,
+                  marginLeft: Spacing.sm,
+                }}
+              >
+                {isCreateMode ? "그룹 만들기" : "저장하기"}
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
       </View>
 
       {/* 사진 선택 바텀시트 모달 */}
@@ -1049,185 +997,6 @@ export default function GroupEditScreen() {
         </Pressable>
       </Modal>
 
-      {/* 저장 성공 모달 */}
-      <Modal
-        visible={showSuccessModal}
-        transparent
-        animationType="none"
-        statusBarTranslucent
-      >
-        <Animated.View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.6)",
-            justifyContent: "center",
-            alignItems: "center",
-            opacity: fadeAnim,
-          }}
-        >
-          <Animated.View
-            style={{
-              backgroundColor: Colors.neutral[0],
-              borderRadius: 28,
-              padding: 32,
-              marginHorizontal: 32,
-              alignItems: "center",
-              width: "85%",
-              maxWidth: 340,
-              transform: [{ scale: scaleAnim }],
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 20 },
-              shadowOpacity: 0.25,
-              shadowRadius: 30,
-              elevation: 20,
-            }}
-          >
-            {/* 스파클 장식 */}
-            <View style={{ position: "absolute", top: 24, right: 50 }}>
-              <Sparkles size={22} color={Colors.secondary[400]} />
-            </View>
-            <View style={{ position: "absolute", top: 60, left: 35 }}>
-              <Sparkles size={16} color={Colors.primary[300]} />
-            </View>
-
-            {/* 성공 아이콘 */}
-            <View
-              style={{
-                width: 88,
-                height: 88,
-                borderRadius: 44,
-                backgroundColor: Colors.success.light,
-                justifyContent: "center",
-                alignItems: "center",
-                marginBottom: 24,
-              }}
-            >
-              <View
-                style={{
-                  width: 68,
-                  height: 68,
-                  borderRadius: 34,
-                  backgroundColor: Colors.success.main,
-                  justifyContent: "center",
-                  alignItems: "center",
-                  shadowColor: Colors.success.main,
-                  shadowOffset: { width: 0, height: 6 },
-                  shadowOpacity: 0.4,
-                  shadowRadius: 12,
-                  elevation: 8,
-                }}
-              >
-                <CheckCircle size={40} color="#FFFFFF" strokeWidth={2.5} />
-              </View>
-            </View>
-
-            {/* 타이틀 */}
-            <Text
-              style={{
-                fontSize: 22,
-                fontWeight: "800",
-                color: Colors.neutral[900],
-                marginBottom: 8,
-              }}
-            >
-              {isCreateMode ? "그룹 생성 완료!" : "저장 완료!"}
-            </Text>
-
-            {/* 그룹 이름 표시 */}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: Colors.primary[50],
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                borderRadius: 12,
-                marginBottom: 8,
-              }}
-            >
-              {selectedImage || thumbnailImgUrl ? (
-                <Image
-                  source={{ uri: selectedImage?.uri || thumbnailImgUrl || "" }}
-                  style={{ width: 24, height: 24, borderRadius: 12 }}
-                  contentFit="cover"
-                />
-              ) : (
-                <Users size={20} color={Colors.primary[500]} />
-              )}
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "600",
-                  color: Colors.neutral[800],
-                  marginLeft: 10,
-                }}
-                numberOfLines={1}
-              >
-                {name}
-              </Text>
-            </View>
-
-            {/* 설명 */}
-            <Text
-              style={{
-                fontSize: 15,
-                color: Colors.neutral[500],
-                textAlign: "center",
-                lineHeight: 22,
-                marginTop: 8,
-              }}
-            >
-              {isCreateMode ? "새 그룹이 성공적으로\n생성되었습니다" : "그룹 정보가 성공적으로\n수정되었습니다"}
-            </Text>
-
-            {/* 확인 버튼 */}
-            <TouchableOpacity
-              onPress={() => {
-                setShowSuccessModal(false);
-                if (isCreateMode && createdGroupId) {
-                  // 생성 모드: 새 그룹으로 이동
-                  router.replace({
-                    pathname: "/(tabs)/group",
-                    params: { groupId: createdGroupId, _t: Date.now().toString() },
-                  });
-                } else {
-                  router.back();
-                }
-              }}
-              activeOpacity={0.8}
-              style={{
-                backgroundColor: Colors.primary[500],
-                paddingVertical: 16,
-                paddingHorizontal: 48,
-                borderRadius: 16,
-                marginTop: 28,
-                width: "100%",
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                shadowColor: Colors.primary[500],
-                shadowOffset: { width: 0, height: 6 },
-                shadowOpacity: 0.35,
-                shadowRadius: 10,
-                elevation: 6,
-              }}
-            >
-              <Check size={22} color="#FFFFFF" strokeWidth={2.5} />
-              <Text
-                style={{
-                  fontSize: 17,
-                  fontWeight: "700",
-                  color: "#FFFFFF",
-                }}
-              >
-                확인
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </Animated.View>
-      </Modal>
-
       {/* 변경사항 저장 여부 모달 */}
       <Modal
         visible={showUnsavedModal}
@@ -1402,6 +1171,7 @@ export default function GroupEditScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
     </KeyboardAvoidingView>
   );
 }

@@ -105,15 +105,16 @@ function formatRelativeTime(dateString: string | null): string {
 export default function GroupScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ groupId?: string; _t?: string }>();
+  const params = useLocalSearchParams<{ groupId?: string; _t?: string; toast?: string }>();
   const currentUser = useUser();
 
   // Hooks로 데이터 관리
-  const { groups, createGroup, deleteGroup, leaveGroup, refetch: refetchGroups } = useGroups();
+  const { groups, loading: groupsLoading, createGroup, deleteGroup, leaveGroup, refetch: refetchGroups } = useGroups();
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const { feeds, loading: feedsLoading, loadingMore, hasNext, toggleLike, deleteFeed, refetch: refetchFeeds, fetchNextPage } = useGroupFeeds(selectedGroup?.id);
   useGroupMembers(selectedGroup?.id);
   const appliedRouteTargetRef = useRef<string | null>(null);
+  const appliedToastRef = useRef<string | null>(null);
 
   // 그룹 탭을 다시 누르면 그룹 목록으로 돌아가기
   const navigation = useNavigation();
@@ -155,6 +156,15 @@ export default function GroupScreen() {
       appliedRouteTargetRef.current = routeTargetKey;
     }
   }, [params.groupId, params._t, groups]);
+
+  // toast 파라미터로 토스트 메시지 표시
+  useEffect(() => {
+    if (!params.toast) return;
+    const toastKey = `${params.toast}:${params._t ?? ""}`;
+    if (appliedToastRef.current === toastKey) return;
+    appliedToastRef.current = toastKey;
+    showToast(params.toast, "success");
+  }, [params.toast, params._t, showToast]);
 
   // 화면에 포커스될 때 그룹 목록 및 피드 새로고침
   useFocusEffect(
@@ -1670,7 +1680,11 @@ export default function GroupScreen() {
           contentContainerStyle={{ paddingHorizontal: Spacing.lg, paddingTop: Spacing.xs }}
           showsVerticalScrollIndicator={false}
         >
-          {filteredGroups.length > 0 ? (
+          {groupsLoading ? (
+            <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 80 }}>
+              <ActivityIndicator size="large" color={Colors.primary[500]} />
+            </View>
+          ) : filteredGroups.length > 0 ? (
             filteredGroups.map((group) => (
               <TouchableOpacity
                 key={group.id}
@@ -1804,16 +1818,16 @@ export default function GroupScreen() {
                       handleShowGroupMenu(group);
                     }}
                     style={({ pressed }) => ({
-                      width: 32,
-                      height: 32,
+                      width: 44,
+                      height: 44,
                       borderRadius: BorderRadius.full,
                       backgroundColor: pressed ? Colors.neutral[100] : 'transparent',
                       justifyContent: 'center',
                       alignItems: 'center',
                     })}
-                    hitSlop={8}
+                    hitSlop={4}
                   >
-                    <MoreVertical size={18} color={Colors.neutral[400]} />
+                    <MoreVertical size={20} color={Colors.neutral[400]} />
                   </Pressable>
                 </View>
               </TouchableOpacity>

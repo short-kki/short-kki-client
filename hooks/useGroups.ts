@@ -281,6 +281,12 @@ export function useGroupFeeds(groupId?: string) {
   const nextCursorRef = useRef<number | null>(null);
   const loadingMoreRef = useRef(false);
 
+  // groupId 변경 시 즉시 상태 초기화 (이전 그룹 피드 잔상 방지)
+  useEffect(() => {
+    setFeeds([]);
+    if (groupId) setLoading(true);
+  }, [groupId]);
+
   // 첫 페이지 조회
   const fetchFeeds = useCallback(async () => {
     if (!groupId) return;
