@@ -30,9 +30,10 @@ export default function CreateRecipeBookModal({
   const { createRecipeBook } = usePersonalRecipeBooks({ enabled: false });
 
   const handleClose = useCallback(() => {
+    if (isCreating) return;
     setBookName("");
     onClose();
-  }, [onClose]);
+  }, [isCreating, onClose]);
 
   const handleCreate = useCallback(async () => {
     const trimmed = bookName.trim();
@@ -42,14 +43,18 @@ export default function CreateRecipeBookModal({
     }
 
     setIsCreating(true);
-    const newBookId = await createRecipeBook(trimmed);
-    setIsCreating(false);
-
-    if (newBookId) {
-      setBookName("");
-      onCreated(newBookId, trimmed);
-    } else {
+    try {
+      const newBookId = await createRecipeBook(trimmed);
+      if (newBookId) {
+        setBookName("");
+        onCreated(newBookId, trimmed);
+      } else {
+        Alert.alert("오류", "레시피북 생성에 실패했습니다. 다시 시도해주세요.");
+      }
+    } catch {
       Alert.alert("오류", "레시피북 생성에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+      setIsCreating(false);
     }
   }, [bookName, createRecipeBook, onCreated]);
 

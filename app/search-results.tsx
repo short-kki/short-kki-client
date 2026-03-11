@@ -153,7 +153,7 @@ const SearchResultCard = React.memo(function SearchResultCard({
           <Text style={cardStyles.bookmarkText}>
             {formatBookmarkCount(item.bookmarkCount ?? 0)}
           </Text>
-          {item.cookingTime ? (
+          {item.cookingTime != null ? (
             <>
               <Clock size={12} color={Colors.neutral[400]} style={{ marginLeft: 8 }} />
               <Text style={cardStyles.bookmarkText}>{item.cookingTime}분</Text>

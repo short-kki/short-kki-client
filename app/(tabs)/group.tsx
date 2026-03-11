@@ -157,15 +157,6 @@ export default function GroupScreen() {
     }
   }, [params.groupId, params._t, groups]);
 
-  // toast 파라미터로 토스트 메시지 표시
-  useEffect(() => {
-    if (!params.toast) return;
-    const toastKey = `${params.toast}:${params._t ?? ""}`;
-    if (appliedToastRef.current === toastKey) return;
-    appliedToastRef.current = toastKey;
-    showToast(params.toast, "success");
-  }, [params.toast, params._t, showToast]);
-
   // 화면에 포커스될 때 그룹 목록 및 피드 새로고침
   useFocusEffect(
     useCallback(() => {
@@ -305,6 +296,15 @@ export default function GroupScreen() {
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } =
     useFeedbackToast(1400);
+
+  // toast 파라미터로 토스트 메시지 표시
+  useEffect(() => {
+    if (!params.toast) return;
+    const toastKey = `${params.toast}:${params._t ?? ""}`;
+    if (appliedToastRef.current === toastKey) return;
+    appliedToastRef.current = toastKey;
+    showToast(params.toast, "success");
+  }, [params.toast, params._t, showToast]);
 
   const handleFeedReport = useCallback(() => {
     closeFeedMenu(() => {
