@@ -59,7 +59,9 @@ import {
   VolumeX,
   ExternalLink,
   Minimize2,
+  Maximize2,
 } from "lucide-react-native";
+import { StepViewerModal } from "@/components/recipe/StepViewerModal";
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/design-system";
 import { recipeApi, type RecipeResponse } from "@/services/recipeApi";
 import { API_BASE_URL } from "@/constants/env";
@@ -67,6 +69,8 @@ import { api } from "@/services/api";
 import { useRecipeQueue, useGroups, usePersonalRecipeBooks, useGroupRecipeBooks } from "@/hooks";
 import { FeedbackToast, useFeedbackToast, truncateTitle } from "@/components/ui/FeedbackToast";
 import { GroupSelectBottomSheet } from "@/components/ui";
+import CreateRecipeBookModal from "@/components/CreateRecipeBookModal";
+import { bookmarkState } from "@/utils/bookmarkState";
 import { YoutubeView, useYouTubePlayer, useYouTubeEvent, PlayerState } from "react-native-youtube-bridge";
 import { extractYoutubeId } from "@/utils/youtube";
 import { useMute } from "@/contexts/MuteContext";
@@ -152,6 +156,9 @@ export default function RecipeDetailScreen() {
     return () => { cancelled = true; interaction.cancel(); };
   }, [id]);
 
+  const [showStepViewer, setShowStepViewer] = useState(false);
+  const [stepViewerInitialIndex, setStepViewerInitialIndex] = useState(0);
+
   const [showMoreSheet, setShowMoreSheet] = useState(false);
   const moreOverlayOpacity = useRef(new Animated.Value(0)).current;
   const moreSheetTranslateY = useRef(new Animated.Value(300)).current;
@@ -170,11 +177,12 @@ export default function RecipeDetailScreen() {
   const [needsBookmarkData, setNeedsBookmarkData] = useState(false);
   const [needsGroupData, setNeedsGroupData] = useState(false);
   const { groups, loading: groupsLoading } = useGroups({ enabled: needsGroupData });
-  const { recipeBooks: personalBooks } = usePersonalRecipeBooks({ enabled: needsBookmarkData });
+  const { recipeBooks: personalBooks, refetch: refetchPersonalBooks } = usePersonalRecipeBooks({ enabled: needsBookmarkData });
   const { recipeBooks: groupRecipeBooks } = useGroupRecipeBooks({ enabled: needsBookmarkData });
 
   // 북마크 시트 관련 상태
   const [showBookmarkSheet, setShowBookmarkSheet] = useState(false);
+  const [showCreateBookModal, setShowCreateBookModal] = useState(false);
   const [bookmarkTab, setBookmarkTab] = useState<"personal" | "group">("personal");
   const bookmarkOverlayOpacity = useRef(new Animated.Value(0)).current;
   const bookmarkSheetTranslateY = useRef(new Animated.Value(400)).current;
@@ -426,6 +434,7 @@ export default function RecipeDetailScreen() {
 
   const openBookmarkSheet = useCallback(async () => {
     setNeedsBookmarkData(true);
+    setBookmarkTab("personal");
     setShowBookmarkSheet(true);
 
     // 서버에서 이미 저장된 레시피북 ID 목록 조회
@@ -485,7 +494,9 @@ export default function RecipeDetailScreen() {
       // 이미 저장된 북이면 해제
       try {
         await api.delete(`/api/v1/recipebooks/${recipeBookId}/recipes/${recipe.id}`);
-        setOwnedBookIds((prev) => prev.filter((id) => id !== bookId));
+        const newIds = ownedBookIds.filter((id) => id !== bookId);
+        setOwnedBookIds(newIds);
+        bookmarkState.set(recipe.id, newIds.length > 0);
         await refreshRecipeState();
         showToast(`"${truncateTitle(bookName)}"에서 삭제됐어요!`, "danger");
       } catch {
@@ -495,6 +506,7 @@ export default function RecipeDetailScreen() {
       try {
         await api.post(`/api/v1/recipebooks/${recipeBookId}/recipes`, { recipeId: recipe.id });
         setOwnedBookIds((prev) => (prev.includes(bookId) ? prev : [...prev, bookId]));
+        bookmarkState.set(recipe.id, true);
         await refreshRecipeState();
         showToast(`"${truncateTitle(bookName)}"에 저장됐어요!`, "success");
       } catch (e: any) {
@@ -1393,9 +1405,34 @@ export default function RecipeDetailScreen() {
               >
                 조리순서
               </Text>
-              <Text style={{ fontSize: Typography.fontSize.sm, color: Colors.neutral[400] }}>
-                {recipe.steps.length}단계
-              </Text>
+              <Pressable
+                onPress={() => {
+                  setStepViewerInitialIndex(0);
+                  setShowStepViewer(true);
+                }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 5,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: Colors.primary[300],
+                  backgroundColor: Colors.primary[50],
+                }}
+              >
+                <Maximize2 size={12} color={Colors.primary[500]} />
+                <Text
+                  style={{
+                    fontSize: Typography.fontSize.sm,
+                    fontWeight: Typography.fontWeight.semiBold,
+                    color: Colors.primary[600],
+                  }}
+                >
+                  상세 보기
+                </Text>
+              </Pressable>
             </View>
 
             {recipe.steps.map((step, index) => (
@@ -1644,8 +1681,13 @@ export default function RecipeDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* 폴더 목록 */}
-            <ScrollView style={{ height: BOOK_LIST_ITEM_HEIGHT * BOOK_LIST_VISIBLE_COUNT }} contentContainerStyle={{ paddingHorizontal: 20 }}>
+            {/* 폴더 목록 — 두 탭 중 더 많은 쪽 기준으로 높이 고정, 초과 시 peek */}
+            {(() => {
+              const maxCount = Math.max(personalBooks.length, groupRecipeBooks.length);
+              const peekRatio = maxCount > BOOK_LIST_VISIBLE_COUNT ? 0.4 : 0;
+              const scrollHeight = BOOK_LIST_ITEM_HEIGHT * (BOOK_LIST_VISIBLE_COUNT + peekRatio);
+              return (
+            <ScrollView style={{ height: scrollHeight }} contentContainerStyle={{ paddingHorizontal: 20 }}>
               {(() => {
                 const books = bookmarkTab === "personal"
                   ? personalBooks.map((book) => ({
@@ -1744,13 +1786,9 @@ export default function RecipeDetailScreen() {
                       );
                     })}
 
-                    {/* 새 레시피북 만들기 */}
-                    <TouchableOpacity
-                      onPress={() => {
-                        closeBookmarkSheet(() => {
-                          router.push("/(tabs)/recipe-book");
-                        });
-                      }}
+                    {/* 새 레시피북 만들기 - 개인 탭에서만 표시 */}
+                    {bookmarkTab === "personal" && <TouchableOpacity
+                      onPress={() => setShowCreateBookModal(true)}
                       activeOpacity={0.7}
                       style={{
                         flexDirection: "row",
@@ -1777,14 +1815,26 @@ export default function RecipeDetailScreen() {
                       <Text style={{ fontSize: 15, fontWeight: "600", color: Colors.primary[500] }}>
                         새 레시피북 만들기
                       </Text>
-                    </TouchableOpacity>
+                    </TouchableOpacity>}
                   </>
                 );
               })()}
             </ScrollView>
+              );
+            })()}
           </Animated.View>
         </View>
       </Modal>
+
+      <CreateRecipeBookModal
+        visible={showCreateBookModal}
+        onClose={() => setShowCreateBookModal(false)}
+        onCreated={async (bookId, bookName) => {
+          setShowCreateBookModal(false);
+          await handleSelectFolder(bookId, bookName);
+          void refetchPersonalBooks();
+        }}
+      />
 
       {/* 그룹 선택 모달 (장보기) */}
       <GroupSelectBottomSheet
@@ -2465,6 +2515,16 @@ export default function RecipeDetailScreen() {
             </Text>
           </View>
         </View>
+      )}
+
+      {/* 단계별 보기 모달 */}
+      {recipe && (
+        <StepViewerModal
+          visible={showStepViewer}
+          steps={recipe.steps}
+          initialIndex={stepViewerInitialIndex}
+          onClose={() => setShowStepViewer(false)}
+        />
       )}
     </View >
   );

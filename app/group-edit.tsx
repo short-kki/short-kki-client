@@ -10,7 +10,9 @@ import {
   Switch,
   ActivityIndicator,
   Modal,
-  Animated,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -25,20 +27,18 @@ import {
   ChevronRight,
   Check,
   ImagePlus,
-  CheckCircle,
-  Sparkles,
   AlertTriangle,
   Save,
 } from "lucide-react-native";
-import { Colors, Typography, Spacing, BorderRadius } from "@/constants/design-system";
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/design-system";
 import { useGroupDetail, useGroups } from "@/hooks";
 import { uploadImage, type ImagePickerAsset } from "@/services/fileUpload";
 
 // 그룹 타입 옵션
 const GROUP_TYPES = [
+  { value: 'FRIENDS' as const, label: '친구' },
   { value: 'COUPLE' as const, label: '커플' },
   { value: 'FAMILY' as const, label: '가족' },
-  { value: 'FRIENDS' as const, label: '친구' },
   { value: 'ETC' as const, label: '기타' },
 ];
 
@@ -54,7 +54,7 @@ export default function GroupEditScreen() {
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [groupType, setGroupType] = useState<'COUPLE' | 'FAMILY' | 'FRIENDS' | 'ETC'>('FAMILY');
+  const [groupType, setGroupType] = useState<'COUPLE' | 'FAMILY' | 'FRIENDS' | 'ETC'>('FRIENDS');
   const [thumbnailImgUrl, setThumbnailImgUrl] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<ImagePickerAsset | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -62,33 +62,7 @@ export default function GroupEditScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
-  const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
-  const [scaleAnim] = useState(new Animated.Value(0));
-  const [fadeAnim] = useState(new Animated.Value(0));
-
-  // 성공 모달 애니메이션
-  useEffect(() => {
-    if (showSuccessModal) {
-      Animated.parallel([
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          friction: 6,
-          tension: 100,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      scaleAnim.setValue(0);
-      fadeAnim.setValue(0);
-    }
-  }, [showSuccessModal, fadeAnim, scaleAnim]);
 
   // 그룹 데이터 로드 시 상태 초기화 (수정 모드에서만)
   useEffect(() => {
@@ -121,9 +95,16 @@ export default function GroupEditScreen() {
     setHasChanges(true);
   };
 
+  // 생성 모드 폼 유효성: 이름 2자 이상, 설명 10자 이상
+  const isFormValid = name.trim().length >= 2 && description.trim().length >= 10;
+
   const handleSave = async () => {
-    if (!name.trim()) {
-      Alert.alert("알림", "그룹 이름을 입력해주세요.");
+    if (name.trim().length < 2) {
+      Alert.alert("알림", "그룹 이름을 2자 이상 입력해주세요.");
+      return;
+    }
+    if (isCreateMode && description.trim().length < 10) {
+      Alert.alert("알림", "그룹 설명을 10자 이상 입력해주세요.");
       return;
     }
 
@@ -157,11 +138,17 @@ export default function GroupEditScreen() {
 
       if (isCreateMode) {
         const newGroup = await createGroup(groupData);
-        setCreatedGroupId(newGroup.id);
-      } else {
-        await updateGroup(groupData);
+        router.replace({
+          pathname: "/(tabs)/group",
+          params: { groupId: newGroup.id, _t: Date.now().toString(), toast: "그룹 생성이 완료되었습니다" },
+        });
+        return;
       }
-      setShowSuccessModal(true);
+      await updateGroup(groupData);
+      router.replace({
+        pathname: "/(tabs)/group",
+        params: { _t: Date.now().toString(), toast: "그룹 정보가 수정되었습니다" },
+      });
     } catch (error) {
       console.error(isCreateMode ? "그룹 생성 실패:" : "그룹 수정 실패:", error);
       Alert.alert("오류", isCreateMode ? "그룹 생성에 실패했습니다." : "그룹 정보 수정에 실패했습니다.");
@@ -294,13 +281,12 @@ export default function GroupEditScreen() {
   }
 
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: Colors.neutral[50],
-        paddingTop: insets.top,
-      }}
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: Colors.neutral[50] }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      <StatusBar barStyle="dark-content" />
+      <View style={{ flex: 1, paddingTop: insets.top }}>
       {/* 헤더 */}
       <View
         style={{
@@ -332,38 +318,11 @@ export default function GroupEditScreen() {
           </Text>
         </View>
 
-        <TouchableOpacity
-          onPress={handleSave}
-          activeOpacity={0.7}
-          disabled={isSaving || (!isCreateMode && !hasChanges) || (isCreateMode && !name.trim())}
-          style={{
-            backgroundColor: (isCreateMode ? name.trim() : hasChanges) && !isSaving ? Colors.primary[500] : Colors.neutral[200],
-            paddingHorizontal: 16,
-            paddingVertical: 8,
-            borderRadius: BorderRadius.full,
-            flexDirection: "row",
-            alignItems: "center",
-          }}
-        >
-          {isSaving ? (
-            <ActivityIndicator size="small" color="#FFF" />
-          ) : (
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: "600",
-                color: (isCreateMode ? name.trim() : hasChanges) ? "#FFF" : Colors.neutral[400],
-              }}
-            >
-              {isCreateMode ? "만들기" : "저장"}
-            </Text>
-          )}
-        </TouchableOpacity>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* 그룹 프로필 사진 */}
         <View
@@ -442,139 +401,67 @@ export default function GroupEditScreen() {
         </View>
 
         {/* 기본 정보 */}
-        <View style={{ marginTop: Spacing.lg }}>
-          <Text
-            style={{
-              fontSize: Typography.fontSize.sm,
-              fontWeight: "600",
-              color: Colors.neutral[500],
-              paddingHorizontal: Spacing.xl,
-              marginBottom: Spacing.sm,
-            }}
-          >
-            기본 정보
-          </Text>
-
-          <View
-            style={{
-              backgroundColor: Colors.neutral[0],
-              borderTopWidth: 1,
-              borderBottomWidth: 1,
-              borderColor: Colors.neutral[100],
-            }}
-          >
-            {/* 그룹 이름 */}
-            <View
-              style={{
-                paddingHorizontal: Spacing.xl,
-                paddingVertical: Spacing.md,
-                borderBottomWidth: 1,
-                borderBottomColor: Colors.neutral[100],
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.sm,
-                  color: Colors.neutral[500],
-                  marginBottom: Spacing.xs,
-                }}
-              >
-                그룹 이름
-              </Text>
-              <TextInput
-                style={{
-                  fontSize: Typography.fontSize.base,
-                  color: Colors.neutral[900],
-                  padding: 0,
-                }}
-                value={name}
-                onChangeText={handleNameChange}
-                placeholder="그룹 이름을 입력하세요"
-                placeholderTextColor={Colors.neutral[400]}
-              />
+        <View style={{ paddingHorizontal: Spacing.xl, marginTop: Spacing.lg }}>
+          {/* 그룹 이름 */}
+          <View style={{ marginBottom: Spacing.lg }}>
+            <View style={groupEditStyles.labelRow}>
+              <Text style={groupEditStyles.label}>그룹 이름 <Text style={groupEditStyles.required}>*</Text></Text>
+              <Text style={groupEditStyles.limit}>2자 이상</Text>
             </View>
+            <TextInput
+              style={groupEditStyles.input}
+              value={name}
+              onChangeText={handleNameChange}
+              placeholder="그룹 이름을 입력하세요"
+              placeholderTextColor={Colors.neutral[400]}
+              maxLength={30}
+            />
+          </View>
 
-            {/* 그룹 설명 */}
-            <View
-              style={{
-                paddingHorizontal: Spacing.xl,
-                paddingVertical: Spacing.md,
-                borderBottomWidth: 1,
-                borderBottomColor: Colors.neutral[100],
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.sm,
-                  color: Colors.neutral[500],
-                  marginBottom: Spacing.xs,
-                }}
-              >
-                그룹 설명
-              </Text>
-              <TextInput
-                style={{
-                  fontSize: Typography.fontSize.base,
-                  color: Colors.neutral[900],
-                  padding: 0,
-                  minHeight: 60,
-                }}
-                value={description}
-                onChangeText={handleDescriptionChange}
-                placeholder="그룹에 대한 설명을 입력하세요"
-                placeholderTextColor={Colors.neutral[400]}
-                multiline
-                textAlignVertical="top"
-              />
+          {/* 그룹 설명 */}
+          <View style={{ marginBottom: Spacing.lg }}>
+            <View style={groupEditStyles.labelRow}>
+              <Text style={groupEditStyles.label}>그룹 설명 <Text style={groupEditStyles.required}>*</Text></Text>
+              <Text style={groupEditStyles.limit}>10자 이상</Text>
             </View>
+            <TextInput
+              style={[groupEditStyles.input, { minHeight: 90, textAlignVertical: "top", paddingTop: Spacing.md }]}
+              value={description}
+              onChangeText={handleDescriptionChange}
+              placeholder="그룹에 대한 설명을 입력하세요"
+              placeholderTextColor={Colors.neutral[400]}
+              multiline
+              maxLength={200}
+            />
+          </View>
 
-            {/* 그룹 타입 */}
-            <View
-              style={{
-                paddingHorizontal: Spacing.xl,
-                paddingVertical: Spacing.md,
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: Typography.fontSize.sm,
-                  color: Colors.neutral[500],
-                  marginBottom: Spacing.sm,
-                }}
-              >
-                그룹 타입
-              </Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {GROUP_TYPES.map((type) => (
-                  <TouchableOpacity
-                    key={type.value}
-                    onPress={() => handleGroupTypeChange(type.value)}
-                    activeOpacity={0.7}
+          {/* 그룹 유형 */}
+          <View style={{ marginBottom: Spacing.lg }}>
+            <Text style={[groupEditStyles.label, { marginBottom: Spacing.sm }]}>그룹 유형</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {GROUP_TYPES.map((type) => (
+                <TouchableOpacity
+                  key={type.value}
+                  onPress={() => handleGroupTypeChange(type.value)}
+                  activeOpacity={0.7}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    borderRadius: BorderRadius.full,
+                    backgroundColor: groupType === type.value ? Colors.primary[500] : Colors.neutral[100],
+                  }}
+                >
+                  <Text
                     style={{
-                      paddingHorizontal: 16,
-                      paddingVertical: 8,
-                      borderRadius: BorderRadius.full,
-                      backgroundColor: groupType === type.value ? Colors.primary[500] : Colors.neutral[100],
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 4,
+                      fontSize: Typography.fontSize.sm,
+                      fontWeight: groupType === type.value ? "600" : "400",
+                      color: groupType === type.value ? "#FFF" : Colors.neutral[700],
                     }}
                   >
-                    {groupType === type.value && (
-                      <Check size={14} color="#FFF" />
-                    )}
-                    <Text
-                      style={{
-                        fontSize: Typography.fontSize.sm,
-                        fontWeight: groupType === type.value ? "600" : "400",
-                        color: groupType === type.value ? "#FFF" : Colors.neutral[700],
-                      }}
-                    >
-                      {type.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                    {type.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
         </View>
@@ -789,6 +676,58 @@ export default function GroupEditScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* 하단 버튼 */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          paddingHorizontal: Spacing.xl,
+          paddingTop: Spacing.md,
+          paddingBottom: insets.bottom + Spacing.md,
+          backgroundColor: Colors.neutral[0],
+          borderTopWidth: 1,
+          borderTopColor: Colors.neutral[100],
+          ...Shadows.md,
+        }}
+      >
+        <TouchableOpacity
+          onPress={handleSave}
+          disabled={isSaving || (isCreateMode ? !isFormValid : !hasChanges)}
+          activeOpacity={0.8}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: (isCreateMode ? isFormValid : hasChanges) && !isSaving
+              ? Colors.primary[500]
+              : Colors.neutral[300],
+            paddingVertical: Spacing.md,
+            borderRadius: BorderRadius.base,
+          }}
+        >
+          {isSaving ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <>
+              <Check size={20} color="#FFF" />
+              <Text
+                style={{
+                  color: "#FFF",
+                  fontWeight: "700",
+                  fontSize: Typography.fontSize.base,
+                  marginLeft: Spacing.sm,
+                }}
+              >
+                {isCreateMode ? "그룹 만들기" : "저장하기"}
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+      </View>
 
       {/* 사진 선택 바텀시트 모달 */}
       <Modal visible={showPhotoModal} transparent animationType="slide">
@@ -1058,185 +997,6 @@ export default function GroupEditScreen() {
         </Pressable>
       </Modal>
 
-      {/* 저장 성공 모달 */}
-      <Modal
-        visible={showSuccessModal}
-        transparent
-        animationType="none"
-        statusBarTranslucent
-      >
-        <Animated.View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.6)",
-            justifyContent: "center",
-            alignItems: "center",
-            opacity: fadeAnim,
-          }}
-        >
-          <Animated.View
-            style={{
-              backgroundColor: Colors.neutral[0],
-              borderRadius: 28,
-              padding: 32,
-              marginHorizontal: 32,
-              alignItems: "center",
-              width: "85%",
-              maxWidth: 340,
-              transform: [{ scale: scaleAnim }],
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 20 },
-              shadowOpacity: 0.25,
-              shadowRadius: 30,
-              elevation: 20,
-            }}
-          >
-            {/* 스파클 장식 */}
-            <View style={{ position: "absolute", top: 24, right: 50 }}>
-              <Sparkles size={22} color={Colors.secondary[400]} />
-            </View>
-            <View style={{ position: "absolute", top: 60, left: 35 }}>
-              <Sparkles size={16} color={Colors.primary[300]} />
-            </View>
-
-            {/* 성공 아이콘 */}
-            <View
-              style={{
-                width: 88,
-                height: 88,
-                borderRadius: 44,
-                backgroundColor: Colors.success.light,
-                justifyContent: "center",
-                alignItems: "center",
-                marginBottom: 24,
-              }}
-            >
-              <View
-                style={{
-                  width: 68,
-                  height: 68,
-                  borderRadius: 34,
-                  backgroundColor: Colors.success.main,
-                  justifyContent: "center",
-                  alignItems: "center",
-                  shadowColor: Colors.success.main,
-                  shadowOffset: { width: 0, height: 6 },
-                  shadowOpacity: 0.4,
-                  shadowRadius: 12,
-                  elevation: 8,
-                }}
-              >
-                <CheckCircle size={40} color="#FFFFFF" strokeWidth={2.5} />
-              </View>
-            </View>
-
-            {/* 타이틀 */}
-            <Text
-              style={{
-                fontSize: 22,
-                fontWeight: "800",
-                color: Colors.neutral[900],
-                marginBottom: 8,
-              }}
-            >
-              {isCreateMode ? "그룹 생성 완료!" : "저장 완료!"}
-            </Text>
-
-            {/* 그룹 이름 표시 */}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: Colors.primary[50],
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                borderRadius: 12,
-                marginBottom: 8,
-              }}
-            >
-              {selectedImage || thumbnailImgUrl ? (
-                <Image
-                  source={{ uri: selectedImage?.uri || thumbnailImgUrl || "" }}
-                  style={{ width: 24, height: 24, borderRadius: 12 }}
-                  contentFit="cover"
-                />
-              ) : (
-                <Users size={20} color={Colors.primary[500]} />
-              )}
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "600",
-                  color: Colors.neutral[800],
-                  marginLeft: 10,
-                }}
-                numberOfLines={1}
-              >
-                {name}
-              </Text>
-            </View>
-
-            {/* 설명 */}
-            <Text
-              style={{
-                fontSize: 15,
-                color: Colors.neutral[500],
-                textAlign: "center",
-                lineHeight: 22,
-                marginTop: 8,
-              }}
-            >
-              {isCreateMode ? "새 그룹이 성공적으로\n생성되었습니다" : "그룹 정보가 성공적으로\n수정되었습니다"}
-            </Text>
-
-            {/* 확인 버튼 */}
-            <TouchableOpacity
-              onPress={() => {
-                setShowSuccessModal(false);
-                if (isCreateMode && createdGroupId) {
-                  // 생성 모드: 새 그룹으로 이동
-                  router.replace({
-                    pathname: "/(tabs)/group",
-                    params: { groupId: createdGroupId, _t: Date.now().toString() },
-                  });
-                } else {
-                  router.back();
-                }
-              }}
-              activeOpacity={0.8}
-              style={{
-                backgroundColor: Colors.primary[500],
-                paddingVertical: 16,
-                paddingHorizontal: 48,
-                borderRadius: 16,
-                marginTop: 28,
-                width: "100%",
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                shadowColor: Colors.primary[500],
-                shadowOffset: { width: 0, height: 6 },
-                shadowOpacity: 0.35,
-                shadowRadius: 10,
-                elevation: 6,
-              }}
-            >
-              <Check size={22} color="#FFFFFF" strokeWidth={2.5} />
-              <Text
-                style={{
-                  fontSize: 17,
-                  fontWeight: "700",
-                  color: "#FFFFFF",
-                }}
-              >
-                확인
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </Animated.View>
-      </Modal>
-
       {/* 변경사항 저장 여부 모달 */}
       <Modal
         visible={showUnsavedModal}
@@ -1411,6 +1171,39 @@ export default function GroupEditScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+
+    </KeyboardAvoidingView>
   );
 }
+
+const groupEditStyles = {
+  labelRow: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
+    marginBottom: Spacing.sm,
+  },
+  label: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "500" as const,
+    color: Colors.neutral[700],
+  },
+  required: {
+    color: Colors.primary[500],
+    fontWeight: "600" as const,
+  },
+  limit: {
+    fontSize: 12,
+    color: Colors.neutral[400],
+  },
+  input: {
+    backgroundColor: Colors.neutral[0],
+    borderWidth: 1,
+    borderColor: Colors.neutral[200],
+    borderRadius: BorderRadius.base,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[900],
+  },
+};

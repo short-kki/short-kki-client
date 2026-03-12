@@ -21,9 +21,11 @@ import {
   Bell,
   ChevronRight,
   Bookmark,
+  Clock,
   User,
 } from "lucide-react-native";
 import { Colors, Typography, Spacing, BorderRadius, Shadows, SemanticColors } from "@/constants/design-system";
+import { bookmarkState } from "@/utils/bookmarkState";
 import { useRecommendedCurations, useUnreadNotificationCount } from "@/hooks";
 import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
 import { useUser } from "@/contexts/AuthContext";
@@ -35,6 +37,8 @@ import { LinearGradient } from "expo-linear-gradient";
 const getYoutubeThumbnail = (videoId: string) =>
   `https://i.ytimg.com/vi/${videoId}/hq720.jpg`;
 
+const FILTERS = ["전체", "한식", "양식", "일식", "디저트", "안주"];
+
 // 쇼츠 카드 아이템 타입
 interface ShortsCardItem {
   id: string;
@@ -45,6 +49,8 @@ interface ShortsCardItem {
   views: string;
   bookmarks?: number;
   creatorName?: string;
+  isBookmarked?: boolean;
+  duration?: string;
 }
 
 function formatBookmarkCount(count?: number) {
@@ -287,10 +293,22 @@ const ShortsCard = React.memo(function ShortsCard({ item, onPress, cardWidth }: 
                 {item.title}
               </Text>
               <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}>
-                <Bookmark size={12} color="#FFFFFF" />
+                <Bookmark
+                  size={12}
+                  color="#FFFFFF"
+                  fill={item.isBookmarked ? "#FFFFFF" : "none"}
+                />
                 <Text style={{ color: "#FFFFFF", fontSize: 12, marginLeft: 4 }}>
                   {formatBookmarkCount(item.bookmarks)}
                 </Text>
+                {item.duration ? (
+                  <>
+                    <Clock size={12} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                    <Text style={{ color: "#FFFFFF", fontSize: 12, marginLeft: 4 }}>
+                      {item.duration}
+                    </Text>
+                  </>
+                ) : null}
               </View>
             </View>
           </View>
@@ -314,6 +332,8 @@ const RecipeCard = React.memo(function RecipeCard({ item, onPress, cardWidth }: 
         views: item.views ?? "0",
         bookmarks: item.bookmarks,
         creatorName: item.creatorName,
+        isBookmarked: item.isBookmarked,
+        duration: item.duration,
       }}
       onPress={handlePress}
       cardWidth={cardWidth}
@@ -455,6 +475,8 @@ export default function HomeScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const [selectedFilter, setSelectedFilter] = useState("전체");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [bookmarkOverrides, setBookmarkOverrides] = useState<Record<string, boolean>>({});
+  const hasMountedRef = useRef(false);
   const [diffClampEpoch, setDiffClampEpoch] = useState(0);
   const logoSize = Math.min(52, Math.max(40, Math.round(screenWidth * 0.12)));
   const topCardWidth = Math.min(220, Math.max(170, Math.round(screenWidth * 0.55)));
@@ -522,7 +544,24 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       refetchUnreadCount();
-    }, [refetchUnreadCount])
+      if (!hasMountedRef.current) {
+        hasMountedRef.current = true;
+      } else {
+        // 포커스 복귀 시: sections 내 모든 레시피 id에 대해 bookmarkState 오버라이드 적용
+        const updates: Record<string, boolean> = {};
+        sections.forEach((section) => {
+          section.recipes?.forEach((recipe) => {
+            const override = bookmarkState.get(recipe.id);
+            if (override !== undefined) {
+              updates[recipe.id] = override;
+            }
+          });
+        });
+        if (Object.keys(updates).length > 0) {
+          setBookmarkOverrides((prev) => ({ ...prev, ...updates }));
+        }
+      }
+    }, [refetchUnreadCount, sections])
   );
 
   // TOP 레시피 가로 스크롤 리셋용 ref
@@ -568,8 +607,6 @@ export default function HomeScreen() {
     router.push(`/search-results?curationId=${sectionId}&curationTitle=${encodeURIComponent(sectionTitle)}` as any);
   }, [router]);
 
-  const FILTERS = ["전체", "한식", "양식", "일식", "디저트", "안주"];
-
   const filteredSections = useMemo(() => {
     const FILTER_MAP: Record<string, { type: "cuisine" | "meal"; value: string }> = {
       "한식": { type: "cuisine", value: "KOREAN" },
@@ -590,12 +627,25 @@ export default function HomeScreen() {
   }, [sections, selectedFilter]);
 
   const AnimatedSectionList = useRef(Animated.createAnimatedComponent(SectionList)).current;
+  const overriddenSections = useMemo(() => {
+    if (Object.keys(bookmarkOverrides).length === 0) return filteredSections;
+    return filteredSections.map((section) => {
+      let changed = false;
+      const recipes = section.recipes?.map((recipe) => {
+        const nextIsBookmarked = bookmarkOverrides[recipe.id];
+        if (nextIsBookmarked === undefined || nextIsBookmarked === recipe.isBookmarked) return recipe;
+        changed = true;
+        return { ...recipe, isBookmarked: nextIsBookmarked };
+      });
+      return changed ? { ...section, recipes } : section;
+    });
+  }, [filteredSections, bookmarkOverrides]);
   const curationSections = useMemo(
-    () => filteredSections.map((section) => ({
+    () => overriddenSections.map((section) => ({
       ...section,
       data: [section],
     })),
-    [filteredSections]
+    [overriddenSections]
   );
   const topShorts = useMemo(
     () =>

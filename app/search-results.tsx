@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -29,6 +29,7 @@ import {
   removeSearchHistory,
   type SearchHistoryItem,
 } from "@/utils/search-history";
+import { bookmarkState } from "@/utils/bookmarkState";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_GAP = 10;
@@ -144,10 +145,20 @@ const SearchResultCard = React.memo(function SearchResultCard({
           {item.title}
         </Text>
         <View style={cardStyles.bookmarkRow}>
-          <Bookmark size={12} color={Colors.neutral[400]} />
+          <Bookmark
+            size={12}
+            color={Colors.neutral[400]}
+            fill={item.isBookmarked ? Colors.neutral[400] : "none"}
+          />
           <Text style={cardStyles.bookmarkText}>
             {formatBookmarkCount(item.bookmarkCount ?? 0)}
           </Text>
+          {item.cookingTime != null ? (
+            <>
+              <Clock size={12} color={Colors.neutral[400]} style={{ marginLeft: 8 }} />
+              <Text style={cardStyles.bookmarkText}>{item.cookingTime}분</Text>
+            </>
+          ) : null}
         </View>
       </View>
     </TouchableOpacity>
@@ -196,12 +207,16 @@ function mapShortsToSearchItem(item: ShortsItem): SearchRecipeItem {
     id: Number(item.id) || 0,
     title: item.title,
     mainImgUrl: item.thumbnail || null,
-    platform: item.creatorName ? "YOUTUBE" : "USER",
+    platform: item.creatorName ? "YOUTUBE" : null,
     creatorName: item.creatorName ?? null,
     authorName: item.author || null,
     authorProfileImgUrl: item.authorProfileImgUrl ?? null,
     bookmarkCount: item.bookmarks ?? 0,
     sourceUrl: item.videoUrl || null,
+    recipeSource: item.creatorName ? "IMPORT" : "USER",
+    isBookmarked: item.isBookmarked ?? false,
+    cookingTime: item.cookingTime ?? null,
+    creatorProfileImgUrl: null,
   };
 }
 
@@ -214,6 +229,7 @@ function CurationContent({
   fetchNextPage,
   refetch,
   onItemPress,
+  bookmarkOverrides,
 }: {
   items: SearchRecipeItem[];
   loading: boolean;
@@ -222,6 +238,7 @@ function CurationContent({
   fetchNextPage: () => void;
   refetch: () => Promise<void>;
   onItemPress: (item: SearchRecipeItem) => void;
+  bookmarkOverrides: Record<string, boolean>;
 }) {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
@@ -237,9 +254,15 @@ function CurationContent({
 
   const renderItem = useCallback(
     ({ item }: { item: SearchRecipeItem }) => (
-      <SearchResultCard item={item} onPress={() => onItemPress(item)} />
+      <SearchResultCard
+        item={{
+          ...item,
+          isBookmarked: bookmarkOverrides[String(item.id)] ?? item.isBookmarked,
+        }}
+        onPress={() => onItemPress(item)}
+      />
     ),
-    [onItemPress]
+    [onItemPress, bookmarkOverrides]
   );
 
   const keyExtractor = useCallback((item: SearchRecipeItem) => String(item.id), []);
@@ -335,7 +358,11 @@ export default function SearchResultsScreen() {
   const [activeSearchWord, setActiveSearchWord] = useState(params.searchWord?.trim() || "");
   const [inputValue, setInputValue] = useState(params.searchWord?.trim() || "");
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const isInputFocusedRef = useRef(false);
+  useEffect(() => { isInputFocusedRef.current = isInputFocused; }, [isInputFocused]);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
+  const [bookmarkOverrides, setBookmarkOverrides] = useState<Record<string, boolean>>({});
+  const hasMountedRef = useRef(false);
 
   // 모드별 데이터 훅 (큐레이션 모드에서는 검색 훅 비활성화)
   const searchData = useRecipeSearch({
@@ -370,11 +397,28 @@ export default function SearchResultsScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (!hasMountedRef.current) {
+        hasMountedRef.current = true;
+      } else {
+        // 포커스 복귀 시 저장소에서 오버라이드 로드
+        const allItems = isCurationMode ? curationItems : searchData.results;
+        const updates: Record<string, boolean> = {};
+        allItems.forEach((item) => {
+          const override = bookmarkState.get(item.id);
+          if (override !== undefined) {
+            updates[String(item.id)] = override;
+          }
+        });
+        if (Object.keys(updates).length > 0) {
+          setBookmarkOverrides((prev) => ({ ...prev, ...updates }));
+        }
+      }
+
       if (isCurationMode) return;
       loadSearchHistory();
 
       const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
-        if (isInputFocused) {
+        if (isInputFocusedRef.current) {
           Keyboard.dismiss();
           setIsInputFocused(false);
           return true;
@@ -382,7 +426,7 @@ export default function SearchResultsScreen() {
         return false;
       });
       return () => backHandler.remove();
-    }, [isInputFocused, isCurationMode])
+    }, [isCurationMode, curationItems, searchData.results])
   );
 
   const handleSearchResultPress = useCallback(
@@ -493,6 +537,7 @@ export default function SearchResultsScreen() {
           fetchNextPage={curationData.fetchNextPage}
           refetch={curationData.refetch}
           onItemPress={handleCurationItemPress}
+          bookmarkOverrides={bookmarkOverrides}
         />
       ) : (
         <>
@@ -564,7 +609,14 @@ export default function SearchResultsScreen() {
               {searchData.results.length > 0 ? (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
                   {searchData.results.map((item) => (
-                    <SearchResultCard key={item.id} item={item} onPress={() => handleSearchResultPress(item)} />
+                    <SearchResultCard
+                      key={item.id}
+                      item={{
+                        ...item,
+                        isBookmarked: bookmarkOverrides[String(item.id)] ?? item.isBookmarked,
+                      }}
+                      onPress={() => handleSearchResultPress(item)}
+                    />
                   ))}
                 </View>
               ) : (

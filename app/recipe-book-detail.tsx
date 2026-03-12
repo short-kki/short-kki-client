@@ -166,7 +166,7 @@ function RecipeCard({
             marginTop: 6,
           }}
         >
-          <Bookmark size={12} color={Colors.neutral[400]} />
+          <Bookmark size={12} color={Colors.neutral[400]} fill={Colors.neutral[400]} />
           <Text
             style={{
               fontSize: 12,

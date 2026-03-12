@@ -107,6 +107,8 @@ interface CurationV2Recipe {
   platform?: string;
   creatorName?: string;
   creatorProfileImgUrl?: string;
+  cookingTime?: number;
+  isBookmarked?: boolean;
 }
 
 interface CurationV2Item {
@@ -146,7 +148,7 @@ const SEARCH_TOP_ID = 'search-top';
 const getYoutubeThumbnail = (videoId: string) =>
   `https://i.ytimg.com/vi/${videoId}/hq720.jpg`;
 
-const extractYoutubeId = (url?: string): string | null => {
+const extractYoutubeId = (url?: string | null): string | null => {
   if (!url) return null;
   const shortsMatch = url.match(/\/shorts\/([a-zA-Z0-9_-]+)/);
   if (shortsMatch?.[1]) return shortsMatch[1];
@@ -163,12 +165,14 @@ const mapRecipeToCurationRecipe = (recipe: CurationV2Recipe): CurationRecipe => 
     id: String(recipe.id),
     title: recipe.title,
     thumbnail: recipe.mainImgUrl || getYoutubeThumbnail(videoId),
-    duration: "0:00",
+    duration: recipe.cookingTime != null ? `${recipe.cookingTime}분` : "",
     author: recipe.authorName || recipe.creatorName || "작성자",
     authorProfileImgUrl: recipe.authorProfileImgUrl,
     creatorName: recipe.creatorName,
     bookmarks: recipe.bookmarkCount,
     sourceUrl: recipe.sourceUrl,
+    cookingTime: recipe.cookingTime,
+    isBookmarked: recipe.isBookmarked,
   };
 };
 
@@ -187,6 +191,7 @@ const mapRecipeToTopItem = (recipe: CurationV2Recipe): TopRecipeItem => {
     views: undefined,
     tags: [],
     bookmarks: recipe.bookmarkCount,
+    isBookmarked: recipe.isBookmarked,
   };
 };
 
@@ -205,6 +210,7 @@ const mapCurationRecipeToShortsItem = (recipe: CurationRecipe): ShortsItem => {
     views: undefined,
     tags: [],
     bookmarks: recipe.bookmarks ?? 0,
+    isBookmarked: recipe.isBookmarked,
   };
 };
 
@@ -261,6 +267,7 @@ const mapSearchRecipeToTopItem = (recipe: SearchRecipeItem): TopRecipeItem => {
     views: undefined,
     tags: [],
     bookmarks: recipe.bookmarkCount,
+    isBookmarked: recipe.isBookmarked,
   };
 };
 
@@ -270,12 +277,14 @@ const mapSearchRecipeToCurationRecipe = (recipe: SearchRecipeItem): CurationReci
     id: String(recipe.id),
     title: recipe.title,
     thumbnail: recipe.mainImgUrl || getYoutubeThumbnail(videoId),
-    duration: '0:00',
+    duration: recipe.cookingTime != null ? `${recipe.cookingTime}분` : '',
     author: recipe.authorName || recipe.creatorName || '작성자',
     authorProfileImgUrl: recipe.authorProfileImgUrl ?? undefined,
     creatorName: recipe.creatorName ?? undefined,
     bookmarks: recipe.bookmarkCount,
     sourceUrl: recipe.sourceUrl ?? undefined,
+    cookingTime: recipe.cookingTime ?? undefined,
+    isBookmarked: recipe.isBookmarked,
   };
 };
 

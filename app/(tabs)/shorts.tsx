@@ -1,5 +1,6 @@
 import { Colors, BorderRadius } from "@/constants/design-system";
 import { FeedbackToast, useFeedbackToast } from "@/components/ui/FeedbackToast";
+import CreateRecipeBookModal from "@/components/CreateRecipeBookModal";
 import {
   useCurationShorts,
   useRecommendedCurations,
@@ -13,6 +14,8 @@ import { USE_MOCK, api } from "@/services/api";
 import { extractYoutubeId } from "@/utils/youtube";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
+import { bookmarkState } from "@/utils/bookmarkState";
+
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -560,7 +563,7 @@ export default function ShortsScreen() {
   const itemHeight = containerHeight > 0 ? containerHeight : calculatedHeight;
   const { shorts } = useShorts();
   const { sections } = useRecommendedCurations();
-  const { recipeBooks: personalBooks } = usePersonalRecipeBooks();
+  const { recipeBooks: personalBooks, refetch: refetchPersonalBooks } = usePersonalRecipeBooks();
   const { recipeBooks: groupBooks } = useGroupRecipeBooks();
   const curationId = typeof params.curationId === "string" ? params.curationId : undefined;
   const initialCurationRecipes = useMemo<CurationRecipe[] | null>(() => {
@@ -596,6 +599,7 @@ export default function ShortsScreen() {
           views: undefined,
           tags: [],
           bookmarks: recipe.bookmarks ?? 0,
+          isBookmarked: recipe.isBookmarked ?? false,
         };
       })
     );
@@ -615,10 +619,28 @@ export default function ShortsScreen() {
   const [isScreenFocused, setIsScreenFocused] = useState(true);
   const [focusEpoch, setFocusEpoch] = useState(0);
   const [appResumeKey, setAppResumeKey] = useState(0);
+  const hasMountedRef = useRef(false);
 
   // 탭 포커스/블러 관리
   useFocusEffect(
     useCallback(() => {
+      if (!hasMountedRef.current) {
+        hasMountedRef.current = true;
+      } else {
+        // 포커스 복귀 시: 저장소에 변경된 북마크 상태가 있으면 로컬 반영
+        setIsBookmarkedByVideo((prev) => {
+          const next = { ...prev };
+          let changed = false;
+          Object.keys(next).forEach((id) => {
+            const override = bookmarkState.get(id);
+            if (override !== undefined && next[id] !== override) {
+              next[id] = override;
+              changed = true;
+            }
+          });
+          return changed ? next : prev;
+        });
+      }
       setIsScreenFocused(true);
       setFocusEpoch((prev) => prev + 1);
       return () => {
@@ -640,11 +662,14 @@ export default function ShortsScreen() {
 
   // 북마크 관련 상태
   const [showBookmarkSheet, setShowBookmarkSheet] = useState(false);
+  const [showCreateBookModal, setShowCreateBookModal] = useState(false);
   const bookmarkOverlayOpacity = useRef(new Animated.Value(0)).current;
   const bookmarkSheetTranslateY = useRef(new Animated.Value(400)).current;
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [bookmarkTab, setBookmarkTab] = useState<"personal" | "group">("personal");
   const [ownedBookIdsByVideo, setOwnedBookIdsByVideo] = useState<Record<string, string[]>>({});
+  const ownedBookIdsByVideoRef = useRef<Record<string, string[]>>({});
+  const [isBookmarkedByVideo, setIsBookmarkedByVideo] = useState<Record<string, boolean>>({});
   const [bookmarkCounts, setBookmarkCounts] = useState<Record<string, number>>({});
   const { toastMessage, toastVariant, toastOpacity, toastTranslate, showToast } =
     useFeedbackToast(1400);
@@ -658,13 +683,19 @@ export default function ShortsScreen() {
   const moreOverlayOpacity = useRef(new Animated.Value(0)).current;
   const moreSheetTranslateY = useRef(new Animated.Value(300)).current;
 
+  // 북마크 카운트 + 북마크 아이콘 초기 상태 한 번에 세팅
   useEffect(() => {
     setBookmarkCounts((prev) => {
       const next = { ...prev };
       SHORTS_DATA.forEach((item) => {
-        if (next[item.id] == null) {
-          next[item.id] = item.bookmarks ?? 0;
-        }
+        if (next[item.id] == null) next[item.id] = item.bookmarks ?? 0;
+      });
+      return next;
+    });
+    setIsBookmarkedByVideo((prev) => {
+      const next = { ...prev };
+      SHORTS_DATA.forEach((item) => {
+        if (next[item.id] === undefined) next[item.id] = item.isBookmarked ?? false;
       });
       return next;
     });
@@ -697,6 +728,13 @@ export default function ShortsScreen() {
   }, [params.startIndex]);
   const hasScrolledRef = useRef(false);
 
+  // 첫 렌더에서 FlatList가 initialScrollIndex로 올바른 위치에서 시작하도록 계산
+  const initialScrollIndexNum = useMemo(() => {
+    if (!startId || SHORTS_DATA.length === 0) return 0;
+    const idx = SHORTS_DATA.findIndex((item) => item.id === startId);
+    return idx >= 0 ? idx : 0;
+  }, [startId, SHORTS_DATA]);
+
   useEffect(() => {
     hasScrolledRef.current = false;
   }, [startId, curationId]);
@@ -704,13 +742,12 @@ export default function ShortsScreen() {
   useEffect(() => {
     if (!startId || hasScrolledRef.current) return;
     const index = SHORTS_DATA.findIndex(item => item.id === startId);
-    if (index !== -1 && index < SHORTS_DATA.length) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToOffset({ offset: index * itemHeight, animated: false });
-        setActiveIndex(index);
-        hasScrolledRef.current = true;
-      }, 100);
-    }
+    if (index < 0 || index >= SHORTS_DATA.length) return;
+    setTimeout(() => {
+      flatListRef.current?.scrollToOffset({ offset: index * itemHeight, animated: false });
+      setActiveIndex(index);
+      hasScrolledRef.current = true;
+    }, 100);
   }, [startId, SHORTS_DATA, itemHeight]);
 
   const viewabilityConfig = useRef({
@@ -825,20 +862,7 @@ export default function ShortsScreen() {
     }
 
     try {
-      const [ownedRes, recipeRes] = await Promise.all([
-        api.get<{ data: number[] | { recipeBookIds?: number[] } }>(`/api/v1/recipebooks/recipes/${recipeId}`),
-        api.get<{ data: { bookmarkCount: number; ownedRecipeBookIds?: number[] } }>(`/api/v1/recipes/${recipeId}`),
-      ]);
-
-      const ownedPayload = ownedRes.data;
-      const ownedRaw = Array.isArray(ownedPayload)
-        ? ownedPayload
-        : (ownedPayload?.recipeBookIds ?? []);
-      const ownedBookIds = ownedRaw.map((id) => String(id));
-      setOwnedBookIdsByVideo((prev) => ({
-        ...prev,
-        [videoId]: ownedBookIds,
-      }));
+      const recipeRes = await api.get<{ data: { bookmarkCount: number } }>(`/api/v1/recipes/${recipeId}`);
       setBookmarkCounts((prev) => ({
         ...prev,
         [videoId]: recipeRes.data?.bookmarkCount ?? prev[videoId] ?? 0,
@@ -848,21 +872,30 @@ export default function ShortsScreen() {
     }
   }, []);
 
-  // 현재 활성 비디오의 북마크 상태를 서버에서 가져오기
-  useEffect(() => {
-    const currentItem = SHORTS_DATA[activeIndex];
-    if (!currentItem) return;
-    // 이미 동기화된 비디오는 스킵
-    if (ownedBookIdsByVideo[currentItem.id] !== undefined) return;
-    syncVideoBookmarkState(currentItem.id);
-  }, [activeIndex, SHORTS_DATA, syncVideoBookmarkState, ownedBookIdsByVideo]);
-
   // 북마크 시트 열기 (페이드 오버레이 + 슬라이드업)
   const openBookmarkSheet = useCallback(async (videoId: string) => {
     setSelectedVideoId(videoId);
+    setBookmarkTab("personal");
     setShowBookmarkSheet(true);
 
     await syncVideoBookmarkState(videoId);
+
+    // 시트 열 때 서버에서 실제 보유 레시피북 ID 조회
+    if (!USE_MOCK) {
+      const recipeId = Number(videoId);
+      if (Number.isFinite(recipeId)) {
+        try {
+          const res = await api.get<{ data: number[] | { recipeBookIds?: number[] } }>(`/api/v1/recipebooks/recipes/${recipeId}`);
+          const payload = res.data;
+          const rawIds = Array.isArray(payload) ? payload : (payload?.recipeBookIds ?? []);
+          const ids = (rawIds || []).map((id) => String(id));
+          ownedBookIdsByVideoRef.current = { ...ownedBookIdsByVideoRef.current, [videoId]: ids };
+          setOwnedBookIdsByVideo((prev) => ({ ...prev, [videoId]: ids }));
+        } catch {
+          // 실패 시 기존 상태 유지
+        }
+      }
+    }
 
     Animated.parallel([
       Animated.timing(bookmarkOverlayOpacity, {
@@ -930,10 +963,11 @@ export default function ShortsScreen() {
         }
       }
 
-      setOwnedBookIdsByVideo((prev) => ({
-        ...prev,
-        [selectedVideoId]: (prev[selectedVideoId] || []).filter((id) => id !== bookId),
-      }));
+      const newIds = (ownedBookIdsByVideo[selectedVideoId] || []).filter((id) => id !== bookId);
+      ownedBookIdsByVideoRef.current = { ...ownedBookIdsByVideoRef.current, [selectedVideoId]: newIds };
+      setOwnedBookIdsByVideo((prev) => ({ ...prev, [selectedVideoId]: newIds }));
+      setIsBookmarkedByVideo((prev) => ({ ...prev, [selectedVideoId]: newIds.length > 0 }));
+      bookmarkState.set(selectedVideoId, newIds.length > 0);
       if (USE_MOCK) {
         setBookmarkCounts((prev) => ({
           ...prev,
@@ -957,12 +991,13 @@ export default function ShortsScreen() {
         }
       }
 
-      setOwnedBookIdsByVideo((prev) => ({
-        ...prev,
-        [selectedVideoId]: (prev[selectedVideoId] || []).includes(bookId)
-          ? (prev[selectedVideoId] || [])
-          : [...(prev[selectedVideoId] || []), bookId],
-      }));
+      const newIds = (ownedBookIdsByVideo[selectedVideoId] || []).includes(bookId)
+        ? (ownedBookIdsByVideo[selectedVideoId] || [])
+        : [...(ownedBookIdsByVideo[selectedVideoId] || []), bookId];
+      ownedBookIdsByVideoRef.current = { ...ownedBookIdsByVideoRef.current, [selectedVideoId]: newIds };
+      setOwnedBookIdsByVideo((prev) => ({ ...prev, [selectedVideoId]: newIds }));
+      setIsBookmarkedByVideo((prev) => ({ ...prev, [selectedVideoId]: true }));
+      bookmarkState.set(selectedVideoId, true);
       if (USE_MOCK && !wasOwned) {
         setBookmarkCounts((prev) => ({
           ...prev,
@@ -974,7 +1009,7 @@ export default function ShortsScreen() {
     }
 
     closeBookmarkSheet();
-  }, [selectedVideoId, ownedBookIdsByVideo, closeBookmarkSheet, showToast, syncVideoBookmarkState]);
+  }, [selectedVideoId, ownedBookIdsByVideo, setIsBookmarkedByVideo, closeBookmarkSheet, showToast, syncVideoBookmarkState]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: ShortsItem; index: number }) => (
@@ -988,24 +1023,26 @@ export default function ShortsScreen() {
         onViewRecipe={handleViewRecipe}
         onAddToMealPlan={handleAddToMealPlan}
         onBookmarkPress={openBookmarkSheet}
-        isBookmarked={(ownedBookIdsByVideo[item.id] || []).length > 0}
+        isBookmarked={isBookmarkedByVideo[item.id] ?? item.isBookmarked ?? false}
         bookmarkCount={bookmarkCounts[item.id] ?? item.bookmarks ?? 0}
         isScreenFocused={isScreenFocused}
         focusEpoch={focusEpoch}
         appResumeKey={appResumeKey}
       />
     ),
-    [itemHeight, screenWidth, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, ownedBookIdsByVideo, bookmarkCounts, isScreenFocused, focusEpoch, appResumeKey]
+    [itemHeight, screenWidth, isMuted, toggleMute, handleViewRecipe, handleAddToMealPlan, openBookmarkSheet, isBookmarkedByVideo, bookmarkCounts, isScreenFocused, focusEpoch, appResumeKey]
   );
 
   const keyExtractor = useCallback((item: ShortsItem) => item.id, []);
 
+  const containerHeightRef = useRef(0);
   const handleContainerLayout = useCallback((e: LayoutChangeEvent) => {
     const { height } = e.nativeEvent.layout;
-    if (height > 0 && Math.abs(height - containerHeight) > 1) {
+    if (height > 0 && Math.abs(height - containerHeightRef.current) > 1) {
+      containerHeightRef.current = height;
       setContainerHeight(height);
     }
-  }, [containerHeight]);
+  }, []);
 
   const getItemLayout = useCallback(
     (_: any, index: number) => ({
@@ -1014,6 +1051,28 @@ export default function ShortsScreen() {
       index,
     }),
     [itemHeight]
+  );
+
+  const handleScrollToIndexFailed = useCallback(
+    (info: { averageItemLength: number; index: number }) => {
+      flatListRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
+    },
+    []
+  );
+
+  const handleShortsEndReached = useCallback(() => {
+    if (isCurationMode && hasNextCurationPage && !loadingMoreCuration) {
+      fetchNextCurationPage();
+    }
+  }, [isCurationMode, hasNextCurationPage, loadingMoreCuration, fetchNextCurationPage]);
+
+  const shortsListFooter = useMemo(() =>
+    isCurationMode && loadingMoreCuration ? (
+      <View style={{ paddingVertical: 24 }}>
+        <Text style={{ color: "#FFF", textAlign: "center" }}>로딩 중...</Text>
+      </View>
+    ) : null,
+    [isCurationMode, loadingMoreCuration]
   );
 
   return (
@@ -1070,6 +1129,7 @@ export default function ShortsScreen() {
         extraData={activeIndex}
         style={{ flex: 1 }}
         onLayout={handleContainerLayout}
+        initialScrollIndex={initialScrollIndexNum > 0 ? initialScrollIndexNum : undefined}
         pagingEnabled={false}
         disableIntervalMomentum
         decelerationRate="fast"
@@ -1077,29 +1137,17 @@ export default function ShortsScreen() {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         getItemLayout={getItemLayout}
-        initialNumToRender={2}
-        maxToRenderPerBatch={3}
+        initialNumToRender={1}
+        maxToRenderPerBatch={2}
         windowSize={3}
-        updateCellsBatchingPeriod={50}
+        updateCellsBatchingPeriod={100}
         removeClippedSubviews={Platform.OS === 'android'}
         snapToInterval={itemHeight}
         snapToAlignment="start"
-        onScrollToIndexFailed={(info) => {
-          flatListRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
-        }}
-        onEndReached={() => {
-          if (isCurationMode && hasNextCurationPage && !loadingMoreCuration) {
-            fetchNextCurationPage();
-          }
-        }}
+        onScrollToIndexFailed={handleScrollToIndexFailed}
+        onEndReached={handleShortsEndReached}
         onEndReachedThreshold={0.8}
-        ListFooterComponent={
-          isCurationMode && loadingMoreCuration ? (
-            <View style={{ paddingVertical: 24 }}>
-              <Text style={{ color: "#FFF", textAlign: "center" }}>로딩 중...</Text>
-            </View>
-          ) : null
-        }
+        ListFooterComponent={shortsListFooter}
       />
 
       {/* 컨텐츠 피드백 바텀시트 */}
@@ -1532,8 +1580,15 @@ export default function ShortsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* 폴더 목록 — 2개 항목 높이 고정 (73px * 2) */}
-            <ScrollView style={{ height: 146 }} contentContainerStyle={{ paddingHorizontal: 20 }}>
+            {/* 폴더 목록 — 두 탭 중 더 많은 쪽 기준으로 높이 고정, 초과 시 peek */}
+            {(() => {
+              const ITEM_HEIGHT = 73;
+              const VISIBLE_COUNT = 3;
+              const maxCount = Math.max(recipeBooks.personal.length, recipeBooks.group.length);
+              const peekRatio = maxCount > VISIBLE_COUNT ? 0.4 : 0;
+              const scrollHeight = ITEM_HEIGHT * (VISIBLE_COUNT + peekRatio);
+              return (
+            <ScrollView style={{ height: scrollHeight }} contentContainerStyle={{ paddingHorizontal: 20 }}>
               {bookmarkTab === "group" && recipeBooks.group.length === 0 && (
                 <View style={{ justifyContent: "center", alignItems: "center", height: 146 }}>
                   <Users size={32} color={Colors.neutral[300]} />
@@ -1610,11 +1665,7 @@ export default function ShortsScreen() {
 
               {/* 새 레시피북 만들기 - 개인 탭에서만 표시 */}
               {bookmarkTab === "personal" && <TouchableOpacity
-                onPress={() => {
-                  closeBookmarkSheet(() => {
-                    router.push("/(tabs)/recipe-book");
-                  });
-                }}
+                onPress={() => setShowCreateBookModal(true)}
                 activeOpacity={0.7}
                 style={{
                   flexDirection: "row",
@@ -1643,9 +1694,21 @@ export default function ShortsScreen() {
                 </Text>
               </TouchableOpacity>}
             </ScrollView>
+              );
+            })()}
           </Animated.View>
         </View>
       </Modal>
+
+      <CreateRecipeBookModal
+        visible={showCreateBookModal}
+        onClose={() => setShowCreateBookModal(false)}
+        onCreated={async (bookId, bookName) => {
+          setShowCreateBookModal(false);
+          await handleSelectFolder(bookId, bookName);
+          void refetchPersonalBooks();
+        }}
+      />
 
       <FeedbackToast
         message={toastMessage}
