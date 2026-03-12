@@ -4,6 +4,7 @@
  * 서버 연동 시 이 파일에서 baseURL과 헤더 설정을 변경합니다.
  */
 
+import { Alert } from 'react-native';
 import { API_BASE_URL } from '@/constants/env';
 import { extractJwtExpiresAt, getAuthData, getTokens, saveTokens } from '@/utils/auth-storage';
 
@@ -46,17 +47,24 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   return {};
 }
 
-async function triggerAuthFailure(): Promise<void> {
+async function triggerAuthFailure(reason?: string): Promise<void> {
   if (!authFailureHandler || authFailureHandling) {
     return;
   }
   authFailureHandling = true;
   try {
     await authFailureHandler();
+    const message = reason === 'AUTH_008'
+      ? '보안을 위해 로그아웃되었습니다.\n다시 로그인해주세요.'
+      : '로그인이 만료되었습니다.\n다시 로그인해주세요.';
+    Alert.alert('알림', message);
   } finally {
     authFailureHandling = false;
   }
 }
+
+// AUTH_008(RT 재사용 탈취 감지), AUTH_009(RT 만료/미존재)는 갱신 불가 → 즉시 로그아웃
+const FATAL_AUTH_CODES = ['AUTH_008', 'AUTH_009'];
 
 async function refreshAccessToken(): Promise<string | null> {
   if (refreshPromise) {
@@ -79,6 +87,13 @@ async function refreshAccessToken(): Promise<string | null> {
       });
 
       if (!response.ok) {
+        // AUTH_008/AUTH_009이면 즉시 로그아웃
+        try {
+          const errorData = await response.json();
+          if (FATAL_AUTH_CODES.includes(errorData.code)) {
+            await triggerAuthFailure(errorData.code);
+          }
+        } catch { /* JSON 파싱 실패 무시 */ }
         return null;
       }
 
@@ -156,13 +171,30 @@ async function fetchApi<T>(
   if (
     response.status === 401 &&
     requiresAuth &&
-    allowRetry &&
     endpoint !== REFRESH_ENDPOINT
   ) {
-    const newAccessToken = await refreshAccessToken();
-    if (newAccessToken) {
-      return fetchApi<T>(endpoint, options, requiresAuth, false);
+    // AUTH_008/AUTH_009는 갱신 시도 없이 즉시 로그아웃
+    try {
+      const cloned = response.clone();
+      const errorData = await cloned.json();
+      if (FATAL_AUTH_CODES.includes(errorData.code)) {
+        await triggerAuthFailure(errorData.code);
+        throw new Error(errorData.code);
+      }
+    } catch (e) {
+      if (e instanceof Error && FATAL_AUTH_CODES.includes(e.message)) throw e;
     }
+
+    // AUTH_002/AUTH_003 → 토큰 갱신 후 재시도
+    if (allowRetry) {
+      const newAccessToken = await refreshAccessToken();
+      if (newAccessToken) {
+        return fetchApi<T>(endpoint, options, requiresAuth, false);
+      }
+      await triggerAuthFailure();
+      throw new Error('AUTH_SESSION_EXPIRED');
+    }
+
     await triggerAuthFailure();
     throw new Error('AUTH_SESSION_EXPIRED');
   }
