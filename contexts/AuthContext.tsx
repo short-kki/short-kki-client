@@ -25,6 +25,7 @@ import {
   clearAuthData,
 } from '@/utils/auth-storage';
 import { setAuthFailureHandler } from '@/services/api';
+import { API_BASE_URL } from '@/constants/env';
 import { pushNotificationService } from '@/services/pushNotification';
 import { getMyProfile } from '@/services/memberApi';
 
@@ -176,6 +177,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * 로그아웃 처리
    */
   const signOut = useCallback(async () => {
+    // 서버 로그아웃 — api 래퍼를 거치지 않고 직접 fetch
+    // (api 래퍼 사용 시 401 → refresh → triggerAuthFailure → signOut 순환 대기 발생)
+    try {
+      const authData = await getAuthData();
+      const at = authData?.tokens?.accessToken;
+      if (at) {
+        await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${at}` },
+        });
+      }
+    } catch {
+      // 네트워크 오류나 토큰 만료 등으로 실패해도 로컬 토큰은 삭제
+    }
+
     // 푸시 토큰 삭제 실패는 로그아웃을 막지 않음
     try {
       await pushNotificationService.unregisterToken();
