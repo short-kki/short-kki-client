@@ -683,26 +683,19 @@ export default function ShortsScreen() {
   const moreOverlayOpacity = useRef(new Animated.Value(0)).current;
   const moreSheetTranslateY = useRef(new Animated.Value(300)).current;
 
+  // 북마크 카운트 + 북마크 아이콘 초기 상태 한 번에 세팅
   useEffect(() => {
     setBookmarkCounts((prev) => {
       const next = { ...prev };
       SHORTS_DATA.forEach((item) => {
-        if (next[item.id] == null) {
-          next[item.id] = item.bookmarks ?? 0;
-        }
+        if (next[item.id] == null) next[item.id] = item.bookmarks ?? 0;
       });
       return next;
     });
-  }, [SHORTS_DATA]);
-
-  // isBookmarked 필드로 초기 북마크 카드 아이콘 상태 세팅
-  useEffect(() => {
     setIsBookmarkedByVideo((prev) => {
       const next = { ...prev };
       SHORTS_DATA.forEach((item) => {
-        if (next[item.id] === undefined) {
-          next[item.id] = item.isBookmarked ?? false;
-        }
+        if (next[item.id] === undefined) next[item.id] = item.isBookmarked ?? false;
       });
       return next;
     });
@@ -734,7 +727,6 @@ export default function ShortsScreen() {
     return Array.isArray(params.startIndex) ? params.startIndex[0] : params.startIndex;
   }, [params.startIndex]);
   const hasScrolledRef = useRef(false);
-  const isFirstMountRef = useRef(true);
 
   // 첫 렌더에서 FlatList가 initialScrollIndex로 올바른 위치에서 시작하도록 계산
   const initialScrollIndexNum = useMemo(() => {
@@ -750,23 +742,13 @@ export default function ShortsScreen() {
   useEffect(() => {
     if (!startId || hasScrolledRef.current) return;
     const index = SHORTS_DATA.findIndex(item => item.id === startId);
-    if (index !== -1 && index < SHORTS_DATA.length) {
-      if (isFirstMountRef.current && initialScrollIndexNum === index) {
-        // 첫 마운트: initialScrollIndex가 이미 FlatList를 해당 위치에 렌더링함 → scrollToOffset 불필요
-        setActiveIndex(index);
-        hasScrolledRef.current = true;
-        isFirstMountRef.current = false;
-        return;
-      }
-      // 재진입 또는 SHORTS_DATA가 비동기 로드된 경우: 직접 스크롤
-      isFirstMountRef.current = false;
-      setTimeout(() => {
-        flatListRef.current?.scrollToOffset({ offset: index * itemHeight, animated: false });
-        setActiveIndex(index);
-        hasScrolledRef.current = true;
-      }, 100);
-    }
-  }, [startId, SHORTS_DATA, itemHeight, initialScrollIndexNum]);
+    if (index < 0 || index >= SHORTS_DATA.length) return;
+    setTimeout(() => {
+      flatListRef.current?.scrollToOffset({ offset: index * itemHeight, animated: false });
+      setActiveIndex(index);
+      hasScrolledRef.current = true;
+    }, 100);
+  }, [startId, SHORTS_DATA, itemHeight]);
 
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 50,
@@ -1053,12 +1035,14 @@ export default function ShortsScreen() {
 
   const keyExtractor = useCallback((item: ShortsItem) => item.id, []);
 
+  const containerHeightRef = useRef(0);
   const handleContainerLayout = useCallback((e: LayoutChangeEvent) => {
     const { height } = e.nativeEvent.layout;
-    if (height > 0 && Math.abs(height - containerHeight) > 1) {
+    if (height > 0 && Math.abs(height - containerHeightRef.current) > 1) {
+      containerHeightRef.current = height;
       setContainerHeight(height);
     }
-  }, [containerHeight]);
+  }, []);
 
   const getItemLayout = useCallback(
     (_: any, index: number) => ({
@@ -1067,6 +1051,28 @@ export default function ShortsScreen() {
       index,
     }),
     [itemHeight]
+  );
+
+  const handleScrollToIndexFailed = useCallback(
+    (info: { averageItemLength: number; index: number }) => {
+      flatListRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
+    },
+    []
+  );
+
+  const handleShortsEndReached = useCallback(() => {
+    if (isCurationMode && hasNextCurationPage && !loadingMoreCuration) {
+      fetchNextCurationPage();
+    }
+  }, [isCurationMode, hasNextCurationPage, loadingMoreCuration, fetchNextCurationPage]);
+
+  const shortsListFooter = useMemo(() =>
+    isCurationMode && loadingMoreCuration ? (
+      <View style={{ paddingVertical: 24 }}>
+        <Text style={{ color: "#FFF", textAlign: "center" }}>로딩 중...</Text>
+      </View>
+    ) : null,
+    [isCurationMode, loadingMoreCuration]
   );
 
   return (
@@ -1131,29 +1137,17 @@ export default function ShortsScreen() {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         getItemLayout={getItemLayout}
-        initialNumToRender={2}
-        maxToRenderPerBatch={3}
+        initialNumToRender={1}
+        maxToRenderPerBatch={2}
         windowSize={3}
-        updateCellsBatchingPeriod={50}
+        updateCellsBatchingPeriod={100}
         removeClippedSubviews={Platform.OS === 'android'}
         snapToInterval={itemHeight}
         snapToAlignment="start"
-        onScrollToIndexFailed={(info) => {
-          flatListRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
-        }}
-        onEndReached={() => {
-          if (isCurationMode && hasNextCurationPage && !loadingMoreCuration) {
-            fetchNextCurationPage();
-          }
-        }}
+        onScrollToIndexFailed={handleScrollToIndexFailed}
+        onEndReached={handleShortsEndReached}
         onEndReachedThreshold={0.8}
-        ListFooterComponent={
-          isCurationMode && loadingMoreCuration ? (
-            <View style={{ paddingVertical: 24 }}>
-              <Text style={{ color: "#FFF", textAlign: "center" }}>로딩 중...</Text>
-            </View>
-          ) : null
-        }
+        ListFooterComponent={shortsListFooter}
       />
 
       {/* 컨텐츠 피드백 바텀시트 */}

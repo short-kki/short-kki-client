@@ -37,6 +37,8 @@ import { LinearGradient } from "expo-linear-gradient";
 const getYoutubeThumbnail = (videoId: string) =>
   `https://i.ytimg.com/vi/${videoId}/hq720.jpg`;
 
+const FILTERS = ["전체", "한식", "양식", "일식", "디저트", "안주"];
+
 // 쇼츠 카드 아이템 타입
 interface ShortsCardItem {
   id: string;
@@ -604,8 +606,6 @@ export default function HomeScreen() {
   const handleSeeAllSection = useCallback((sectionId: string, sectionTitle: string) => {
     router.push(`/search-results?curationId=${sectionId}&curationTitle=${encodeURIComponent(sectionTitle)}` as any);
   }, [router]);
-
-  const FILTERS = ["전체", "한식", "양식", "일식", "디저트", "안주"];
 
   const filteredSections = useMemo(() => {
     const FILTER_MAP: Record<string, { type: "cuisine" | "meal"; value: string }> = {
