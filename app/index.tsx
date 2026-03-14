@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Dimensions, StyleSheet, View, Text } from "react-native";
 import { useRouter } from "expo-router";
 import { Image } from "expo-image";
@@ -11,12 +11,18 @@ import Animated, {
 } from "react-native-reanimated";
 import { Colors, Typography } from "@/constants/design-system";
 import { useAuth } from "@/contexts/AuthContext";
+import { useShareIntent } from "expo-share-intent";
 
 const { width: screenWidth } = Dimensions.get("window");
 
 export default function SplashScreen() {
   const { isLoggedIn, isLoading } = useAuth();
+  const { hasShareIntent } = useShareIntent();
   const router = useRouter();
+
+  // 마운트 시점의 share intent 여부를 기록 (resetShareIntent() 이후에도 유지)
+  const hadShareIntentRef = useRef(false);
+  if (hasShareIntent) hadShareIntentRef.current = true;
 
   const logoOpacity = useSharedValue(0);
   const logoScale = useSharedValue(0.8);
@@ -39,7 +45,10 @@ export default function SplashScreen() {
     // 인증 확인 후 최소 1.2초 뒤에 전환 (애니메이션 감상 시간)
     const timer = setTimeout(() => {
       if (isLoggedIn) {
-        router.replace("/(tabs)");
+        // share intent가 있었으면 _layout.tsx가 이미 /(tabs)/add로 navigate했으므로 스킵
+        if (!hadShareIntentRef.current) {
+          router.replace("/(tabs)");
+        }
       } else {
         router.replace("/login");
       }

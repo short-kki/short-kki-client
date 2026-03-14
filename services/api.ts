@@ -23,6 +23,9 @@ let authFailureHandler: AuthFailureHandler = null;
 let refreshPromise: Promise<string | null> | null = null;
 let authFailureHandling = false;
 
+type MaintenanceHandler = (() => void) | null;
+let maintenanceHandler: MaintenanceHandler = null;
+
 interface BaseResponse<T> {
   code: string;
   message: string;
@@ -36,6 +39,10 @@ interface RefreshTokenResponse {
 
 export function setAuthFailureHandler(handler: AuthFailureHandler): void {
   authFailureHandler = handler;
+}
+
+export function setMaintenanceHandler(handler: MaintenanceHandler): void {
+  maintenanceHandler = handler;
 }
 
 // 인증 헤더 생성
@@ -197,6 +204,11 @@ async function fetchApi<T>(
 
     await triggerAuthFailure();
     throw new Error('AUTH_SESSION_EXPIRED');
+  }
+
+  if (response.status === 503) {
+    maintenanceHandler?.();
+    throw new Error('MAINTENANCE');
   }
 
   if (!response.ok) {

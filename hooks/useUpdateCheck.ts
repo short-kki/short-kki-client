@@ -34,8 +34,10 @@ export function useUpdateCheck(): UpdateCheckResult {
   useEffect(() => {
     if (__DEV__) return;
 
-    const check = () => {
-      if (!remoteConfigService.isInitialized()) return;
+    let cancelled = false;
+    (async () => {
+      await remoteConfigService.initialize();
+      if (cancelled) return;
 
       const minBuild = remoteConfigService.getMinimumBuildNumber();
       const minVersion = remoteConfigService.getMinimumAppVersion();
@@ -53,17 +55,9 @@ export function useUpdateCheck(): UpdateCheckResult {
           updateMessage: message || '새로운 버전이 출시되었습니다. 업데이트 후 이용해주세요.',
         });
       }
-    };
+    })();
 
-    // Remote Config 초기화 완료 대기 (폴링)
-    const interval = setInterval(() => {
-      if (remoteConfigService.isInitialized()) {
-        clearInterval(interval);
-        check();
-      }
-    }, 100);
-
-    return () => clearInterval(interval);
+    return () => { cancelled = true; };
   }, []);
 
   return result;
