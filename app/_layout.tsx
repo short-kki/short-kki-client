@@ -112,7 +112,7 @@ function RootLayoutNav() {
       </Stack>
       <StatusBar style="auto" />
       <MaintenanceModal visible={isUnderMaintenance} message={maintenanceMessage} />
-      <UpdateModal visible={needsUpdate} message={updateMessage} />
+      <UpdateModal visible={!isUnderMaintenance && needsUpdate} message={updateMessage} />
     </>
   );
 }

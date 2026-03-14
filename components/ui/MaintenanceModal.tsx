@@ -1,5 +1,6 @@
 import React from "react";
 import { Modal, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Wrench } from "lucide-react-native";
 import { Colors, Typography } from "@/constants/design-system";
 
@@ -9,15 +10,19 @@ interface MaintenanceModalProps {
 }
 
 export default function MaintenanceModal({ visible, message }: MaintenanceModalProps) {
+  const insets = useSafeAreaInsets();
+
   return (
     <Modal visible={visible} transparent={false} animationType="fade" statusBarTranslucent>
       <View
         style={{
           flex: 1,
-          backgroundColor: "#FFFBF7",
+          backgroundColor: Colors.neutral[50],
           justifyContent: "center",
           alignItems: "center",
           paddingHorizontal: 32,
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
         }}
       >
         <View

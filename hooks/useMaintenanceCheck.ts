@@ -15,25 +15,17 @@ export function useMaintenanceCheck(): MaintenanceCheckResult {
   useEffect(() => {
     if (__DEV__) return;
 
-    const check = () => {
-      if (!remoteConfigService.isInitialized()) return;
+    let cancelled = false;
+    (async () => {
+      await remoteConfigService.initialize();
+      if (cancelled) return;
+      setResult({
+        isUnderMaintenance: remoteConfigService.isUnderMaintenance(),
+        maintenanceMessage: remoteConfigService.getMaintenanceMessage(),
+      });
+    })();
 
-      if (remoteConfigService.isUnderMaintenance()) {
-        setResult({
-          isUnderMaintenance: true,
-          maintenanceMessage: remoteConfigService.getMaintenanceMessage(),
-        });
-      }
-    };
-
-    const interval = setInterval(() => {
-      if (remoteConfigService.isInitialized()) {
-        clearInterval(interval);
-        check();
-      }
-    }, 100);
-
-    return () => clearInterval(interval);
+    return () => { cancelled = true; };
   }, []);
 
   return result;
