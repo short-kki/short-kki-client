@@ -177,6 +177,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * 로그아웃 처리
    */
   const signOut = useCallback(async () => {
+    // 푸시 토큰 먼저 삭제 — 서버 로그아웃 전에 실행해야 유효한 토큰으로 요청 가능
+    // (서버 로그아웃 후 요청하면 401 → refresh 시도 → triggerAuthFailure → Alert 팝업)
+    try {
+      await pushNotificationService.unregisterToken();
+    } catch (error) {
+      console.warn('Failed to unregister push token during sign-out:', error);
+    }
+
     // 서버 로그아웃 — api 래퍼를 거치지 않고 직접 fetch
     // (api 래퍼 사용 시 401 → refresh → triggerAuthFailure → signOut 순환 대기 발생)
     try {
@@ -190,13 +198,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     } catch {
       // 네트워크 오류나 토큰 만료 등으로 실패해도 로컬 토큰은 삭제
-    }
-
-    // 푸시 토큰 삭제 실패는 로그아웃을 막지 않음
-    try {
-      await pushNotificationService.unregisterToken();
-    } catch (error) {
-      console.warn('Failed to unregister push token during sign-out:', error);
     }
 
     await clearAuthData();
