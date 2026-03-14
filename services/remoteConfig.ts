@@ -13,6 +13,8 @@ class RemoteConfigService {
   private minimumBuildNumber = 0;
   private minimumAppVersion = '0.0.0';
   private updateMessage = '';
+  private underMaintenance = false;
+  private maintenanceMessage = '';
 
   async initialize(): Promise<void> {
     if (__DEV__) {
@@ -32,6 +34,8 @@ class RemoteConfigService {
         minimum_build_number: 0,
         minimum_app_version: '0.0.0',
         update_message: '새로운 버전이 출시되었습니다. 업데이트 후 이용해주세요.',
+        is_under_maintenance: false,
+        maintenance_message: '더 나은 서비스를 위해 잠시 점검 중이에요.\n잠시 후 다시 이용해주세요.',
       });
 
       await remoteConfig.setConfigSettings({
@@ -44,6 +48,8 @@ class RemoteConfigService {
       this.minimumBuildNumber = remoteConfig.getValue('minimum_build_number').asNumber();
       this.minimumAppVersion = remoteConfig.getValue('minimum_app_version').asString();
       this.updateMessage = remoteConfig.getValue('update_message').asString();
+      this.underMaintenance = remoteConfig.getValue('is_under_maintenance').asBoolean();
+      this.maintenanceMessage = remoteConfig.getValue('maintenance_message').asString();
 
     } catch (error) {
       console.warn('[RemoteConfig] 초기화 실패, 기본값 사용:', error);
@@ -51,6 +57,8 @@ class RemoteConfigService {
       this.minimumBuildNumber = 0;
       this.minimumAppVersion = '0.0.0';
       this.updateMessage = '새로운 버전이 출시되었습니다. 업데이트 후 이용해주세요.';
+      this.underMaintenance = false;
+      this.maintenanceMessage = '';
     } finally {
       this.initialized = true;
     }
@@ -75,6 +83,14 @@ class RemoteConfigService {
 
   getUpdateMessage(): string {
     return this.updateMessage;
+  }
+
+  isUnderMaintenance(): boolean {
+    return this.underMaintenance;
+  }
+
+  getMaintenanceMessage(): string {
+    return this.maintenanceMessage;
   }
 }
 
