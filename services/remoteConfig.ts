@@ -9,6 +9,7 @@
 
 class RemoteConfigService {
   private initialized = false;
+  private initPromise: Promise<void> | null = null;
   private devModeEnabled = false;
   private minimumBuildNumber = 0;
   private minimumAppVersion = '0.0.0';
@@ -24,7 +25,13 @@ class RemoteConfigService {
     }
 
     if (this.initialized) return;
+    if (!this.initPromise) {
+      this.initPromise = this._doInitialize();
+    }
+    return this.initPromise;
+  }
 
+  private async _doInitialize(): Promise<void> {
     try {
       const firebase = await import('@react-native-firebase/remote-config');
       const remoteConfig = firebase.default();

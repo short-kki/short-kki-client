@@ -13,7 +13,6 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { MuteProvider } from "@/contexts/MuteContext";
 import { Colors } from "@/constants/design-system";
 import { pushNotificationService } from "@/services/pushNotification";
-import { remoteConfigService } from "@/services/remoteConfig";
 import { useUpdateCheck } from "@/hooks/useUpdateCheck";
 import { useMaintenanceCheck } from "@/hooks/useMaintenanceCheck";
 import UpdateModal from "@/components/ui/UpdateModal";
@@ -40,7 +39,7 @@ function RootLayoutNav() {
   const router = useRouter();
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
   const { needsUpdate, updateMessage } = useUpdateCheck();
-  const { isUnderMaintenance, maintenanceMessage } = useMaintenanceCheck();
+  const { isChecking, isUnderMaintenance, maintenanceMessage } = useMaintenanceCheck();
 
   // 인증 로딩 완료 후 네이티브 스플래시 숨김
   useEffect(() => {
@@ -49,11 +48,10 @@ function RootLayoutNav() {
     }
   }, [isLoading]);
 
-  // 푸시 알림 + Remote Config 초기화
+  // 푸시 알림 초기화
   useEffect(() => {
     pushNotificationService.initialize();
     pushNotificationService.handleInitialNotification();
-    remoteConfigService.initialize();
 
     return () => pushNotificationService.cleanup();
   }, []);
@@ -112,7 +110,7 @@ function RootLayoutNav() {
       </Stack>
       <StatusBar style="auto" />
       <MaintenanceModal visible={isUnderMaintenance} message={maintenanceMessage} />
-      <UpdateModal visible={!isUnderMaintenance && needsUpdate} message={updateMessage} />
+      <UpdateModal visible={!isChecking && !isUnderMaintenance && needsUpdate} message={updateMessage} />
     </>
   );
 }
