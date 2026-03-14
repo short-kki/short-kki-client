@@ -11,7 +11,7 @@ Shortkki (숏끼) - A short-form recipe sharing and social meal calendar app bui
 ## Commands
 
 ```bash
-npm install          # Install dependencies (runs patch-package via postinstall)
+npm install          # Install dependencies
 npm start            # Start Expo dev server
 npm run ios          # Run native iOS build (requires Xcode)
 npm run android      # Run native Android build (requires Android Studio)
@@ -55,13 +55,13 @@ Note: The `development` iOS profile builds for simulator only (`"simulator": tru
 - `app/(tabs)/` — Bottom tab navigator (5 visible tabs: 홈, 식단표, 추가, 레시피북, 그룹; hidden tabs: shorts, explore, calendar, profile with `href: null`)
 - `components/feed/` — TikTok-style video feed components
 - `components/ui/` — Reusable UI components (Button, Card, Input, Tag, Header)
-- `contexts/` — React contexts (AuthContext for app-wide auth state)
+- `contexts/` — React contexts (AuthContext for auth state, MuteContext for video mute state)
 - `constants/` — Design tokens (`design-system.ts`) and OAuth configuration (`oauth.ts`)
 - `utils/` — Utilities for auth storage and YouTube URL parsing
 - `hooks/` — Custom hooks that abstract data fetching (groups, shorts, recipes, notifications)
-- `services/` — API client (`api.ts`), file upload (`fileUpload.ts`), push notifications (`pushNotification.ts`), recipe API (`recipeApi.ts`), ingredient API (`ingredientApi.ts`), member API (`memberApi.ts`)
+- `services/` — API client (`api.ts`), file upload (`fileUpload.ts`), push notifications (`pushNotification.ts`), remote config (`remoteConfig.ts`), recipe API (`recipeApi.ts`), ingredient API (`ingredientApi.ts`), member API (`memberApi.ts`)
 - `data/mock/` — Mock data for development
-- `patches/` — patch-package patches applied at install time
+- `plugins/` — Custom Expo config plugins (`withAndroidVersion.js` reads `android-version.json`)
 
 ### Path Aliases
 Use `@/` for absolute imports from project root (e.g., `@/components/`, `@/contexts/`)
@@ -97,17 +97,17 @@ The home screen uses a TikTok/Shorts-style vertical paging video feed:
 3. State management: `AuthContext` wraps app, auto-redirects based on auth state (protected routes in `(tabs)`)
 4. Token storage: `expo-secure-store` for secure persistence (falls back to in-memory for Expo Go)
 5. OAuth credentials: Stored in `.env` file (see `.env.example` for template), prefixed with `EXPO_PUBLIC_`
+6. **RTR (Refresh Token Rotation)**: `api.ts` handles automatic token refresh with concurrent request deduplication via `refreshPromise`. Fatal auth codes (`AUTH_008` = token reuse/theft, `AUTH_009` = refresh expired) trigger immediate logout
 
 ### Environment Configuration
 - **App config**: Uses `app.config.js` (dynamic), not static `app.json`
-- **APP_ENV** in `constants/oauth.ts` controls API target (hardcoded, switch manually):
-  - `"local"` → auto-detects host IP from Expo for `http://{ip}:8080` (default)
-  - `"dev"` → `http://dev.shortkki.kr`
-  - `"prod"` → `https://api.shortkki.kr`
-- **eas.json** sets `EXPO_PUBLIC_API_URL` per build profile (dev vs production), but `oauth.ts` currently uses `APP_ENV` instead (TODO to migrate)
+- **APP_ENV** in `constants/env.ts` controls API target (hardcoded, switch manually):
+  - `"local"` → auto-detects host IP from Expo for `http://{ip}:8080`
+  - `"dev"` → `http://dev.shortkki.kr` (current default)
+  - `"prod"` → `http://api.shortkki.kr`
 - `DEV_MODE.ENABLE_MOCK_LOGIN` enabled when `APP_ENV !== "prod"` — allows login without real OAuth
 - Typed routes enabled via `experiments.typedRoutes` in app.config.js
-- Bundle IDs: iOS `com.anonymous.short-kki-client`, Android `com.anonymous.shortkki`
+- Bundle IDs: iOS `kr.shortkki.app`, Android `com.anonymous.shortkki`
 
 ### Push Notifications
 - Requires development build (doesn't work in Expo Go)
@@ -145,10 +145,15 @@ Import from `@/constants/design-system`:
 - Use lucide-react-native for all icons
 - Use `useSafeAreaInsets()` for safe area handling
 
+### Remote Config
+- Firebase Remote Config via `services/remoteConfig.ts` for feature flags and minimum version enforcement
+- Controls `devModeEnabled` state and update prompts (`minimum_build_number`, `minimum_app_version`)
+
 ## Deep Linking
 
 The app supports deep linking via the `shortkki://` URL scheme:
 - OAuth callbacks: `shortkki://oauth/{provider}`
 - Group invites: `shortkki://group/invite/{inviteCode}` (handled by `app/group/invite/[inviteCode].tsx`)
+- Android also handles HTTPS links: `https://shortkki.com/group/invite/{inviteCode}`, `http://dev.shortkki.kr/group/invite/{inviteCode}`
 - Google OAuth: reverse client ID scheme registered in app.config.js
-- Share intent: Receives shared URLs from other apps via expo-share-intent
+- Share intent: Receives shared URLs from other apps via expo-share-intent (iOS share extension: `kr.shortkki.app.share-extension`, app group: `group.kr.shortkki.app`)
