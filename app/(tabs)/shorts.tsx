@@ -46,6 +46,7 @@ import {
   AppState,
   Easing,
   FlatList,
+  InteractionManager,
   KeyboardAvoidingView,
   LayoutChangeEvent,
   Linking,
@@ -743,11 +744,12 @@ export default function ShortsScreen() {
     if (!startId || hasScrolledRef.current) return;
     const index = SHORTS_DATA.findIndex(item => item.id === startId);
     if (index < 0 || index >= SHORTS_DATA.length) return;
-    setTimeout(() => {
+    const interaction = InteractionManager.runAfterInteractions(() => {
       flatListRef.current?.scrollToOffset({ offset: index * itemHeight, animated: false });
       setActiveIndex(index);
       hasScrolledRef.current = true;
-    }, 100);
+    });
+    return () => interaction.cancel();
   }, [startId, SHORTS_DATA, itemHeight]);
 
   const viewabilityConfig = useRef({
