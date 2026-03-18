@@ -802,13 +802,13 @@ export default function HomeScreen() {
         renderItem={renderCurationItem}
         ListHeaderComponent={listHeaderComponent}
         onEndReached={handleEndReached}
-        onEndReachedThreshold={0.5}
+        onEndReachedThreshold={1.5}
         ListFooterComponent={listFooterComponent}
         removeClippedSubviews={Platform.OS === 'android'}
-        initialNumToRender={2}
-        maxToRenderPerBatch={2}
-        windowSize={3}
-        updateCellsBatchingPeriod={150}
+        initialNumToRender={4}
+        maxToRenderPerBatch={3}
+        windowSize={5}
+        updateCellsBatchingPeriod={50}
         stickySectionHeadersEnabled={false}
       />
 
