@@ -151,14 +151,17 @@ export default function AddRecipeScreen() {
     if (!params.sharedUrl) return;
 
     const sharedUrl = params.sharedUrl;
-    setUrl(sharedUrl);
+    let cancelled = false;
 
-    // URL 세팅 후 자동으로 미리보기 로드
+    setUrl(sharedUrl);
+    setIsLoading(true);
+    setParsedRecipe(null);
+
     (async () => {
-      setIsLoading(true);
-      setParsedRecipe(null);
       try {
         const result = await parseRecipeFromUrl(sharedUrl);
+        if (cancelled) return;
+
         if (result) {
           if (result.recipeId) {
             setUrl("");
@@ -172,13 +175,18 @@ export default function AddRecipeScreen() {
           Alert.alert("오류", "레시피 정보를 가져올 수 없습니다.\nURL을 확인해주세요.");
         }
       } catch (err) {
+        if (cancelled) return;
         const message = err instanceof Error ? err.message : "레시피 정보를 가져오는 중 오류가 발생했습니다.";
         Alert.alert("오류", message);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     })();
-  }, [params.sharedUrl, router]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [params.sharedUrl]);
 
   const handleSearch = async () => {
     Keyboard.dismiss();
