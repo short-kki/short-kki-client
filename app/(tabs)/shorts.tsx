@@ -556,7 +556,7 @@ export default function ShortsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const router = useRouter();
-  const params = useLocalSearchParams<{ startIndex?: string | string[]; curationId?: string; curationRecipes?: string }>();
+  const params = useLocalSearchParams<{ startIndex?: string | string[]; curationId?: string; curationRecipes?: string; t?: string }>();
   const flatListRef = useRef<FlatList>(null);
   // 실제 컨테이너 높이 측정 (Android에서 정확한 높이 사용)
   const [containerHeight, setContainerHeight] = useState(0);
@@ -738,7 +738,7 @@ export default function ShortsScreen() {
 
   useEffect(() => {
     hasScrolledRef.current = false;
-  }, [startId, curationId]);
+  }, [startId, curationId, params.t]);
 
   useEffect(() => {
     if (!startId || hasScrolledRef.current) return;
@@ -750,7 +750,7 @@ export default function ShortsScreen() {
       hasScrolledRef.current = true;
     });
     return () => interaction.cancel();
-  }, [startId, SHORTS_DATA, itemHeight]);
+  }, [startId, SHORTS_DATA, itemHeight, params.t]);
 
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 50,
