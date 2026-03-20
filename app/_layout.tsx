@@ -3,7 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { LogBox } from "react-native";
+import { LogBox, InteractionManager } from "react-native";
 import { useEffect } from "react";
 import * as SplashScreen from "expo-splash-screen";
 import "react-native-reanimated";
@@ -64,26 +64,18 @@ function RootLayoutNav() {
     const sharedText = shareIntent.text || "";
     const sharedUrl = extractUrl(sharedText) || shareIntent.webUrl || null;
 
-    let timerId: ReturnType<typeof setTimeout> | undefined;
     if (sharedUrl) {
-      // auth guard 리다이렉트와의 경합 방지를 위해 약간 지연
-      // resetShareIntent()는 타이머 내부에서 호출해야 함 —
-      // 밖에서 호출하면 hasShareIntent가 false로 바뀌며 effect cleanup이
-      // 타이머를 취소해버려 router.push가 실행되지 않음
-      timerId = setTimeout(() => {
+      const interaction = InteractionManager.runAfterInteractions(() => {
         router.push({
           pathname: "/(tabs)/add",
           params: { sharedUrl },
         });
         resetShareIntent();
-      }, 100);
+      });
+      return () => interaction.cancel();
     } else {
       resetShareIntent();
     }
-
-    return () => {
-      if (timerId) clearTimeout(timerId);
-    };
   }, [hasShareIntent, isLoading]);
 
   return (
