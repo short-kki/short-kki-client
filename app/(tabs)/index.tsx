@@ -581,6 +581,7 @@ export default function HomeScreen() {
         startIndex: recipeId,
         curationId: section.id,
         curationRecipes: JSON.stringify(section.recipes ?? []),
+        t: Date.now().toString(),
       },
     });
   }, [router]);
@@ -589,7 +590,7 @@ export default function HomeScreen() {
     if (!topCuration) {
       router.push({
         pathname: "/(tabs)/shorts",
-        params: { startIndex: shortsId },
+        params: { startIndex: shortsId, t: Date.now().toString() },
       });
       return;
     }
@@ -599,6 +600,7 @@ export default function HomeScreen() {
         startIndex: shortsId,
         curationId: topCuration.id,
         curationRecipes: JSON.stringify(topCuration.recipes ?? []),
+        t: Date.now().toString(),
       },
     });
   }, [router, topCuration]);
@@ -802,13 +804,13 @@ export default function HomeScreen() {
         renderItem={renderCurationItem}
         ListHeaderComponent={listHeaderComponent}
         onEndReached={handleEndReached}
-        onEndReachedThreshold={0.5}
+        onEndReachedThreshold={1.5}
         ListFooterComponent={listFooterComponent}
         removeClippedSubviews={Platform.OS === 'android'}
-        initialNumToRender={2}
-        maxToRenderPerBatch={2}
-        windowSize={3}
-        updateCellsBatchingPeriod={150}
+        initialNumToRender={4}
+        maxToRenderPerBatch={3}
+        windowSize={5}
+        updateCellsBatchingPeriod={50}
         stickySectionHeadersEnabled={false}
       />
 

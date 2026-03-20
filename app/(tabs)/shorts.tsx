@@ -556,7 +556,7 @@ export default function ShortsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const router = useRouter();
-  const params = useLocalSearchParams<{ startIndex?: string | string[]; curationId?: string; curationRecipes?: string }>();
+  const params = useLocalSearchParams<{ startIndex?: string | string[]; curationId?: string; curationRecipes?: string; t?: string }>();
   const flatListRef = useRef<FlatList>(null);
   // 실제 컨테이너 높이 측정 (Android에서 정확한 높이 사용)
   const [containerHeight, setContainerHeight] = useState(0);
@@ -609,9 +609,39 @@ export default function ShortsScreen() {
   const isValidYoutubeId = (id: string) => /^[a-zA-Z0-9_-]{11}$/.test(id);
 
   const SHORTS_DATA: ShortsItem[] = useMemo(() => {
-    const raw = isCurationMode ? curationShortsData : [...shorts, ...curationShorts];
+    let raw: ShortsItem[];
+    if (isCurationMode) {
+      if (curationShortsData.length > 0) {
+        raw = curationShortsData;
+      } else if (initialCurationRecipes && initialCurationRecipes.length > 0) {
+        // 비동기 fetch 전에 params로 전달된 초기 데이터를 fallback으로 사용
+        // → 첫 렌더에서도 SHORTS_DATA가 비어있지 않아 initialScrollIndex가 올바르게 설정됨
+        raw = initialCurationRecipes.map((r) => {
+          const videoId = extractYoutubeId(r.sourceUrl ?? "") ?? r.id;
+          return {
+            id: r.id,
+            videoId,
+            videoUrl: r.sourceUrl || `https://www.youtube.com/shorts/${videoId}`,
+            title: r.title,
+            author: r.author,
+            authorAvatar: r.author?.[0],
+            authorProfileImgUrl: r.authorProfileImgUrl,
+            creatorName: r.creatorName,
+            thumbnail: r.thumbnail || getYoutubeThumbnail(videoId),
+            views: undefined,
+            tags: [],
+            bookmarks: r.bookmarks ?? 0,
+            isBookmarked: r.isBookmarked,
+          } as ShortsItem;
+        });
+      } else {
+        raw = [];
+      }
+    } else {
+      raw = [...shorts, ...curationShorts];
+    }
     return raw.filter((item) => isValidYoutubeId(item.videoId));
-  }, [curationShortsData, isCurationMode, shorts, curationShorts]);
+  }, [isCurationMode, curationShortsData, initialCurationRecipes, shorts, curationShorts]);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const activeIndexRef = useRef(activeIndex);
@@ -738,7 +768,7 @@ export default function ShortsScreen() {
 
   useEffect(() => {
     hasScrolledRef.current = false;
-  }, [startId, curationId]);
+  }, [startId, curationId, params.t]);
 
   useEffect(() => {
     if (!startId || hasScrolledRef.current) return;
@@ -750,7 +780,7 @@ export default function ShortsScreen() {
       hasScrolledRef.current = true;
     });
     return () => interaction.cancel();
-  }, [startId, SHORTS_DATA, itemHeight]);
+  }, [startId, SHORTS_DATA, itemHeight, params.t]);
 
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 50,

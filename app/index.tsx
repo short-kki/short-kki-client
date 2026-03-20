@@ -46,7 +46,8 @@ export default function SplashScreen() {
     const timer = setTimeout(() => {
       if (isLoggedIn) {
         // share intent가 있었으면 _layout.tsx가 이미 /(tabs)/add로 navigate했으므로 스킵
-        if (!hadShareIntentRef.current) {
+        // hadShareIntentRef: 렌더 시 캡처된 이전 상태 / hasShareIntent: 클로저의 현재 상태
+        if (!hadShareIntentRef.current && !hasShareIntent) {
           router.replace("/(tabs)");
         }
       } else {
@@ -55,7 +56,7 @@ export default function SplashScreen() {
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [isLoading, isLoggedIn, router]);
+  }, [isLoading, isLoggedIn, router, hasShareIntent]);
 
   const logoAnimatedStyle = useAnimatedStyle(() => ({
     opacity: logoOpacity.value,
